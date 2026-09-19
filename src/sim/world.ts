@@ -37,7 +37,7 @@ export class Sim {
   private readonly world: RAPIER.World;
   private readonly events = new RAPIER.EventQueue(true);
   private readonly balls = new Map<number, RAPIER.RigidBody>();
-  private readonly ballMeta = new Map<number, { radius: number; tag?: string; collider: number; still: number; nudges: number; pull: number; minY: number; stale: number; born: number }>();
+  private readonly ballMeta = new Map<number, { radius: number; tag?: string; collider: number; still: number; nudges: number; pull: number; pullSuspend: number; minY: number; stale: number; born: number }>();
   private readonly colliderToBall = new Map<number, number>();
   private readonly colliderToPeg = new Map<number, number>();
   private readonly pegColliders: RAPIER.Collider[] = [];
@@ -195,7 +195,7 @@ export class Sim {
     );
     const id = this.nextBallId++;
     this.balls.set(id, body);
-    this.ballMeta.set(id, { radius, tag: spawn.tag, collider: col.handle, still: 0, nudges: 0, pull: spawn.pull ?? 0, minY: Number.POSITIVE_INFINITY, stale: 0, born: this.tick });
+    this.ballMeta.set(id, { radius, tag: spawn.tag, collider: col.handle, still: 0, nudges: 0, pull: spawn.pull ?? 0, pullSuspend: 0, minY: Number.POSITIVE_INFINITY, stale: 0, born: this.tick });
     this.colliderToBall.set(col.handle, id);
     return id;
   }
@@ -349,8 +349,16 @@ export class Sim {
       const meta = this.ballMeta.get(id);
       const pull = (meta?.pull ?? 0) + this.globalPull;
       if (!meta || pull === 0) continue;
+      if (meta.pullSuspend > 0) {
+        meta.pullSuspend--;
+        continue;
+      }
+      // A resting ball must not be pinned onto a peg by the pull: let it roll off.
+      const v = body.linvel();
+      if (v.x * v.x + v.y * v.y < 0.16) continue;
       const x = body.translation().x;
-      const dir = x > 0.05 ? -1 : x < -0.05 ? 1 : 0;
+      // Dead zone around the centre column so the ball drops between pegs.
+      const dir = x > 0.35 ? -1 : x < -0.35 ? 1 : 0;
       if (dir === 0) continue;
       body.addForce({ x: dir * pull * body.mass() * g, y: 0 }, true);
     }
@@ -393,6 +401,8 @@ export class Sim {
         continue;
       }
       meta.nudges++;
+      // Give the nudge a chance to work before any pull drags the ball back.
+      meta.pullSuspend = 90;
       const dir = this.streams.fx.next() < 0.5 ? -1 : 1;
       body.applyImpulse({ x: dir * 0.6 * body.mass(), y: 1.5 * body.mass() }, true);
     }

@@ -6,4 +6,4 @@
  * on a different version the score is stored *unverified* rather than
  * rejected: a deploy mid-run must never eat a real run.
  */
-export const RULES_VERSION = 4;
+export const RULES_VERSION = 5; // 5: magnet pull dead zone / rest skip

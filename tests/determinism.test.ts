@@ -90,6 +90,20 @@ describe("simulation determinism", () => {
     expect(sim.bucketAt(2.9)).toBe(6);
   });
 
+  it("magnet balls never park on the centre column", async () => {
+    const sim = await Sim.create({ seed: "magnet-park" });
+    sims.push(sim);
+    for (let i = 0; i < 12; i++) sim.spawnBall({ x: -2.6 + i * 0.47, pull: 0.55, tag: "magnet" });
+    let lost = 0;
+    let firstLostTick = -1;
+    for (let t = 0; t < 4800 && lost < 12; t++) {
+      for (const e of sim.step()) if (e.type === "ballLost") { lost++; if (firstLostTick < 0) firstLostTick = t; }
+    }
+    // All twelve out well before the 40 s age cap: none was pinned.
+    expect(lost).toBe(12);
+    expect(sim.tick).toBeLessThan(4800);
+  });
+
   it("builds the expected peg count", async () => {
     const sim = await Sim.create({ seed: "layout", pegRows: 4, pegCols: 5 });
     sims.push(sim);
