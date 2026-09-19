@@ -42,6 +42,7 @@ const CHARM_GLYPH: Record<CharmId, keyof typeof G> = {
   low_gravity: "arrow", ember_core: "flame", frost_bite: "snow", static_field: "bolt", conductor: "bolt",
   melting_point: "sun", tinder: "flame", elemental_surge: "sun", firestorm: "flame", deep_freeze: "snow",
   thunderhead: "bolt", solstice: "sun", drift: "wave", restless_board: "gear",
+  roulette: "dice", hot_pocket: "flame", groove: "arrow", jackpot_growth: "coin", pocket_lottery: "star", inversion: "split",
 };
 
 const FEAT_GLYPH: Record<FeatId, keyof typeof G> = {

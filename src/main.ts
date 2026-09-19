@@ -66,6 +66,7 @@ audio.enabled = params.get("mute") !== "1";
 view.elementOf = (id) => run.ballElements.get(id) ?? null;
 const ui = new GameUI((x, y) => view.project(x, y));
 ui.setPockets(run.sim.bucketCenters, run.pocketMultipliers());
+view.setPocketMults(run.pocketMultipliers(), run.lotteryPocketIndex);
 ui.onPick = (i) => {
   run.pick(i);
   ui.toasts(recordRunEnd(meta, run).filter((n) => n.kind !== "discover")); // charm discoveries → collection
@@ -100,6 +101,7 @@ async function newRun(nextSeed: string): Promise<void> {
   view.resetPegs();
   ui.resetRun();
   ui.setPockets(run.sim.bucketCenters, run.pocketMultipliers());
+  view.setPocketMults(run.pocketMultipliers(), run.lotteryPocketIndex);
   ui.updateCharms(run);
   prev = curr = run.sim.snapshot();
   stepper.reset();
@@ -234,6 +236,10 @@ function simStep(): void {
         break;
       case "pegElement":
         view.setPegElement(e.peg, e.el);
+        break;
+      case "pockets":
+        ui.updatePocketMults(e.mults, e.lottery);
+        view.setPocketMults(e.mults, e.lottery);
         break;
       case "charmExpired":
         ui.notice(`${e.id.replace(/_/g, " ").toUpperCase()} faded`);

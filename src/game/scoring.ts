@@ -28,5 +28,8 @@ export function ballScore(chips: number, mult: number, bucketMult: number): numb
  * richer, so the base is high and the growth gentle.
  */
 export function roundTarget(round: number): number {
-  return Math.floor(900 * Math.pow(1.62, round - 1));
+  // 1.62× through the "machine cleared" round, then 1.42× so endless play is
+  // a climb rather than a wall: r10 ≈ 53K, r12 ≈ 107K, r15 ≈ 306K.
+  const base = 900 * Math.pow(1.62, Math.min(round, 8) - 1);
+  return Math.floor(round <= 8 ? base : base * Math.pow(1.42, round - 8));
 }

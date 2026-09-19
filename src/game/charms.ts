@@ -117,6 +117,21 @@ export interface Charm {
   // --- board motion ---------------------------------------------------------
   /** Pegs drift sideways: amplitude in board units, period in seconds. */
   pegDrift?: { amplitude: number; period: number };
+
+  // --- pockets (the multiplier row) -----------------------------------------
+  /** Rotate the multiplier pattern by this many pockets after every landing. */
+  pocketRotate?: number;
+  /** +N to the pocket just landed in, for the round (cap `hotPocketCap`). */
+  hotPocket?: number;
+  hotPocketCap?: number;
+  /** Consecutive landings in one pocket: ball mult × (1 + streak × this). */
+  groove?: number;
+  /** Centre pocket +N per round cleared in this run. */
+  jackpotGrowth?: number;
+  /** One seeded pocket per round gets +N (shown highlighted). */
+  lottery?: number;
+  /** Reverse the pattern: edges become the jackpots. */
+  invertPockets?: boolean;
 }
 
 export type CharmId =
@@ -161,7 +176,14 @@ export type CharmId =
   | "solstice"
   // board motion
   | "drift"
-  | "restless_board";
+  | "restless_board"
+  // pockets
+  | "roulette"
+  | "hot_pocket"
+  | "groove"
+  | "jackpot_growth"
+  | "pocket_lottery"
+  | "inversion";
 
 function nearestUnlit(ctx: CharmCtx, from: Peg, n: number): Peg[] {
   return ctx.pegs
@@ -360,6 +382,14 @@ export const CHARMS: Record<CharmId, Charm> = {
   // --- board motion --------------------------------------------------------
   drift: { id: "drift", name: "Drift", desc: "For 1 round the pegs slide sideways, alternating rows in opposite directions.", rarity: "uncommon", duration: 1, pegDrift: { amplitude: 0.45, period: 3.2 } },
   restless_board: { id: "restless_board", name: "Restless Board", desc: "Pegs never quite sit still.", rarity: "rare", pegDrift: { amplitude: 0.14, period: 2.1 } },
+
+  // --- pockets -------------------------------------------------------------
+  roulette: { id: "roulette", name: "Roulette", desc: "The pocket multipliers rotate one slot after every landing.", rarity: "uncommon", pocketRotate: 1 },
+  hot_pocket: { id: "hot_pocket", name: "Hot Pocket", desc: "The pocket you land in gains +1 for the round (up to +5).", rarity: "common", hotPocket: 1, hotPocketCap: 5 },
+  groove: { id: "groove", name: "Groove", desc: "Land in the same pocket again: ×1.5 mult, then ×2, ×2.5…", rarity: "uncommon", groove: 0.5 },
+  jackpot_growth: { id: "jackpot_growth", name: "Jackpot Growth", desc: "Centre pocket +1 for every round you clear this run.", rarity: "rare", jackpotGrowth: 1 },
+  pocket_lottery: { id: "pocket_lottery", name: "Pocket Lottery", desc: "Each round one pocket is drawn and carries +3.", rarity: "common", lottery: 3 },
+  inversion: { id: "inversion", name: "Inversion", desc: "For 1 round the edges are the jackpots and the centre pays ×1.", rarity: "uncommon", duration: 1, invertPockets: true },
 };
 
 export const CHARM_IDS = Object.keys(CHARMS) as CharmId[];

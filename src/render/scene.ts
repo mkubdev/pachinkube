@@ -172,6 +172,7 @@ export class BoardRenderer {
   private readonly auraSeed: THREE.InstancedBufferAttribute;
   private pegStampAttr: THREE.InstancedBufferAttribute | null = null;
   private pegBase: Peg[] = [];
+  private readonly pocketStrips: THREE.Mesh[] = [];
   private time = 0;
   private shockwave: ShockWaveEffect;
   private readonly shockPos = new THREE.Vector3();
@@ -327,7 +328,22 @@ export class BoardRenderer {
       );
       m.position.set(-width / 2 + bw * (i + 0.5), 0.03, 0);
       this.scene.add(m);
+      this.pocketStrips.push(m);
     }
+  }
+
+  /** Pocket strips glow in proportion to their multiplier; the lottery pocket is gold. */
+  setPocketMults(mults: number[], lottery = -1): void {
+    const best = Math.max(...mults);
+    this.pocketStrips.forEach((strip, i) => {
+      const mat = strip.material as THREE.MeshStandardMaterial;
+      const m = mults[i] ?? 1;
+      const base = i === lottery ? 0xffd34d : m === best ? NEON_MAGENTA : NEON_CYAN;
+      mat.color.setHex(base);
+      mat.emissive.setHex(base);
+      mat.emissiveIntensity = 0.6 + Math.min(m, 12) * 0.28;
+      strip.scale.y = 1 + Math.min(m, 12) * 0.12;
+    });
   }
 
   setPegs(pegs: Peg[]): void {

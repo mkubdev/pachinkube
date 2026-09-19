@@ -6,7 +6,7 @@ rounds, ~20–30 minutes. Hosted on Vercel for a friend group, with a shared,
 **replay-verified** leaderboard.
 
 **Status: first playable.** Full loop — aim → drop → score → shop → next round →
-endless → submit — with 36 charms (incl. 4 temporary), 11 ball types, three
+endless → submit — with 44 charms (incl. 6 temporary), 11 ball types, three
 elements with reactions, combos, meta-progression, effects, audio, lofi radio,
 a Blender cabinet, and server-side score verification. Balance is probe-tuned.
 
@@ -58,6 +58,14 @@ alternating rows in opposite phase like a conveyor; *Restless Board* (rare,
 permanent) keeps a small drift on always. Motion is a pure function of the
 tick inside the sim, so replays still verify. **+1 ball every 5 rounds** keeps
 deep runs widening.
+
+**Pockets are alive.** Beyond the static bonuses (Golden Pocket, Jackpot Lens,
+Wide Net): *Hot Pocket* stacks +1 on the pocket you land in, *Roulette* rotates
+the whole row after every landing, *Groove* rewards landing in the same pocket
+twice (×1.5, ×2, …), *Jackpot Growth* adds +1 to the centre per round cleared,
+*Pocket Lottery* draws one starred pocket per round for +3, and *Inversion*
+(1 round) makes the edges the jackpots. Labels bump and strips brighten as the
+multipliers move.
 
 **Combos.** Peg hits closer than 0.6 s apart — across every ball in flight —
 chain into one combo. Every 10th hit is a milestone: **+1 mult to all balls in
@@ -125,8 +133,9 @@ in Node. That single constraint pays for:
   reproduce (HTTP 422). Verified runs get a ✓ on the board.
 - **Balance probe** — `BALANCE=1 npx vitest run tests/balance.probe.test.ts`
   plays 40 seeded runs with a dumb policy and writes per-round pass rates to
-  `.cache/balance.txt`. Targets in `scoring.ts` (`900 × 1.62^(r−1)`) were set
-  from it: currently 95/95/97/77/48/46/50/67 % pass by round, 2 wins in 40.
+  `.cache/balance.txt`. Targets in `scoring.ts` grow `1.62×` through round 8
+  then `1.42×` (r10 ≈ 53K, r12 ≈ 107K, r15 ≈ 306K) — the late bend came from a
+  real 140K run that still fell at round 10 under the old curve.
 
 Supporting rules: **fixed 120 Hz timestep** (`sim/loop.ts`, renderer
 interpolates), and **no `Math.random`** in `sim/` or `game/` — four named
@@ -143,7 +152,7 @@ npm run dev               # http://localhost:5173
 
 | Command | |
 |---|---|
-| `npm test` | 55 tests: RNG, sim, run, balls, passives, elements, meta, icons, replay, scores/meta API |
+| `npm test` | 64 tests: RNG, sim, run, balls, passives, elements, pockets, meta, icons, replay, scores/meta API |
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm run build` | production bundle to `dist/` |
 

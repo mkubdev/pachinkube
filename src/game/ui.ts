@@ -111,8 +111,20 @@ export class GameUI {
     }
   }
 
-  updatePocketMults(mults: number[]): void {
-    this.labels.forEach((el, i) => (el.textContent = formatMult(mults[i] ?? 1)));
+  updatePocketMults(mults: number[], lottery = -1): void {
+    // "Jackpot" styling follows the best pocket, wherever Roulette/Inversion put it.
+    const best = Math.max(...mults);
+    this.labels.forEach((el, i) => {
+      el.classList.toggle("jackpot", (mults[i] ?? 0) === best);
+      const next = formatMult(mults[i] ?? 1);
+      if (el.textContent !== next) {
+        el.textContent = next;
+        el.classList.remove("bump");
+        void el.offsetWidth;
+        el.classList.add("bump");
+      }
+      el.classList.toggle("lottery", i === lottery);
+    });
   }
 
   private layoutPockets(centers: number[]): void {

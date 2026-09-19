@@ -56,6 +56,8 @@ export type GameEvent =
   | { type: "element"; kind: Reaction["kind"] | "spread"; peg: number; x: number; y: number; el: Element; count: number; chips: number }
   /** A temporary charm ran out. */
   | { type: "charmExpired"; id: CharmId }
+  /** Pocket multipliers changed; `lottery` is the highlighted pocket or -1. */
+  | { type: "pockets"; mults: number[]; lottery: number }
   | { type: "pegsReset" }
   | { type: "ballScored"; ball: number; score: number; bucket: number; chips: number; mult: number }
   | { type: "roundEnd"; round: number; passed: boolean; roundScore: number; target: number }
@@ -104,6 +106,14 @@ export class Run {
   readonly ballElements = new Map<number, Element>();
   /** Round on which each temporary charm (by index in `charms`) expires. */
   private readonly charmExpires = new Map<number, number>();
+  // Dynamic pocket state (per round unless noted).
+  private pocketRotation = 0;
+  private pocketHot: number[] = [];
+  private lotteryPocket = -1;
+  private lastPocket = -1;
+  private pocketStreak = 0;
+  /** Rounds cleared this run: feeds Jackpot Growth. */
+  private clearedThisRun = 0;
 
   private readonly rounds: number;
   private readonly ballsPerRound: number;
@@ -140,14 +150,34 @@ export class Run {
     return this.bag[0];
   }
 
-  /** Pocket multipliers after charm bonuses, for UI and scoring. */
+  /** Pocket multipliers after charm bonuses and this round's dynamics, for UI and scoring. */
   pocketMultipliers(): number[] {
+    const n = this.bucketMults.length;
     const bonus = this.sumCharm((c) => c.bucketBonus ?? 0);
     const edge = this.sumCharm((c) => c.edgeBonus ?? 0);
+    const growth = this.sumCharm((c) => c.jackpotGrowth ?? 0) * this.clearedThisRun;
     const jackpot = this.charms.reduce((f, id) => f * (CHARMS[id].jackpotFactor ?? 1), 1);
-    const last = this.bucketMults.length - 1;
+    const invert = this.charms.some((id) => CHARMS[id].invertPockets);
+    const last = n - 1;
     const mid = last / 2;
-    return this.bucketMults.map((m, i) => (m + bonus + (i === 0 || i === last ? edge : 0)) * (i === mid ? jackpot : 1));
+    // Base pattern, optionally inverted (edges ↔ centre), then rotated.
+    let pattern = invert ? this.bucketMults.map((m) => 6 - m) : [...this.bucketMults];
+    if (this.pocketRotation) pattern = pattern.map((_, i) => pattern[(i - this.pocketRotation + n * 1000) % n]!);
+    return pattern.map((m, i) => {
+      const isEdge = i === 0 || i === last;
+      const isMid = i === mid;
+      const hot = this.pocketHot[i] ?? 0;
+      const lotto = i === this.lotteryPocket ? this.sumCharm((c) => c.lottery ?? 0) : 0;
+      return (m + bonus + (isEdge ? edge : 0) + (isMid ? growth : 0) + hot + lotto) * (isMid ? jackpot : 1);
+    });
+  }
+
+  get lotteryPocketIndex(): number {
+    return this.lotteryPocket;
+  }
+
+  private emitPockets(out: GameEvent[]): void {
+    out.push({ type: "pockets", mults: this.pocketMultipliers(), lottery: this.lotteryPocket });
   }
 
   comboWindow(): number {
@@ -286,6 +316,13 @@ export class Run {
     this.sim.resetPegRestitution();
     const pending: GameEvent[] = [];
     for (const id of this.expireCharms()) pending.push({ type: "charmExpired", id });
+    // Pocket dynamics reset each round; the lottery pocket is drawn from the shop stream.
+    this.pocketRotation = 0;
+    this.pocketHot = new Array<number>(this.sim.config.buckets).fill(0);
+    this.lastPocket = -1;
+    this.pocketStreak = 0;
+    this.lotteryPocket = this.charms.some((id) => CHARMS[id].lottery) ? this.sim.streams.shop.int(0, this.sim.config.buckets - 1) : -1;
+    this.emitPockets(pending);
     // Frost: freeze N pegs chosen by the layout stream, thickest at the top.
     const frozen = this.sumCharm((c) => c.frozenAtStart ?? 0);
     if (frozen > 0) {
@@ -328,6 +365,7 @@ export class Run {
       return;
     }
     out.push({ type: "roundEnd", round: this.round, passed, roundScore: this.roundScore, target: this.target });
+    if (passed) this.clearedThisRun++;
     if (passed && this.round >= CLEAR_ROUND && !this.cleared) {
       this.cleared = true;
       out.push({ type: "cleared", round: this.round });
@@ -500,6 +538,12 @@ export class Run {
       ctx.mulMult(sharp, "bullseye");
       ctx.fx("bullseye", cxLand, 0.8, 1);
     }
+    // Groove: consecutive landings in the same pocket build a streak.
+    const groove = this.sumCharm((c) => c.groove ?? 0);
+    if (ev.bucket >= 0 && ev.bucket === this.lastPocket) this.pocketStreak++;
+    else this.pocketStreak = 0;
+    if (groove > 0 && this.pocketStreak > 0) ctx.mulMult(1 + this.pocketStreak * groove, "groove");
+    this.lastPocket = ev.bucket;
 
     let scored = true;
     for (const id of this.charms) {
@@ -515,6 +559,23 @@ export class Run {
     this.totalScore += score;
     const cx = this.sim.bucketCenters[ev.bucket] ?? 0;
     out.push({ type: "ballScored", ball: ev.ball, score, bucket: ev.bucket, chips: ball.chips, mult: ball.mult });
+    // Pocket dynamics after the landing: hot pockets and roulette.
+    let changed = false;
+    const hot = this.sumCharm((c) => c.hotPocket ?? 0);
+    if (hot > 0 && ev.bucket >= 0) {
+      const cap = Math.max(...this.charms.map((id) => CHARMS[id].hotPocketCap ?? 0), 0);
+      const cur = this.pocketHot[ev.bucket] ?? 0;
+      if (cur < cap) {
+        this.pocketHot[ev.bucket] = Math.min(cap, cur + hot);
+        changed = true;
+      }
+    }
+    const rot = this.sumCharm((c) => c.pocketRotate ?? 0);
+    if (rot > 0) {
+      this.pocketRotation = (this.pocketRotation + rot) % this.sim.config.buckets;
+      changed = true;
+    }
+    if (changed) this.emitPockets(out);
     void cx;
     if (score > 0) out.push({ type: "shake", strength: Math.min(1, Math.log10(score + 1) / 6) });
   }

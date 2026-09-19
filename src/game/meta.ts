@@ -97,6 +97,9 @@ export const UNLOCK_RULES: UnlockRule[] = [
   { kind: "charm", id: "solstice", stat: "bestRound", value: 7, hint: "Reach round 7" },
   { kind: "charm", id: "thunderhead", stat: "reactions", value: 40, hint: "Trigger 40 elemental reactions" },
   { kind: "charm", id: "drift", stat: "bestRound", value: 4, hint: "Reach round 4" },
+  { kind: "charm", id: "roulette", stat: "jackpots", value: 15, hint: "Land 15 balls in the centre pocket" },
+  { kind: "charm", id: "jackpot_growth", stat: "bestRound", value: 8, hint: "Reach round 8" },
+  { kind: "charm", id: "inversion", stat: "roundsCleared", value: 12, hint: "Clear 12 rounds (lifetime)" },
   { kind: "charm", id: "restless_board", stat: "roundsCleared", value: 20, hint: "Clear 20 rounds (lifetime)" },
 ];
 
