@@ -46,6 +46,8 @@ export class GameUI {
   authAvailable = true;
   signInUrl = "/api/auth/signin";
   onMusic: (() => void) | null = null;
+  /** "Reset my collection" in the collection panel (confirmed by the player). */
+  onResetMeta: (() => Promise<void>) | null = null;
   onStation: ((id: string) => void) | null = null;
   onVolume: ((v: number) => void) | null = null;
   private runDiscoveries: MetaNotice[] = [];
@@ -265,13 +267,20 @@ export class GameUI {
     const unlockedCount = UNLOCK_RULES.filter((r) => isUnlocked(meta, r.kind, r.id)).length;
     el.innerHTML = `
       <div class="panel wide">
-        <div class="row"><h2>Collection</h2><button id="collection-close">close</button></div>
+        <div class="row"><h2>Collection</h2><span class="row" style="gap:8px"><button id="collection-reset" class="danger" title="Start your collection over (scores are kept)">reset my collection</button><button id="collection-close">close</button></span></div>
         <p class="dim">${s.runs} runs · ${s.wins} wins · best ${formatScore(s.bestScore)} · best combo ${s.bestCombo} · ${unlockedCount}/${UNLOCK_RULES.length} unlocks · ${Object.keys(meta.feats).length}/${Object.keys(FEATS).length} discoveries</p>
         <h3>Balls</h3><div class="grid">${BALL_IDS.filter((b) => b !== "steel").map((b) => card("ball", b)).join("")}</div>
         <h3>Charms</h3><div class="grid">${CHARM_IDS.map((c) => card("charm", c)).join("")}</div>
         <h3>Discoveries</h3><div class="grid">${feats}</div>
       </div>`;
     el.querySelector("#collection-close")!.addEventListener("click", () => (el.hidden = true));
+    el.querySelector("#collection-reset")!.addEventListener("click", async () => {
+      if (!this.onResetMeta || !confirm("Reset your whole collection and stats? Your scores on the leaderboard stay.")) return;
+      await this.onResetMeta();
+      el.hidden = true;
+      this.toggleCollection(meta); // re-render from the (now fresh) profile
+      this.notice("COLLECTION RESET");
+    });
   }
 
   /** Dock account chip: sign-in link, or name + sign-out. Hidden when auth is off. */

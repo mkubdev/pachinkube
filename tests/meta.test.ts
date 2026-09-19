@@ -19,8 +19,8 @@ import {
   unlockedPool,
 } from "../src/game/meta.js";
 import { replay, validatePool } from "../src/game/replay.js";
-import { mergeMeta, validateMeta } from "../src/game/meta.js";
-import { handleMeta } from "../api/meta.js";
+import { mergeMeta, resetMeta, validateMeta } from "../src/game/meta.js";
+import { handleEpoch, handleMeta, handleWipe } from "../api/meta.js";
 
 const runs: Run[] = [];
 afterEach(() => {
@@ -128,19 +128,59 @@ describe("meta progression", () => {
   });
 
   it("the meta API merges per user and rejects garbage", async () => {
+    const epoch = ((await (await handleEpoch()).json()) as { epoch: number }).epoch;
     const a = emptyMeta();
     a.stats.wins = 2;
+    a.epoch = epoch;
     const r1 = await handleMeta("POST", { meta: a }, "user-1");
     expect(r1.status).toBe(200);
     const b = emptyMeta();
     b.stats.wins = 1;
     b.stats.runs = 5;
+    b.epoch = epoch;
     const r2 = await handleMeta("POST", { meta: b }, "user-1");
     const merged = ((await r2.json()) as { meta: MetaState }).meta;
     expect(merged.stats).toMatchObject({ wins: 2, runs: 5 });
+    expect(merged.epoch).toBe(epoch);
     const other = await handleMeta("GET", null, "user-2");
     expect(((await other.json()) as { meta: MetaState | null }).meta).toBeNull();
     expect((await handleMeta("POST", { meta: { nope: 1 } }, "user-1")).status).toBe(400);
+    // A profile that never synced (no epoch) cannot repopulate the store.
+    const stale = emptyMeta();
+    stale.stats.wins = 9;
+    const r3 = await handleMeta("POST", { meta: stale }, "user-3");
+    expect(r3.status).toBe(409);
+    expect(((await r3.json()) as { reset: boolean }).reset).toBe(true);
+    expect(((await (await handleMeta("GET", null, "user-3")).json()) as { meta: MetaState | null }).meta).toBeNull();
+  });
+
+  it("a wipe bumps the epoch: old profiles are refused, open tabs are told to reset", async () => {
+    const before = ((await (await handleEpoch()).json()) as { epoch: number }).epoch;
+    const a = emptyMeta();
+    a.stats.runs = 3;
+    a.epoch = before;
+    expect((await handleMeta("POST", { meta: a }, "wipe-user")).status).toBe(200);
+    const wiped = await handleWipe();
+    expect(wiped).toBeGreaterThanOrEqual(1);
+    const after = ((await (await handleEpoch()).json()) as { epoch: number }).epoch;
+    expect(after).toBe(before + 1);
+    expect(((await (await handleMeta("GET", null, "wipe-user")).json()) as { meta: MetaState | null }).meta).toBeNull();
+    // The tab that was open pushes its pre-wipe profile: refused, told to reset.
+    const r = await handleMeta("POST", { meta: a }, "wipe-user");
+    expect(r.status).toBe(409);
+    expect(await r.json()).toMatchObject({ reset: true, epoch: after });
+    // Client side: resetMeta starts over in place, keeping the caller's reference.
+    const ref = a;
+    resetMeta(a, after);
+    expect(ref.stats.runs).toBe(0);
+    expect(ref.epoch).toBe(after);
+    // Forget-me removes a single profile.
+    const b = emptyMeta();
+    b.epoch = after;
+    b.stats.runs = 1;
+    await handleMeta("POST", { meta: b }, "wipe-user");
+    expect((await handleMeta("DELETE", null, "wipe-user")).status).toBe(200);
+    expect(((await (await handleMeta("GET", null, "wipe-user")).json()) as { meta: MetaState | null }).meta).toBeNull();
   });
 
   it("the shop never offers locked content, and the pool is part of the replay", async () => {

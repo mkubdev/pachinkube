@@ -273,7 +273,15 @@ After that the dock shows **sign in**; signed-in players' collections sync via
 `/api/meta` and their leaderboard entries are keyed by Discord id and named by
 their Discord username.
 
-**Progression reset** (owner): `curl -X DELETE -H "authorization: Bearer $ADMIN_TOKEN" https://pachinkube.vercel.app/api/meta`
+**Progression reset** (owner): `curl -X DELETE -H "authorization: Bearer $ADMIN_TOKEN" https://pachinkube.vercel.app/api/meta`.
+This drops every server profile **and bumps the reset epoch**
+(`pachinkube:meta:epoch`). Every profile carries the epoch it was synced under;
+a client whose local profile has another epoch discards it on load, and a push
+with a stale epoch is refused (`409 { reset: true }`), which resets the open
+tab's profile in place. So the wipe reaches signed-out players and tabs that
+were open during it — no `META_VERSION` bump needed. Players can also reset
+just themselves from the collection panel (*reset my collection* →
+`DELETE /api/meta?me=1`). Scores are never touched by either.
 wipes every server profile; bump `META_VERSION` so browsers discard their local one too.
 
 **Leaderboard cleanup** (owner): set `ADMIN_TOKEN`, then

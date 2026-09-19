@@ -188,6 +188,10 @@ addEventListener("keydown", (e) => {
   if (e.code === "KeyM") music.toggle();
 });
 ui.onCollection = () => ui.toggleCollection(meta);
+ui.onResetMeta = () => metaStore.resetMine();
+// The server wiped progression while this tab was open: the profile object
+// was reset in place; tell the player and refresh what is on screen.
+metaStore.onReset = () => ui.notice("PROGRESSION RESET — fresh start");
 void getSession()
   .then((user) => {
     ui.accountName = user?.name ?? null;

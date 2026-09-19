@@ -20,6 +20,8 @@ describe("main.ts wiring", () => {
     expect(main).toMatch(/run\.totalScore > bestBefore/); // auto-submit when signed in
     expect(main).toMatch(/ui\.showSignInCallout\(\)/);
     expect(main).toMatch(/tainted \? \{\} : \{ log: run\.log, pool: run\.pool \}/);
+    expect(main).toMatch(/ui\.onResetMeta = \(\) => metaStore\.resetMine\(\)/);
+    expect(main).toMatch(/metaStore\.onReset = /);
   });
 
   it("handles every presentation-relevant game event", () => {

@@ -44,6 +44,13 @@ export interface MetaState {
   feats: Partial<Record<string, string>>; // feat id -> ISO date achieved
   /** Unlock ids already announced, so the toast fires once. */
   announced: string[];
+  /**
+   * Server reset generation. A progression wipe bumps the server's epoch;
+   * any profile carrying another epoch is discarded by the client and refused
+   * by the server, so a wipe reaches every device — including tabs that were
+   * open during it — without a version bump.
+   */
+  epoch?: number;
 }
 
 export function emptyMeta(): MetaState {
@@ -457,8 +464,16 @@ export function mergeMeta(a: MetaState, b: MetaState): MetaState {
     out.feats[id] = x && y ? (x < y ? x : y) : (x ?? y);
   }
   out.announced = [...new Set([...a.announced, ...b.announced])];
+  out.epoch = a.epoch ?? b.epoch;
   settleAnnouncements(out);
   return out;
+}
+
+/** Turn `meta` into a fresh profile in place (callers keep their reference). */
+export function resetMeta(meta: MetaState, epoch: number): MetaState {
+  const f = freshMeta(epoch);
+  for (const k of Object.keys(meta)) delete (meta as unknown as Record<string, unknown>)[k];
+  return Object.assign(meta, f);
 }
 
 /** Shape check for profiles arriving over the network. */
@@ -469,6 +484,7 @@ export function validateMeta(x: unknown): x is MetaState {
   for (const v of Object.values(m.stats)) if (typeof v !== "number" || !Number.isFinite(v) || v < 0) return false;
   if (!m.discovered || !Array.isArray(m.discovered.charms) || !Array.isArray(m.discovered.balls)) return false;
   if (typeof m.feats !== "object" || m.feats === null) return false;
+  if (m.epoch !== undefined && (typeof m.epoch !== "number" || !Number.isInteger(m.epoch) || m.epoch < 0)) return false;
   return true;
 }
 
@@ -512,8 +528,11 @@ export class LocalMetaStore implements MetaStore {
   }
 }
 
-function fresh(): MetaState {
+export function freshMeta(epoch?: number): MetaState {
   const m = emptyMeta();
+  if (epoch !== undefined) m.epoch = epoch;
   settleAnnouncements(m);
   return m;
 }
+
+const fresh = (): MetaState => freshMeta();
