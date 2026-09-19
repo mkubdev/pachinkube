@@ -125,6 +125,22 @@ Keys: **C** collection · **L** global scoreboard · **M** lofi girl radio
 `?auto=1`, `?pre=N` (pre-roll N ticks), `?charms=a,b` (start holding charms),
 `?mute=1`, `?collection=1`.
 
+## Phones
+
+The game is playable on a phone in portrait. Touch aims while the finger is
+down and drops where it lifts (a tap drops on the spot; a drag lines the shot
+up first), while the mouse keeps hover-to-aim / click-to-drop. Under 760px in
+portrait the side columns become bars: a compact HUD and the in-play strip on
+top, the charm strip under it, the dock along the bottom; `main.ts` measures
+those bars with a `ResizeObserver` and `BoardRenderer.setViewInsets` refits the
+camera so the board sits in the band between them (the in-play strip keeps a
+fixed height so the camera never jumps when balls land). Toasts go top-left
+and the combo counter top-right so neither covers the pockets. Overlays
+(shop, end screen, collection, scoreboard) go full-width and scroll; inputs are
+16px so iOS does not zoom. Pixel ratio is capped at 1.5 on coarse-pointer
+devices to keep bloom affordable. Landscape phones get the desktop layout with
+the bag/seed rows and the in-play panel hidden.
+
 ## Visual effects
 
 All presentation-only, driven by `GameEvent`s, pooled and pre-allocated
@@ -208,6 +224,11 @@ so no Vercel CLI is needed. Handlers use the Web `Request`/`Response` signature
 Vercel's Node runtime accepts, so the same files run in both places.
 
 ### Visual verification without a browser at hand
+
+Phone layouts: headless Edge clamps a window narrower than ~500 CSS px, so a
+`--window-size=390,800` capture lays out at ~500px and crops — everything looks
+cut off on the right. Use `--window-size=500,1000 --force-device-scale-factor=2`
+instead (renders `renders/mobile_*.png`); the compact layout applies below 760px.
 
 Windows Edge can screenshot the WSL dev server headlessly (WSL forwards localhost):
 

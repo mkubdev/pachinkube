@@ -39,6 +39,19 @@ describe("main.ts wiring", () => {
     }
   });
 
+  it("works on phones: touch aiming and bar-aware camera", () => {
+    expect(main).toMatch(/canvas\.addEventListener\("pointerdown"/);
+    expect(main).toMatch(/canvas\.addEventListener\("pointerup"/);
+    expect(main).toMatch(/canvas\.addEventListener\("pointercancel"/);
+    expect(main).toMatch(/setPointerCapture\(e\.pointerId\)/);
+    expect(main).toMatch(/view\.setViewInsets\(/);
+    expect(main).toMatch(/new ResizeObserver/);
+    const html = readFileSync("index.html", "utf8");
+    expect(html).toMatch(/viewport-fit=cover/);
+    expect(html).toMatch(/@media \(max-width: 760px\) and \(orientation: portrait\)/);
+    expect(html).toMatch(/touch-action: none/);
+  });
+
   it("keeps the renderer fed", () => {
     expect(main).toMatch(/view\.elementOf = /);
     expect(main).toMatch(/view\.setPegElement\(e\.peg, e\.el\)/);

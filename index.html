@@ -2,7 +2,10 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+    <meta name="theme-color" content="#07070c" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <title>PACHINKUBE</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -15,11 +18,11 @@
       :root { --display: "Orbitron", "Space Grotesk", sans-serif; --text: "Space Grotesk", system-ui, sans-serif; --mono: ui-monospace, SFMono-Regular, Menlo, monospace; }
       :root { color-scheme: dark; --magenta: #ff2d95; --cyan: #2de2ff; --gold: #ffd34d; --bg: #07070c; }
       * { margin: 0; padding: 0; box-sizing: border-box; }
-      html, body { height: 100%; background: var(--bg); overflow: hidden; }
-      body { font: 14px/1.45 var(--text); color: #c8d0d8; user-select: none; }
+      html, body { height: 100%; background: var(--bg); overflow: hidden; overscroll-behavior: none; }
+      body { font: 14px/1.45 var(--text); color: #c8d0d8; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; position: fixed; inset: 0; }
       code, .mono { font-family: var(--mono); font-size: 12px; }
       .display, #hud .title, #combo .n, #combo .l, .panel h2, .panel .score, #labels .pocket { font-family: var(--display); }
-      #game { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
+      #game { display: block; width: 100vw; height: 100vh; height: 100dvh; cursor: crosshair; touch-action: none; }
       #ui > * { position: fixed; }
       #left { top: 12px; left: 12px; width: min(340px, 30vw); min-width: 230px; display: flex; flex-direction: column; gap: 6px; pointer-events: none; }
       #hud { position: static; padding: 10px 14px; background: rgba(10,10,20,.78); border: 1px solid #2a2440; border-radius: 6px; }
@@ -195,6 +198,68 @@
       #signin-callout .x { background: rgba(10,10,20,.78); padding: 6px 9px; }
       #submit-msg.auto { color: #9aa4b0; margin: 8px 0; } #submit-msg.auto.ok { color: var(--cyan); }
       #board ol { margin: 6px 0 0 18px; } #board li { display: flex; justify-content: space-between; max-width: 360px; } #board h3 { color: #fff; margin-top: 8px; }
+
+      /* ---- Phones and small tablets: bars above and below, board in between.
+         main.ts measures the bars, sets --hud-bottom / --dock-h and refits the camera. */
+      @media (max-width: 760px) and (orientation: portrait) {
+        :root { --hud-bottom: 96px; --dock-h: 44px; }
+        #left { top: env(safe-area-inset-top, 0px); left: 0; right: 0; width: auto; min-width: 0; gap: 0; }
+        #hud { border-radius: 0; border-width: 0 0 1px; padding: 6px 10px; font-size: 12px; background: rgba(10,10,20,.9); }
+        #hud .title, #hud .bag, #hud .row:last-child { display: none; }
+        #hud .big { font-size: 15px; } #hud .bar { margin: 4px 0; }
+        #flight { border-radius: 0; border-width: 0 0 1px; padding: 3px 8px; display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; min-height: 26px; align-items: center; background: rgba(10,10,20,.9); }
+        #flight::-webkit-scrollbar { display: none; }
+        #flight[hidden] { display: flex; } /* fixed height: the camera must not jump when balls land */
+        #flight .fh { display: none; }
+        #flight .fb { display: inline-flex; grid-template-columns: none; gap: 4px; padding: 1px 6px; border: 1px solid #2a2440; border-radius: 10px; font-size: 11px; white-space: nowrap; flex: none; }
+        #flight .fb .nm { display: none; } #flight .fb .eq { font-size: 11px; }
+        #flight .fb.more { border: 0; }
+        #charms { top: calc(var(--hud-bottom) + 4px); left: 0; right: 0; width: auto; flex-direction: row; gap: 4px; padding: 0 6px; overflow-x: auto; scrollbar-width: none; pointer-events: auto; }
+        #charms::-webkit-scrollbar { display: none; }
+        .charm { padding: 3px 6px; flex: none; border-left-width: 2px; } .charm span:first-of-type { display: none; } .charm .left { font-size: 10px; }
+        /* Combo on the right, toasts on the left: they never fight for the centre. */
+        #combo { top: calc(var(--hud-bottom) + 40px); left: auto; right: 12px; transform: none; text-align: right; }
+        #combo .n { font-size: 44px; } #combo.t2 .n { font-size: 52px; } #combo.t3 .n { font-size: 60px; }
+        @keyframes comboPop { from { transform: scale(1.35); transform-origin: right top; } to { transform: scale(1); } }
+        @keyframes comboOut { to { opacity: 0; transform: translateY(-30px) scale(1.15); } }
+        .banner { font-size: clamp(22px, 9vw, 40px); letter-spacing: .08em; white-space: normal; text-align: center; width: 90vw; }
+        #dock { left: 0; right: 0; bottom: 0; justify-content: space-between; gap: 4px; padding: 6px 8px calc(6px + env(safe-area-inset-bottom, 0px)); background: rgba(10,10,20,.92); border-top: 1px solid #2a2440; }
+        #dock button, #dock .btn { font-size: 12px; padding: 7px 9px; }
+        #dock .who { display: none; }
+        #dock input[type=range] { width: 54px; }
+        #hint { display: none; }
+        /* Toasts: top-right under the charm strip, compact, never over the pockets. */
+        #toasts { left: 6px; right: auto; width: 56vw; top: calc(var(--hud-bottom) + 40px); bottom: auto; }
+        .toast { padding: 5px 8px; font-size: 12px; gap: 6px; } .toast .ic svg.px { width: 20px; height: 20px; }
+        .toast small { display: none; } .toast .head { font-size: 9px; }
+        .toast:nth-last-child(n+3) { display: none; } /* two at a time on a phone */
+        #stations { display: none; } #dock.music-on #stations { display: inline-flex; }
+        #signin-callout { left: 8px; right: 8px; bottom: calc(var(--dock-h) + 8px); }
+        #signin-callout .discord-cta { flex: 1; }
+        .popup.chips { font-size: 11px; } .popup.mult { font-size: 13px; } .popup.score { font-size: 17px; }
+        #labels .pocket { font-size: 10px; }
+        /* Overlays: full width, scroll inside, big enough to tap. */
+        #modal, #board-panel, #collection { place-items: start center; overflow: auto; padding: calc(8px + env(safe-area-inset-top, 0px)) 8px calc(8px + env(safe-area-inset-bottom, 0px)); }
+        .panel, .panel.wide, .panel.end { width: 100%; padding: 16px 14px; max-height: none; }
+        .panel .score { font-size: 32px; }
+        .panel.end { padding: 22px 14px 18px; } .panel.end .score { font-size: clamp(40px, 13vw, 56px); } .panel.end .stats { gap: 14px; }
+        .panel.end .stats b { font-size: 20px; }
+        .offers { grid-template-columns: 1fr; gap: 8px; }
+        .offer { padding: 10px 12px; display: grid; grid-template-columns: 44px 1fr; column-gap: 10px; align-items: center; }
+        .offer .tag { grid-column: 1 / -1; margin-bottom: 2px; } .offer .ic { grid-row: 2 / 4; margin: 0; } .offer b { margin: 0; } .offer p { font-size: 12px; }
+        .offer .ic svg.px { width: 40px; height: 40px; }
+        .grid { grid-template-columns: repeat(2, 1fr); gap: 6px; } .card { padding: 8px 10px; }
+        input { font-size: 16px; } /* iOS zooms into anything smaller */
+        button { padding: 10px 14px; }
+        form#submit { flex-wrap: wrap; } form#submit input { min-width: 0; flex: 1 1 160px; }
+        .discord-cta { padding: 10px 12px; } .discord-cta small { font-size: 11px; }
+        #reset-box .confirm { flex-wrap: wrap; }
+      }
+      @media (max-height: 460px) and (orientation: landscape) {
+        /* Landscape phone: the desktop side columns apply; trim what does not fit. */
+        #hud .bag, #hud .row:last-child, #hint { display: none; } #hud { padding: 6px 10px; font-size: 12px; }
+        #flight { display: none !important; }
+      }
     </style>
   </head>
   <body>

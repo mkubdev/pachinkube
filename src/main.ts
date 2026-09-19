@@ -168,11 +168,64 @@ function drop(): void {
   if (run.drop(aimX)) recordDrop(meta);
 }
 
-addEventListener("pointermove", (e) => {
+// Mouse: hover aims, click drops. Touch/pen: the finger aims while it is down
+// and the ball drops where it lifts, so a tap drops at the tap and a drag lets
+// you line the shot up first without the ball leaving on contact.
+let dragging = false;
+function aimAt(e: PointerEvent): void {
   aimX = view.boardXAt(e.clientX, e.clientY);
   view.setAim(run.phase === "drop" ? aimX : null);
+}
+addEventListener("pointermove", (e) => {
+  if (e.pointerType === "mouse" || dragging) aimAt(e);
 });
-canvas.addEventListener("pointerdown", drop);
+canvas.addEventListener("pointerdown", (e) => {
+  aimAt(e);
+  if (e.pointerType === "mouse") drop();
+  else {
+    dragging = true;
+    canvas.setPointerCapture(e.pointerId);
+  }
+});
+canvas.addEventListener("pointerup", (e) => {
+  if (!dragging) return;
+  dragging = false;
+  aimAt(e);
+  drop();
+});
+canvas.addEventListener("pointercancel", () => (dragging = false));
+
+// Phones stack the HUD above and the dock below the board: measure the bars
+// and let the camera fit the board into the band between them.
+const compactMq = matchMedia("(max-width: 760px) and (orientation: portrait)");
+function applyInsets(): void {
+  const rootStyle = document.documentElement.style;
+  if (!compactMq.matches) {
+    rootStyle.removeProperty("--hud-bottom");
+    rootStyle.removeProperty("--dock-h");
+    view.setViewInsets(0, 0, false);
+    ui.relayout();
+    return;
+  }
+  const rect = (sel: string): DOMRect => document.querySelector(sel)?.getBoundingClientRect() ?? new DOMRect();
+  const left = rect("#left");
+  const dock = rect("#dock");
+  rootStyle.setProperty("--hud-bottom", `${Math.round(left.bottom)}px`);
+  rootStyle.setProperty("--dock-h", `${Math.round(dock.height)}px`);
+  const charms = document.querySelector("#charms");
+  const charmsRect = charms && charms.childElementCount ? charms.getBoundingClientRect() : null;
+  const top = Math.max(left.bottom, charmsRect?.bottom ?? 0);
+  view.setViewInsets(top + 6, dock.height + 4, true);
+  ui.relayout();
+}
+const insetObserver = new ResizeObserver(() => applyInsets());
+for (const sel of ["#left", "#charms", "#dock"]) {
+  const el = document.querySelector(sel);
+  if (el) insetObserver.observe(el);
+}
+addEventListener("resize", applyInsets);
+compactMq.addEventListener("change", applyInsets);
+applyInsets();
 addEventListener("keydown", (e) => {
   // On the end screen, space/enter start the next run; the input field keeps its keys.
   const again = document.querySelector<HTMLButtonElement>("#modal:not([hidden]) #again");

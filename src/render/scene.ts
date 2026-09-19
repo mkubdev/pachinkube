@@ -225,12 +225,16 @@ export class BoardRenderer {
   private readonly ray = new THREE.Raycaster();
   private readonly boardPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
   private readonly camBase = new THREE.Vector3();
+  /** Screen space taken by fixed UI bars (px); the board is fitted into what is left. */
+  private insets = { top: 0, bottom: 0, compact: false };
   private shake = 0;
   private readonly tmp = new THREE.Vector3();
 
   constructor(canvas: HTMLCanvasElement, private readonly board: BoardDims) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: "high-performance" });
-    this.renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    // Phones: bloom + chroma at 3× DPR is too much for a mobile GPU; 1.5 is plenty on a 6" screen.
+    const coarse = typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches;
+    this.renderer.setPixelRatio(Math.min(devicePixelRatio, coarse ? 1.5 : 2));
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.1;
 
@@ -746,19 +750,37 @@ export class BoardRenderer {
     this.composer.render(dt);
   }
 
+  /**
+   * Tell the camera how much of the screen the HUD bars cover (phones stack
+   * them above and below the board). `compact` trims the side/launch margins.
+   */
+  setViewInsets(top: number, bottom: number, compact: boolean): void {
+    if (this.insets.top === top && this.insets.bottom === bottom && this.insets.compact === compact) return;
+    this.insets = { top, bottom, compact };
+    this.resize();
+  }
+
   private resize(): void {
     const w = innerWidth;
     const h = innerHeight;
     this.renderer.setSize(w, h, false);
     this.composer.setSize(w, h);
     this.camera.aspect = w / h;
-    // Fit the whole board (plus the launch area) regardless of aspect.
-    const fovRad = THREE.MathUtils.degToRad(this.camera.fov);
-    const need = (this.board.height + 3.4) / 2 / Math.tan(fovRad / 2);
-    const needW = (this.board.width + 2.6) / 2 / Math.tan(fovRad / 2) / this.camera.aspect;
-    this.camBase.set(0, this.board.height / 2 + 0.3, Math.max(need, needW));
+    // Fit the whole board (plus the launch area) into the screen minus the UI
+    // bars, whatever the aspect, and centre it in that band.
+    const { top, bottom, compact } = this.insets;
+    const usable = Math.max(120, h - top - bottom);
+    const tan = Math.tan(THREE.MathUtils.degToRad(this.camera.fov) / 2);
+    const marginH = compact ? 2.8 : 3.4; // launch area above (≥1.5) + pockets below (≥0.8)
+    const marginW = compact ? 1.0 : 2.6;
+    const needH = (this.board.height + marginH) / 2 / tan / (usable / h);
+    const needW = (this.board.width + marginW) / 2 / tan / this.camera.aspect;
+    const d = Math.max(needH, needW);
+    const worldPerPx = (2 * d * tan) / h;
+    const cy = this.board.height / 2 + 0.3 + ((top - bottom) / 2) * worldPerPx;
+    this.camBase.set(0, cy, d);
     this.camera.position.copy(this.camBase);
-    this.camera.lookAt(0, this.board.height / 2 + 0.3, 0);
+    this.camera.lookAt(0, cy, 0);
     this.camera.updateProjectionMatrix();
   }
 }

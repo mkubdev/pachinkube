@@ -120,6 +120,11 @@ export class GameUI {
     }
   }
 
+  /** Re-project DOM elements pinned to board space (after the camera refits). */
+  relayout(): void {
+    this.layoutPockets(this.pocketCenters);
+  }
+
   updatePocketMults(mults: number[], lottery = -1): void {
     // "Jackpot" styling follows the best pocket, wherever Roulette/Inversion put it.
     const best = Math.max(...mults);
