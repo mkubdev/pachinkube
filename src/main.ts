@@ -145,7 +145,10 @@ addEventListener("keydown", (e) => {
 });
 ui.onCollection = () => ui.toggleCollection(meta);
 void getSession()
-  .then((user) => ui.setAccount(user ? { name: user.name ?? "player", signOut: signOutUrl } : { signIn: signInUrl }))
+  .then((user) => {
+    ui.accountName = user?.name ?? null;
+    ui.setAccount(user ? { name: user.name ?? "player", signOut: signOutUrl } : { signIn: signInUrl });
+  })
   .catch(() => ui.setAccount(null));
 ui.onBoard = () => void ui.toggleBoard();
 ui.onMusic = () => music.toggle();

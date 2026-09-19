@@ -83,7 +83,8 @@
       input { flex: 1; padding: 8px 10px; background: #12121f; border: 1px solid #2a2440; border-radius: 6px; color: #fff; font: inherit; }
       button { padding: 8px 14px; background: #1a1a2c; border: 1px solid #2a2440; border-radius: 6px; color: #fff; font: inherit; cursor: pointer; }
       button.primary { background: var(--magenta); border-color: var(--magenta); color: #000; font-weight: 700; margin-top: 12px; }
-      #board i.ok { color: var(--cyan); font-style: normal; }
+      #board i.ok { color: var(--cyan); font-style: normal; } #board i.dc { color: var(--magenta); font-style: normal; }
+      form#submit .who { flex: 1; align-self: center; color: #9aa4b0; } form#submit .who b { color: var(--cyan); }
       #toasts { right: 12px; bottom: 44px; display: flex; flex-direction: column; gap: 6px; pointer-events: none; width: 260px; }
       .toast { padding: 8px 12px; background: rgba(10,10,20,.9); border: 1px solid #2a2440; border-left: 3px solid var(--cyan); border-radius: 6px; animation: toastIn .25s ease-out both; }
       .toast.unlock { border-left-color: var(--magenta); } .toast.feat { border-left-color: var(--gold); }

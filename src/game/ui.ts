@@ -34,6 +34,8 @@ export class GameUI {
   onSubmit: ((name: string) => Promise<string>) | null = null;
   onCollection: (() => void) | null = null;
   onBoard: (() => void) | null = null;
+  /** Signed-in Discord name; when set the end screen does not ask for a name. */
+  accountName: string | null = null;
   onMusic: (() => void) | null = null;
   onStation: ((id: string) => void) | null = null;
   onVolume: ((v: number) => void) | null = null;
@@ -406,7 +408,11 @@ export class GameUI {
         <h2>${phase === "won" ? "Machine cleared" : run.cleared ? "Deep run over" : "Run over"}</h2>
         <p class="score display">${formatScore(run.totalScore)}</p>
         <p class="dim">${phase === "won" ? "Every round beaten." : `Fell at round ${run.round} — ${formatScore(run.roundScore)} of ${formatScore(run.target)}.${run.cleared ? " Machine cleared on the way." : ""}`}</p>
-        <form id="submit"><input name="name" maxlength="24" placeholder="your name" required /><button type="submit">submit score</button></form>
+        <form id="submit">${
+          this.accountName
+            ? `<span class="who">as <b>${escapeHtml(this.accountName)}</b></span>`
+            : `<input name="name" maxlength="24" placeholder="your name" required />`
+        }<button type="submit">submit score</button></form>
         <p id="submit-msg" class="dim"></p>
         <div id="run-discoveries" class="dim"></div>
         <div id="board" class="dim">loading leaderboard…</div>
@@ -416,7 +422,7 @@ export class GameUI {
     const form = this.modal.querySelector<HTMLFormElement>("#submit")!;
     form.addEventListener("submit", async (ev) => {
       ev.preventDefault();
-      const name = (new FormData(form).get("name") as string).trim();
+      const name = this.accountName ?? ((new FormData(form).get("name") as string) ?? "").trim();
       const msg = this.modal.querySelector("#submit-msg")!;
       msg.textContent = "…";
       msg.textContent = (await this.onSubmit?.(name)) ?? "";
@@ -431,7 +437,7 @@ export class GameUI {
     try {
       const res = await fetch("/api/scores");
       const data = (await res.json()) as {
-        top: Array<{ name: string; score: number; verified?: boolean }>;
+        top: Array<{ name: string; score: number; verified?: boolean; discord?: boolean }>;
         storage: string;
       };
       box.innerHTML =
@@ -440,7 +446,7 @@ export class GameUI {
           ? `<ol>${data.top
               .map(
                 (r) =>
-                  `<li><span>${escapeHtml(r.name)}${r.verified ? ' <i class="ok" title="replay verified">✓</i>' : ""}</span><span>${formatScore(r.score)}</span></li>`,
+                  `<li><span>${r.discord ? '<i class="dc" title="Discord account">⌁</i> ' : ""}${escapeHtml(r.name)}${r.verified ? ' <i class="ok" title="replay verified">✓</i>' : ""}</span><span>${formatScore(r.score)}</span></li>`,
               )
               .join("")}</ol>`
           : `<p>nobody yet</p>`);

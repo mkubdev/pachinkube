@@ -13,6 +13,7 @@ import { Redis } from "@upstash/redis";
 import { replay, validateLog, validatePool } from "../src/game/replay.js";
 import type { RunInput } from "../src/game/run.js";
 import type { Pool } from "../src/game/meta.js";
+import { getSessionUser } from "../src/server/auth.js";
 
 const KEY = "pachinkube:scores:v1";
 const TOP_N = 20;
@@ -27,7 +28,16 @@ interface RunSubmission {
 interface RunRecord extends RunSubmission {
   at: string;
   verified: boolean;
+  /** Set when the run was submitted by a signed-in Discord user. */
+  discordId?: string;
 }
+
+/**
+ * Sorted-set member: signed-in players are keyed by Discord id so a rename
+ * keeps one row; anonymous players are keyed by the typed name.
+ */
+const memberFor = (run: RunRecord): string => (run.discordId ? `d:${run.discordId}` : run.name);
+const isDiscordMember = (m: string): boolean => m.startsWith("d:");
 
 const json = (data: unknown, status = 200): Response =>
   new Response(JSON.stringify(data), {
@@ -37,10 +47,17 @@ const json = (data: unknown, status = 200): Response =>
 
 // --- storage -----------------------------------------------------------------
 
+export interface BoardRow {
+  name: string;
+  score: number;
+  verified?: boolean;
+  discord?: boolean;
+}
+
 interface Store {
-  top(n: number): Promise<Array<{ name: string; score: number; verified?: boolean }>>;
+  top(n: number): Promise<BoardRow[]>;
   submit(run: RunRecord): Promise<{ improved: boolean }>;
-  detail(name: string): Promise<RunRecord | null>;
+  detail(member: string): Promise<RunRecord | null>;
 }
 
 function redisStore(): Store | null {
@@ -53,26 +70,29 @@ function redisStore(): Store | null {
   return {
     async top(n) {
       const flat = await redis.zrange<string[]>(KEY, 0, n - 1, { rev: true, withScores: true });
-      const out: Array<{ name: string; score: number; verified?: boolean }> = [];
-      for (let i = 0; i < flat.length; i += 2) out.push({ name: String(flat[i]), score: Number(flat[i + 1]) });
-      if (out.length) {
-        const runs = await redis.hmget<Record<string, string | RunRecord>>(`${KEY}:runs`, ...out.map((o) => o.name));
-        for (const o of out) {
-          const rec = parseRecord(runs?.[o.name]);
-          if (rec) o.verified = rec.verified;
-        }
-      }
-      return out;
+      const members: Array<{ member: string; score: number }> = [];
+      for (let i = 0; i < flat.length; i += 2) members.push({ member: String(flat[i]), score: Number(flat[i + 1]) });
+      if (!members.length) return [];
+      const runs = await redis.hmget<Record<string, string | RunRecord>>(`${KEY}:runs`, ...members.map((m) => m.member));
+      return members.map(({ member, score }) => {
+        const rec = parseRecord(runs?.[member]);
+        return { name: rec?.name ?? member, score, verified: rec?.verified, discord: isDiscordMember(member) };
+      });
     },
     async submit(run) {
-      const before = await redis.zscore(KEY, run.name);
-      await redis.zadd(KEY, { gt: true }, { score: run.score, member: run.name });
+      const member = memberFor(run);
+      const before = await redis.zscore(KEY, member);
+      await redis.zadd(KEY, { gt: true }, { score: run.score, member });
       const improved = before === null || run.score > Number(before);
-      if (improved) await redis.hset(`${KEY}:runs`, { [run.name]: JSON.stringify(run) });
+      // Always refresh the record for signed-in players so a Discord rename shows.
+      if (improved || run.discordId) {
+        const stored = improved ? run : { ...(parseRecord(await redis.hget(`${KEY}:runs`, member)) ?? run), name: run.name };
+        await redis.hset(`${KEY}:runs`, { [member]: JSON.stringify(stored) });
+      }
       return { improved };
     },
-    async detail(name) {
-      return parseRecord(await redis.hget<string | RunRecord>(`${KEY}:runs`, name));
+    async detail(member) {
+      return parseRecord(await redis.hget<string | RunRecord>(`${KEY}:runs`, member));
     },
   };
 }
@@ -86,19 +106,21 @@ function parseRecord(raw: string | RunRecord | null | undefined): RunRecord | nu
 const memory = new Map<string, RunRecord>();
 const memoryStore: Store = {
   async top(n) {
-    return [...memory.values()]
-      .sort((a, b) => b.score - a.score)
+    return [...memory.entries()]
+      .sort((a, b) => b[1].score - a[1].score)
       .slice(0, n)
-      .map(({ name, score, verified }) => ({ name, score, verified }));
+      .map(([member, { name, score, verified }]) => ({ name, score, verified, discord: isDiscordMember(member) }));
   },
   async submit(run) {
-    const prev = memory.get(run.name);
+    const member = memberFor(run);
+    const prev = memory.get(member);
     const improved = !prev || run.score > prev.score;
-    if (improved) memory.set(run.name, run);
+    if (improved) memory.set(member, run);
+    else if (prev && run.discordId) memory.set(member, { ...prev, name: run.name });
     return { improved };
   },
-  async detail(name) {
-    return memory.get(name) ?? null;
+  async detail(member) {
+    return memory.get(member) ?? null;
   },
 };
 
@@ -107,12 +129,13 @@ export const usingRedis = store !== memoryStore;
 
 // --- validation ----------------------------------------------------------------
 
-function parseSubmission(body: unknown): (RunSubmission & { log?: RunInput[]; pool?: Pool }) | string {
+function parseSubmission(body: unknown, sessionName?: string): (RunSubmission & { log?: RunInput[]; pool?: Pool }) | string {
   if (typeof body !== "object" || body === null) return "body must be an object";
   const b = body as Record<string, unknown>;
-  const name = typeof b.name === "string" ? b.name.trim() : "";
+  // Signed in: the Discord username is the name, whatever the client sent.
+  const name = sessionName ? sessionName.slice(0, 24) : typeof b.name === "string" ? b.name.trim() : "";
   if (name.length < 1 || name.length > 24) return "name must be 1-24 chars";
-  if (!/^[\p{L}\p{N} _.-]+$/u.test(name)) return "name has invalid characters";
+  if (!sessionName && !/^[\p{L}\p{N} _.-]+$/u.test(name)) return "name has invalid characters";
   const score = Number(b.score);
   if (!Number.isFinite(score) || score < 0) return "score must be a non-negative number";
   const seed = typeof b.seed === "string" ? b.seed : "";
@@ -142,7 +165,14 @@ export async function POST(req: Request): Promise<Response> {
   } catch {
     return json({ error: "invalid JSON" }, 400);
   }
-  const parsed = parseSubmission(body);
+  // Null when signed out or auth is not configured: anonymous submission.
+  const user = await getSessionUser(req).catch(() => null);
+  return submitScore(body, user ? { discordId: user.discordId, name: user.name ?? `discord-${user.discordId.slice(-4)}` } : null);
+}
+
+/** Testable core of POST: `user` is the resolved session, if any. */
+export async function submitScore(body: unknown, user: { discordId: string; name: string } | null): Promise<Response> {
+  const parsed = parseSubmission(body, user?.name);
   if (typeof parsed === "string") return json({ error: parsed }, 400);
   const { log, pool, ...run } = parsed;
   let verified = false;
@@ -154,6 +184,6 @@ export async function POST(req: Request): Promise<Response> {
     }
     verified = true;
   }
-  const result = await store.submit({ ...run, verified, at: new Date().toISOString() });
-  return json({ ok: true, verified, ...result }, 201);
+  const result = await store.submit({ ...run, verified, at: new Date().toISOString(), discordId: user?.discordId });
+  return json({ ok: true, verified, name: run.name, ...result }, 201);
 }
