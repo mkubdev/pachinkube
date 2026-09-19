@@ -39,6 +39,7 @@ export class Sim {
   private readonly ballMeta = new Map<number, { radius: number; tag?: string; collider: number; still: number; nudges: number; pull: number }>();
   private readonly colliderToBall = new Map<number, number>();
   private readonly colliderToPeg = new Map<number, number>();
+  private readonly pegColliders: RAPIER.Collider[] = [];
   private readonly bucketSensors = new Map<number, number>();
   private wallHandles = new Set<number>();
   private nextBallId = 1;
@@ -139,6 +140,7 @@ export class Sim {
         );
         this.pegs.push({ id, x, y, radius: pegRadius });
         this.colliderToPeg.set(col.handle, id);
+        this.pegColliders.push(col);
         id++;
       }
     }
@@ -280,6 +282,15 @@ export class Sim {
       body.applyImpulse({ x: dir * 0.6 * body.mass(), y: 1.5 * body.mass() }, true);
     }
     return forced;
+  }
+
+  /** Change how bouncy one peg is (elements: frozen pegs are glassy). */
+  setPegRestitution(peg: number, restitution: number): void {
+    this.pegColliders[peg]?.setRestitution(restitution);
+  }
+
+  resetPegRestitution(): void {
+    for (const c of this.pegColliders) c.setRestitution(this.config.restitution);
   }
 
   /** Pocket index under board x. */

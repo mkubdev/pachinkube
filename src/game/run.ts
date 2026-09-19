@@ -20,6 +20,7 @@ import {
   type FxKind,
 } from "./charms.js";
 import { BASE_CHIPS_FRESH, BASE_CHIPS_REPEAT, ballScore, bucketMultipliers, roundTarget } from "./scoring.js";
+import { ICE_RESTITUTION, react, type Element, type PegElementState, type Reaction } from "./elements.js";
 
 /** Runs are endless: targets keep climbing until you miss one. Round 8 is the
  *  "machine cleared" milestone, not the end. Tests pass a finite `rounds`. */
@@ -49,6 +50,12 @@ export type GameEvent =
   | { type: "retry"; round: number; left: number }
   /** The machine-cleared milestone (round CLEAR_ROUND beaten); the run goes on. */
   | { type: "cleared"; round: number }
+  /** A peg's element changed (null = cleared). */
+  | { type: "pegElement"; peg: number; el: Element | null }
+  /** An elemental reaction resolved at a peg; `count` = pegs involved. */
+  | { type: "element"; kind: Reaction["kind"] | "spread"; peg: number; x: number; y: number; el: Element; count: number; chips: number }
+  /** A temporary charm ran out. */
+  | { type: "charmExpired"; id: CharmId }
   | { type: "pegsReset" }
   | { type: "ballScored"; ball: number; score: number; bucket: number; chips: number; mult: number }
   | { type: "roundEnd"; round: number; passed: boolean; roundScore: number; target: number }
@@ -91,6 +98,12 @@ export class Run {
   private retriesUsed = 0;
   /** Per-ball extras the charms/traits need at landing time. */
   private readonly ballExtra = new Map<number, { aimBucket: number; finale: boolean }>();
+  /** Element state per peg for the current round. */
+  readonly pegElements = new Map<number, PegElementState>();
+  /** Element carried by each ball in flight (renderer reads this for auras). */
+  readonly ballElements = new Map<number, Element>();
+  /** Round on which each temporary charm (by index in `charms`) expires. */
+  private readonly charmExpires = new Map<number, number>();
 
   private readonly rounds: number;
   private readonly ballsPerRound: number;
@@ -182,6 +195,9 @@ export class Run {
     this.log.push({ tick: this.sim.tick, action: { type: "pick", index } });
     if (offer.kind === "charm") {
       this.charms.push(offer.id);
+      const dur = CHARMS[offer.id].duration;
+      // Acquired after round N ends: lasts rounds N+1 .. N+dur.
+      if (dur) this.charmExpires.set(this.charms.length - 1, this.round + dur);
       CHARMS[offer.id].onAcquire?.(this.ctxBase());
     } else {
       for (let i = 0; i < offer.count; i++) this.ownedBalls.push(offer.id);
@@ -198,6 +214,10 @@ export class Run {
   step(): GameEvent[] {
     const out: GameEvent[] = [];
     if (this.phase !== "drop") return out;
+    if (this.pendingRoundEvents.length) {
+      out.push(...this.pendingRoundEvents);
+      this.pendingRoundEvents = [];
+    }
     const events = this.sim.step();
     for (const ev of events) this.handle(ev, out);
 
@@ -211,10 +231,68 @@ export class Run {
 
   // --- internals -----------------------------------------------------------------
 
+  /** Remove temporary charms whose last round has passed. Returns their ids. */
+  private expireCharms(): CharmId[] {
+    const gone: CharmId[] = [];
+    for (let i = this.charms.length - 1; i >= 0; i--) {
+      const until = this.charmExpires.get(i);
+      if (until !== undefined && this.round > until) {
+        gone.push(this.charms[i]!);
+        this.charms.splice(i, 1);
+        this.charmExpires.delete(i);
+        // Re-key expiries above the removed index.
+        for (const [k, v] of [...this.charmExpires]) {
+          if (k > i) {
+            this.charmExpires.delete(k);
+            this.charmExpires.set(k - 1, v);
+          }
+        }
+      }
+    }
+    return gone;
+  }
+
+  /** Rounds left on a temporary charm (by index), or null if permanent. */
+  charmRoundsLeft(index: number): number | null {
+    const until = this.charmExpires.get(index);
+    return until === undefined ? null : Math.max(0, until - this.round + 1);
+  }
+
+  /** Element every bag ball carries this round, from temporary/permanent charms. */
+  activeElement(): Element | null {
+    for (let i = this.charms.length - 1; i >= 0; i--) {
+      const el = CHARMS[this.charms[i]!].element;
+      if (el) return el;
+    }
+    return null;
+  }
+
+  private setPegElement(peg: number, state: PegElementState | null, out: GameEvent[]): void {
+    if (state) this.pegElements.set(peg, state);
+    else this.pegElements.delete(peg);
+    this.sim.setPegRestitution(peg, state?.el === "ice" ? ICE_RESTITUTION : this.sim.config.restitution);
+    out.push({ type: "pegElement", peg, el: state?.el ?? null });
+  }
+
+  /** Called from startRound with the events buffer of the *next* step. */
+  private pendingRoundEvents: GameEvent[] = [];
+
   private startRound(): void {
     this.roundScore = 0;
     this.lit.clear();
     this.balls.clear();
+    this.ballElements.clear();
+    this.pegElements.clear();
+    this.sim.resetPegRestitution();
+    const pending: GameEvent[] = [];
+    for (const id of this.expireCharms()) pending.push({ type: "charmExpired", id });
+    // Frost: freeze N pegs chosen by the layout stream, thickest at the top.
+    const frozen = this.sumCharm((c) => c.frozenAtStart ?? 0);
+    if (frozen > 0) {
+      const ids = shuffle(this.sim.pegs.map((p) => p.id), this.sim.streams.layout).slice(0, frozen);
+      for (const peg of ids) this.setPegElement(peg, { el: "ice", stacks: 1 }, pending);
+    }
+    this.pendingRoundEvents = pending;
     this.combo = 0;
     this.lastHitTick = -1;
     this.landedThisRound = 0;
@@ -287,7 +365,7 @@ export class Run {
     return offers;
   }
 
-  private spawn(req: BallSpawn & { type: BallTypeId }, fromBag: boolean): number {
+  private spawn(req: BallSpawn & { type: BallTypeId; element?: Element | null }, fromBag: boolean): number {
     const type = BALL_TYPES[req.type];
     let spawn: BallSpawn = { ...type.physics, ...req, tag: req.tag ?? req.type };
     for (const id of this.charms) {
@@ -295,6 +373,8 @@ export class Run {
       if (c.onSpawn) spawn = c.onSpawn(spawn, { round: this.round, type: req.type });
     }
     const ballId = this.sim.spawnBall(spawn);
+    const el = req.element !== undefined ? req.element : fromBag ? this.activeElement() : null;
+    if (el) this.ballElements.set(ballId, el);
     this.balls.set(ballId, {
       id: ballId,
       type: req.type,
@@ -346,6 +426,9 @@ export class Run {
 
       if (ball.type === "spark" && this.sim.streams.fx.next() < 0.25) ctx.addMult(1, "spark");
 
+      // Elements: ball element × peg state → reaction.
+      this.resolveElement(ball, ev.peg, peg, fresh, ctx, out);
+
       // Ball traits that react to hits.
       const t = type.traits;
       if (t?.lightNeighbor && fresh) {
@@ -363,6 +446,22 @@ export class Run {
         }
         if (lit) ctx.addChips(lit * 8, "boom");
         ctx.fx("bomb", peg.x, peg.y, 1);
+      }
+
+      const zapEvery = this.charms.map((id) => CHARMS[id].zapEvery ?? 0).filter((n) => n > 0);
+      if (zapEvery.length) {
+        const every = Math.min(...zapEvery);
+        if (ball.hits % every === 0) {
+          const arcChips = 4 + this.sumCharm((c) => c.arcChips ?? 0);
+          let count = 0;
+          for (const p of this.nearestPegs(peg.x, peg.y, 2, ev.peg)) {
+            if (ctx.lightPeg(p.id, ev.peg)) {
+              ctx.addChips(arcChips, "arc");
+              count++;
+            }
+          }
+          out.push({ type: "element", kind: "zap", peg: ev.peg, x: peg.x, y: peg.y, el: "storm", count, chips: arcChips * count });
+        }
       }
 
       for (const id of this.charms) CHARMS[id].onPegHit?.(ctx, ev, fresh);
@@ -401,6 +500,7 @@ export class Run {
     }
     this.balls.delete(ev.ball);
     this.ballExtra.delete(ev.ball);
+    this.ballElements.delete(ev.ball);
     if (!scored) return;
     this.landedThisRound++;
     const score = ballScore(ball.chips, ball.mult, bucketMult);
@@ -470,6 +570,166 @@ export class Run {
       },
       fx: (kind, x, y, strength = 1) => out.push({ type: "fx", kind, x, y, strength }),
     };
+  }
+
+  // --- elements --------------------------------------------------------------
+
+  private resolveElement(
+    ball: BallScoreState,
+    pegId: number,
+    peg: { x: number; y: number },
+    fresh: boolean,
+    ctx: CharmCtx,
+    out: GameEvent[],
+  ): void {
+    const boost = this.charms.reduce((m, id) => m * (CHARMS[id].elementBoost ?? 1), 1);
+    let ballEl = this.ballElements.get(ball.id) ?? null;
+    // Ember Core & co: a neutral fresh hit may ignite on its own.
+    if (!ballEl && fresh && !this.pegElements.has(pegId)) {
+      const chance = this.sumCharm((c) => c.igniteChance ?? 0);
+      if (chance > 0 && this.sim.streams.fx.next() < chance) ballEl = "fire";
+    }
+    const state = this.pegElements.get(pegId) ?? null;
+    const rx = react(ballEl, state);
+    const emit = (kind: Reaction["kind"] | "spread", el: Element, count: number, chips: number) =>
+      out.push({ type: "element", kind, peg: pegId, x: peg.x, y: peg.y, el, count, chips });
+    const pay = (n: number, label: string) => {
+      const v = Math.round(n * boost);
+      if (v > 0) ctx.addChips(v, label);
+      return v;
+    };
+
+    switch (rx.kind) {
+      case "none":
+        return;
+      case "ignite":
+        this.setPegElement(pegId, { el: "fire", stacks: 2 }, out);
+        emit("ignite", "fire", 1, 0);
+        return;
+      case "freeze":
+        this.setPegElement(pegId, { el: "ice", stacks: 1 }, out);
+        emit("freeze", "ice", 1, 0);
+        return;
+      case "charge":
+        this.setPegElement(pegId, { el: "storm", stacks: 1 }, out);
+        emit("charge", "storm", 1, 0);
+        return;
+      case "burn": {
+        const base = fresh ? BASE_CHIPS_FRESH : BASE_CHIPS_REPEAT;
+        const chips = pay(base * (rx.chipMult - 1) + 6, "burn");
+        const st = state!;
+        const spread = fresh || this.charms.some((id) => CHARMS[id].spreadOnRepeat);
+        let count = 1;
+        if (spread && st.stacks > 0) {
+          st.stacks--;
+          for (const p of this.nearestUnstated(peg.x, peg.y, 1, pegId)) {
+            this.setPegElement(p.id, { el: "fire", stacks: 1 }, out);
+            count++;
+          }
+        }
+        emit("burn", "fire", count, chips);
+        return;
+      }
+      case "shatter": {
+        const chips = pay(rx.chips, "shatter");
+        this.setPegElement(pegId, null, out);
+        // Cold spreads: the nearest bare peg freezes.
+        let count = 1;
+        for (const p of this.nearestUnstated(peg.x, peg.y, 1, pegId)) {
+          this.setPegElement(p.id, { el: "ice", stacks: 1 }, out);
+          count++;
+        }
+        emit("shatter", "ice", count, chips);
+        return;
+      }
+      case "steam": {
+        const chips = pay(rx.chips, "steam");
+        ctx.addMult(rx.mult + this.sumCharm((c) => c.steamMult ?? 0), "steam");
+        this.setPegElement(pegId, null, out);
+        emit("steam", "fire", 1, chips);
+        return;
+      }
+      case "zap": {
+        const arcChips = 4 + this.sumCharm((c) => c.arcChips ?? 0);
+        let chips = 0;
+        let count = 0;
+        for (const p of this.nearestPegs(peg.x, peg.y, rx.arcs, pegId)) {
+          if (ctx.lightPeg(p.id, pegId)) {
+            chips += pay(arcChips, "arc");
+            count++;
+          }
+          // Arcs shatter frozen pegs they touch.
+          const ps = this.pegElements.get(p.id);
+          if (ps?.el === "ice") {
+            chips += pay(rx.arcs * 6, "shatter");
+            this.setPegElement(p.id, null, out);
+          }
+        }
+        const st = state!;
+        st.stacks--;
+        if (st.stacks <= 0) this.setPegElement(pegId, null, out);
+        emit("zap", "storm", count, chips);
+        return;
+      }
+      case "wildfire": {
+        let count = 0;
+        for (const p of this.nearestUnstated(peg.x, peg.y, rx.spread, pegId)) {
+          this.setPegElement(p.id, { el: "fire", stacks: 1 }, out);
+          count++;
+        }
+        const chips = pay(8 * count, "wildfire");
+        emit("wildfire", "fire", count, chips);
+        return;
+      }
+      case "shatter_chain": {
+        // Flood-fill through frozen pegs within reach of each other.
+        const frozen = [...this.pegElements].filter(([, st]) => st.el === "ice").map(([id]) => id);
+        const reach2 = 1.3 * 1.3;
+        const visited = new Set<number>([pegId]);
+        const queue = [pegId];
+        while (queue.length) {
+          const cur = this.sim.pegs[queue.shift()!]!;
+          for (const id of frozen) {
+            if (visited.has(id)) continue;
+            const p = this.sim.pegs[id]!;
+            if ((p.x - cur.x) ** 2 + (p.y - cur.y) ** 2 <= reach2) {
+              visited.add(id);
+              queue.push(id);
+            }
+          }
+        }
+        let chips = 0;
+        for (const id of visited) {
+          const st = this.pegElements.get(id);
+          chips += pay((st?.stacks ?? 1) * 12, "chain");
+          this.setPegElement(id, null, out);
+          const p = this.sim.pegs[id]!;
+          if (id !== pegId) out.push({ type: "zap", from: { x: peg.x, y: peg.y }, to: { x: p.x, y: p.y } });
+        }
+        if (visited.size >= 4) ctx.addMult(1, "chain");
+        emit("shatter_chain", "storm", visited.size, chips);
+        return;
+      }
+    }
+  }
+
+  /** Nearest pegs with no element state, excluding one. */
+  private nearestUnstated(x: number, y: number, n: number, exclude: number) {
+    return this.sim.pegs
+      .filter((p) => p.id !== exclude && !this.pegElements.has(p.id))
+      .map((p) => ({ p, d: (p.x - x) ** 2 + (p.y - y) ** 2 }))
+      .sort((a, b) => a.d - b.d)
+      .slice(0, n)
+      .map((e) => e.p);
+  }
+
+  private nearestPegs(x: number, y: number, n: number, exclude: number) {
+    return this.sim.pegs
+      .filter((p) => p.id !== exclude)
+      .map((p) => ({ p, d: (p.x - x) ** 2 + (p.y - y) ** 2 }))
+      .sort((a, b) => a.d - b.d)
+      .slice(0, n)
+      .map((e) => e.p);
   }
 
   private sumCharm(f: (c: Charm) => number): number {

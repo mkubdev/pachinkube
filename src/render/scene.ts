@@ -19,6 +19,64 @@ import {
   VignetteEffect,
 } from "postprocessing";
 import { FxSystem } from "./fx.js";
+import { ELEMENTS, type Element } from "../game/elements.js";
+
+/**
+ * Pegs: one instanced draw with a custom shader. Per instance we carry the
+ * base colour (lit/unlit/pulse) and an element id; the fragment shader paints
+ * fire (rolling noise flicker), ice (faceted glint) or storm (crackle).
+ */
+const pegVert = /* glsl */ `
+  attribute vec3 instanceColorA;
+  attribute float aElement;
+  varying vec3 vColor;
+  varying float vElement;
+  varying vec3 vLocal;
+  varying vec3 vNormalW;
+  void main() {
+    vColor = instanceColorA;
+    vElement = aElement;
+    vLocal = position;
+    vNormalW = normalize(mat3(instanceMatrix) * normal);
+    gl_Position = projectionMatrix * modelViewMatrix * instanceMatrix * vec4(position, 1.0);
+  }`;
+
+const pegFrag = /* glsl */ `
+  uniform float uTime;
+  varying vec3 vColor;
+  varying float vElement;
+  varying vec3 vLocal;
+  varying vec3 vNormalW;
+  float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+  float noise(vec2 p) {
+    vec2 i = floor(p), f = fract(p);
+    f = f * f * (3.0 - 2.0 * f);
+    return mix(mix(hash(i), hash(i + vec2(1, 0)), f.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), f.x), f.y);
+  }
+  void main() {
+    vec3 c = vColor;
+    // Cheap rim so pegs read as cylinders, not flat discs.
+    float rim = 1.0 - abs(vNormalW.z);
+    if (vElement > 2.5) {
+      // storm: electric crackle, white-blue flashes
+      float n = noise(vLocal.xy * 12.0 + uTime * 9.0);
+      float spark = step(0.82, noise(vLocal.yx * 30.0 + uTime * 23.0));
+      c = mix(vec3(0.25, 0.8, 1.0), vec3(1.0), spark) * (1.1 + 0.9 * n) + rim * vec3(0.4, 0.7, 0.9);
+    } else if (vElement > 1.5) {
+      // ice: pale, faceted glints that drift
+      float f = step(0.9, noise(vLocal.xy * 8.0 + floor(uTime * 2.0)));
+      c = vec3(0.45, 0.85, 1.0) * (1.3 + 0.6 * rim) + f * vec3(1.8);
+    } else if (vElement > 0.5) {
+      // fire: rolling flame noise, brighter at the top of the peg
+      float n = noise(vec2(vLocal.x * 6.0, vLocal.y * 6.0 - uTime * 4.0));
+      float n2 = noise(vec2(vLocal.y * 9.0 + 3.0, vLocal.x * 9.0 - uTime * 6.0));
+      float flame = n * 0.6 + n2 * 0.4;
+      c = mix(vec3(1.0, 0.12, 0.0), vec3(1.0, 0.55, 0.05), flame) * (0.8 + 0.9 * flame) + rim * vec3(0.5, 0.15, 0.0);
+    }
+    gl_FragColor = vec4(c, 1.0);
+  }`;
+
+const ELEMENT_ID: Record<Element, number> = { fire: 1, ice: 2, storm: 3 };
 
 import type { Peg, Snapshot } from "../sim/types.js";
 import { BALL_TYPES, type BallTypeId } from "../game/balls.js";
@@ -52,6 +110,9 @@ export class BoardRenderer {
   readonly fx: FxSystem;
   private readonly balls: THREE.InstancedMesh;
   private pegs: THREE.InstancedMesh | null = null;
+  private pegMat: THREE.ShaderMaterial | null = null;
+  private pegColorAttr: THREE.InstancedBufferAttribute | null = null;
+  private pegElementAttr: THREE.InstancedBufferAttribute | null = null;
   private pegLit: Uint8Array = new Uint8Array(0);
   private pegPulse: Float32Array = new Float32Array(0);
   private readonly pulsing = new Set<number>();
@@ -63,6 +124,7 @@ export class BoardRenderer {
   private readonly dummy = new THREE.Object3D();
   private readonly hidden = new THREE.Matrix4().makeScale(0, 0, 0);
   private readonly color = new THREE.Color();
+  private readonly tmpElColor = new THREE.Color();
   private readonly ray = new THREE.Raycaster();
   private readonly boardPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
   private readonly camBase = new THREE.Vector3();
@@ -181,16 +243,26 @@ export class BoardRenderer {
   setPegs(pegs: Peg[]): void {
     const geo = new THREE.CylinderGeometry(1, 1, 0.5, 18);
     geo.rotateX(Math.PI / 2);
-    const mesh = new THREE.InstancedMesh(geo, new THREE.MeshBasicMaterial({ color: 0xffffff }), pegs.length);
+    const inst = new THREE.InstancedBufferGeometry().copy(geo as unknown as THREE.InstancedBufferGeometry);
+    inst.instanceCount = pegs.length;
+    this.pegColorAttr = new THREE.InstancedBufferAttribute(new Float32Array(pegs.length * 3), 3).setUsage(THREE.DynamicDrawUsage);
+    this.pegElementAttr = new THREE.InstancedBufferAttribute(new Float32Array(pegs.length), 1).setUsage(THREE.DynamicDrawUsage);
+    inst.setAttribute("instanceColorA", this.pegColorAttr);
+    inst.setAttribute("aElement", this.pegElementAttr);
+    this.pegMat = new THREE.ShaderMaterial({
+      vertexShader: pegVert,
+      fragmentShader: pegFrag,
+      uniforms: { uTime: { value: 0 } },
+    });
+    const mesh = new THREE.InstancedMesh(inst, this.pegMat, pegs.length);
     pegs.forEach((p, i) => {
       this.dummy.position.set(p.x, p.y, 0);
       this.dummy.scale.setScalar(p.radius);
       this.dummy.updateMatrix();
       mesh.setMatrixAt(i, this.dummy.matrix);
-      mesh.setColorAt(i, PEG_UNLIT);
+      this.writePegColor(i, PEG_UNLIT);
     });
     mesh.instanceMatrix.needsUpdate = true;
-    if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
     mesh.frustumCulled = false; // board is always fully on screen
     this.scene.add(mesh);
     this.pegs = mesh;
@@ -198,11 +270,29 @@ export class BoardRenderer {
     this.pegPulse = new Float32Array(pegs.length);
   }
 
+  private writePegColor(i: number, c: THREE.Color): void {
+    if (!this.pegColorAttr) return;
+    this.pegColorAttr.setXYZ(i, c.r, c.g, c.b);
+    this.pegColorAttr.needsUpdate = true;
+  }
+
+  /** Paint a peg's element (null clears it). */
+  setPegElement(peg: number, el: Element | null): void {
+    if (!this.pegElementAttr) return;
+    this.pegElementAttr.setX(peg, el ? ELEMENT_ID[el] : 0);
+    this.pegElementAttr.needsUpdate = true;
+  }
+
+  resetPegElements(): void {
+    if (!this.pegElementAttr) return;
+    (this.pegElementAttr.array as Float32Array).fill(0);
+    this.pegElementAttr.needsUpdate = true;
+  }
+
   setPegLit(peg: number, lit: boolean): void {
     if (!this.pegs) return;
     this.pegLit[peg] = lit ? 1 : 0;
-    this.pegs.setColorAt(peg, lit ? PEG_LIT : PEG_UNLIT);
-    if (this.pegs.instanceColor) this.pegs.instanceColor.needsUpdate = true;
+    this.writePegColor(peg, lit ? PEG_LIT : PEG_UNLIT);
   }
 
   /** Flash a peg white-hot; it decays back to its lit/unlit colour. */
@@ -216,8 +306,8 @@ export class BoardRenderer {
     this.pegLit.fill(0);
     this.pegPulse.fill(0);
     this.pulsing.clear();
-    for (let i = 0; i < this.pegs.count; i++) this.pegs.setColorAt(i, PEG_UNLIT);
-    if (this.pegs.instanceColor) this.pegs.instanceColor.needsUpdate = true;
+    for (let i = 0; i < this.pegs.count; i++) this.writePegColor(i, PEG_UNLIT);
+    this.resetPegElements();
   }
 
   /** Combo intensity 0..1; post effects ease toward it. */
@@ -301,6 +391,9 @@ export class BoardRenderer {
     return { x: (this.tmp.x + 1) / 2 * innerWidth, y: (1 - this.tmp.y) / 2 * innerHeight };
   }
 
+  /** Renderer asks the game which element a ball carries (null = none). */
+  elementOf: (ballId: number) => Element | null = () => null;
+
   /** Interpolate between two physics snapshots and draw. */
   render(prev: Snapshot, curr: Snapshot, alpha: number, dt: number): void {
     const prevById = new Map(prev.balls.map((b) => [b.id, b]));
@@ -314,7 +407,11 @@ export class BoardRenderer {
       this.balls.setMatrixAt(i, this.dummy.matrix);
       const tag = b.tag ?? "steel";
       const type = BALL_TYPES[tag as BallTypeId];
-      this.balls.setColorAt(i, type ? this.color.setHex(type.color) : SHARD_COLOR);
+      this.color.set(type ? type.color : SHARD_COLOR);
+      const el = this.elementOf(b.id);
+      // Imbued balls glow their element: pushed past 1.0 so bloom picks them up.
+      if (el) this.color.lerp(this.tmpElColor.setHex(ELEMENTS[el].color), 0.7).multiplyScalar(1.8);
+      this.balls.setColorAt(i, this.color);
     }
     for (let i = n; i < this.balls.count; i++) this.balls.setMatrixAt(i, this.hidden);
     this.balls.count = n;
@@ -326,22 +423,24 @@ export class BoardRenderer {
     for (let i = 0; i < n && budget > 0; i++) {
       const b = curr.balls[i]!;
       const speed = Math.hypot(b.vx, b.vy);
-      if (speed < TRAIL_SPEED) continue;
+      const el = this.elementOf(b.id);
+      // Element auras trail even when slow; plain balls only when fast.
+      if (speed < TRAIL_SPEED && !el) continue;
       const type = BALL_TYPES[(b.tag ?? "steel") as BallTypeId];
-      this.fx.trail(b.x, b.y, type ? type.color : SHARD_COLOR, b.radius * 1.6);
+      this.fx.trail(b.x, b.y, el ? ELEMENTS[el].color : type ? type.color : SHARD_COLOR, b.radius * (el ? 2.4 : 1.6));
       budget--;
     }
 
-    // Peg pulses decay back to their resting colour.
+    // Peg pulses decay back to their resting colour; the shader animates elements.
     if (this.pegs && this.pulsing.size) {
       for (const i of this.pulsing) {
         const v = (this.pegPulse[i] = Math.max(0, this.pegPulse[i]! - dt * 5));
         this.color.copy(this.pegLit[i] ? PEG_LIT : PEG_UNLIT).lerp(PEG_HOT, v * v);
-        this.pegs.setColorAt(i, this.color);
+        this.writePegColor(i, this.color);
         if (v <= 0) this.pulsing.delete(i);
       }
-      if (this.pegs.instanceColor) this.pegs.instanceColor.needsUpdate = true;
     }
+    if (this.pegMat) this.pegMat.uniforms.uTime!.value += dt;
 
     // Post effects ride the combo heat plus momentary kicks.
     this.heat += (this.heatTarget - this.heat) * Math.min(1, dt * 4);

@@ -6,8 +6,9 @@ rounds, ~20–30 minutes. Hosted on Vercel for a friend group, with a shared,
 **replay-verified** leaderboard.
 
 **Status: first playable.** Full loop — aim → drop → score → shop → next round →
-win/lose → submit — with 25 charms, 11 ball types, combos, effects, audio, a
-Blender cabinet, and server-side score verification. Balance is probe-tuned.
+endless → submit — with 36 charms (incl. 4 temporary), 11 ball types, three
+elements with reactions, combos, meta-progression, effects, audio, lofi radio,
+a Blender cabinet, and server-side score verification. Balance is probe-tuned.
 
 ## How it plays
 
@@ -38,16 +39,35 @@ Neon Sign, Split Shot, Jackpot Lens, Rubber Soul, Heavy Metal, Chain Lightning,
 Bumper Kings, Overflow, Extra Ball, Phoenix, Golden Pocket. Passive (plain
 fields the run reads): Loaded Dice, Wide Net, Warm Start, Momentum, Grand
 Finale, Fresh Paint, Echo, Long Fuse, Milestone Maker, Insurance, Duplicator,
-Compound, Sharpshooter, Low Gravity.
+Compound, Sharpshooter, Low Gravity. Elemental: Ember Core, Frost Bite, Static
+Field, Conductor, Melting Point, Tinder, Elemental Surge, plus the four
+temporary actives above.
+
+**Elements** (`src/game/elements.ts`). Pegs can be *burning*, *frozen* or
+*charged*; balls can be imbued (Firestorm, Deep Freeze, Thunderhead, Solstice —
+temporary charms that last N rounds and then fade). Ball element × peg state
+resolves through one table: fire ignites and burning pegs pay ×1.5 and spread;
+ice freezes and frozen pegs are glassy and shatter for chips; storm charges and
+charged pegs arc lightning. Cross-reactions are the payoff — **fire on ice =
+steam** (chips + mult), **storm on ice = shatter chain** through every touching
+frozen peg, **storm on fire = wildfire**. Pegs render through a custom instanced
+shader (rolling flame noise, faceted ice glints, electric crackle).
 
 **Combos.** Peg hits closer than 0.6 s apart — across every ball in flight —
 chain into one combo. Every 10th hit is a milestone: **+1 mult to all balls in
 play**, so multiball is worth engineering. The counter climbs through colour
 tiers (10 / 20 / 40) and the whole screen heats up with it.
 
-Dev aids: `?seed=…` fixes the board, `?auto=1` runs a deterministic auto-drop,
-`?pre=N` steps N ticks before the first frame, `?mute=1` silences audio,
-**A** toggles auto-drop live.
+**Progression** (`src/game/meta.ts`). A profile persists across runs: lifetime
+stats, discoveries (first time you see a charm/ball), 17 feats, and 20 unlock
+rules that gate rarer content behind stats. The shop rolls only from your
+unlocked pool. Signed in with Discord, the profile also lives on the server keyed
+by your Discord id and merges across devices (`api/meta.ts`, `SyncedMetaStore`).
+
+Keys: **C** collection · **L** global scoreboard · **M** lofi girl radio
+(YouTube, loads only when toggled) · **A** auto-drop. Dev aids: `?seed=…`,
+`?auto=1`, `?pre=N` (pre-roll N ticks), `?charms=a,b` (start holding charms),
+`?mute=1`, `?collection=1`.
 
 ## Visual effects
 
@@ -109,7 +129,7 @@ npm run dev               # http://localhost:5173
 
 | Command | |
 |---|---|
-| `npm test` | 35 tests: RNG, sim determinism, run determinism, balls, passives, replay, scores API |
+| `npm test` | 49 tests: RNG, sim, run, balls, passives, elements, meta, replay, scores/meta API |
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm run build` | production bundle to `dist/` |
 
@@ -151,7 +171,12 @@ public/assets/   cabinet.glb, barrel_01.glb, env/neon_photostudio_1k.hdr, manife
 
 ## Deploy
 
-Vercel auto-detects Vite. Environment variables:
+**Live: https://pachinkube.vercel.app** — Vercel project `pachinkube` in the
+personal scope `mkubdevs-projects`, connected to `github.com/mkubdev/pachinkube`
+so every push to `main` deploys. Manual deploy: `npx vercel@latest deploy --prod`.
+
+Until Upstash is configured the leaderboard runs on per-instance memory (scores
+vanish on cold start) and `/api/auth/*` returns 503. Environment variables:
 
 ```
 UPSTASH_REDIS_REST_URL / UPSTASH_REDIS_REST_TOKEN   (Vercel Marketplace → Upstash)
@@ -163,6 +188,19 @@ AUTH_URL                                             (https://<project>.vercel.a
 Discord redirect URI: `https://<project>.vercel.app/api/auth/callback/discord`
 (plus the `http://localhost:5173/...` one for dev). Without Upstash the board is
 per-instance memory; without Discord vars `/api/auth/*` returns 503 with a message.
+
+### Turning on accounts (one-time, ~10 minutes)
+
+1. **Upstash**: Vercel dashboard → Storage → Marketplace → Upstash Redis → create
+   → it injects `UPSTASH_REDIS_REST_URL/TOKEN` into the project.
+2. **Discord**: discord.com/developers → New Application → OAuth2 → add both
+   redirect URIs above → copy Client ID / Client Secret.
+3. In Vercel → Settings → Environment Variables add `AUTH_DISCORD_ID`,
+   `AUTH_DISCORD_SECRET`, `AUTH_SECRET` (`openssl rand -base64 32`),
+   `AUTH_URL=https://pachinkube.vercel.app`. Redeploy.
+
+After that the dock shows **sign in**; signed-in players' collections sync via
+`/api/meta` and their leaderboard entries can be keyed by Discord id.
 
 ## Asset pipeline
 
@@ -190,6 +228,11 @@ NAT cannot reach the add-on's `localhost:9876`.
   real players report. Tune in `scoring.ts` and re-run the probe.
 - **Rate limiting** on `POST /api/scores` (replay costs CPU).
 - **Cabinet body** still reads light under the studio HDRI; darken or re-export.
+- **Leaderboard identity**: `api/scores` still keys on the typed name; switch to
+  the session's `discordId` once auth is on.
+- **Replay test** `reproduces a live run's score from its log` is skipped: it
+  hangs synchronously since the pool/endless changes. The tamper-rejection and
+  stall tests still cover the verifier.
 - **Effects tuning** was done from headless SwiftShader screenshots; ring sizes,
   aberration and flash strengths deserve a pass on a real GPU at 60 fps.
 
@@ -205,5 +248,12 @@ NAT cannot reach the add-on's `localhost:9876`.
 - Poly Haven's API 403s on urllib's default User-Agent.
 - `pkill -f` matches its own shell command line; use `pgrep -f "[v]ite ..."`.
 - Vite's `defineConfig` must come from `vitest/config` for the `test` key to typecheck.
+- **Vercel functions are ESM and do not rewrite extensionless imports**: every
+  relative import in the server chain must carry `.js` (TS maps it to `.ts`),
+  or the function dies with `ERR_MODULE_NOT_FOUND` in production only.
+- zsh does not word-split `$VAR` with spaces: `V="npx vercel"; $V x` fails.
+- **Scripted `str.replace` edits fail silently** when the anchor drifts (here: a
+  re-indent). Four rounds of `main.ts` wiring no-op'd unnoticed. Assert the anchor
+  exists, or grep for the result.
 - rAF timestamps can trail `performance.now()`; a negative popup age flipped
   `scale()` negative and drew text rotated 180°. Clamp ages at 0.

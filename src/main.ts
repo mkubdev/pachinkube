@@ -4,7 +4,12 @@ import type { Snapshot } from "./sim/types.js";
 import { BoardRenderer } from "./render/scene.js";
 import { GameUI } from "./game/ui.js";
 import { GameAudio } from "./game/audio.js";
+import { Music } from "./game/music.js";
+import type { CharmId } from "./game/charms.js";
 import { BALL_TYPES, type BallTypeId } from "./game/balls.js";
+import { ELEMENTS } from "./game/elements.js";
+import { SyncedMetaStore } from "./game/metaSync.js";
+import { getSession, signInUrl, signOutUrl } from "./game/auth.js";
 import {
   LocalMetaStore,
   newTracker,
@@ -28,8 +33,11 @@ const canvas = document.getElementById("game") as HTMLCanvasElement;
 
 // Progression lives in localStorage for now; the store interface is what a
 // per-Discord-user server store will implement later.
-const metaStore = new LocalMetaStore(typeof localStorage === "undefined" ? null : localStorage);
-const meta = metaStore.load();
+const metaStore = new SyncedMetaStore(new LocalMetaStore(typeof localStorage === "undefined" ? null : localStorage));
+metaStore.load();
+// Signed-in players get their server profile merged in before the run starts,
+// so the shop pool reflects everything they have unlocked on any device.
+const meta = await metaStore.pull();
 const pool = unlockedPool(meta);
 const tracker = newTracker();
 recordRunStart(meta);
@@ -37,6 +45,15 @@ metaStore.save(meta);
 
 let run = await Run.create(seed, { pool });
 let runEnded = false;
+// ?charms=firestorm,frost_bite — dev aid to start a run holding charms.
+const devCharms = (params.get("charms") ?? "").split(",").filter(Boolean) as CharmId[];
+if (devCharms.length) {
+  run.charms.push(...devCharms);
+  (run as unknown as { startRound(): void }).startRound();
+}
+
+const music = new Music();
+music.onChange = () => ui.setMusic(music.playing, music.volume);
 const dims = { width: run.sim.config.width, height: run.sim.config.height, buckets: run.sim.config.buckets };
 const view = new BoardRenderer(canvas, dims);
 view.setPegs(run.sim.pegs);
@@ -46,6 +63,7 @@ void view.loadEnvironment("assets/env/neon_photostudio_1k.hdr");
 const audio = new GameAudio();
 audio.enabled = params.get("mute") !== "1";
 
+view.elementOf = (id) => run.ballElements.get(id) ?? null;
 const ui = new GameUI((x, y) => view.project(x, y));
 ui.setPockets(run.sim.bucketCenters, run.pocketMultipliers());
 ui.onPick = (i) => {
@@ -96,8 +114,17 @@ addEventListener("keydown", (e) => {
   if (e.code === "Space") { e.preventDefault(); drop(); }
   if (e.code === "KeyA") auto = !auto;
   if (e.code === "KeyC") ui.toggleCollection(meta);
+  if (e.code === "KeyL") void ui.toggleBoard();
+  if (e.code === "KeyM") music.toggle();
 });
 ui.onCollection = () => ui.toggleCollection(meta);
+void getSession()
+  .then((user) => ui.setAccount(user ? { name: user.name ?? "player", signOut: signOutUrl } : { signIn: signInUrl }))
+  .catch(() => ui.setAccount(null));
+ui.onBoard = () => void ui.toggleBoard();
+ui.onMusic = () => music.toggle();
+ui.onVolume = (v) => music.setVolume(v);
+ui.setMusic(false, music.volume);
 
 /** One fixed simulation step plus the presentation reactions to its events. */
 function simStep(): void {
@@ -141,8 +168,94 @@ function simStep(): void {
         } else if (e.kind === "metal") {
           view.fx.burst(e.x, e.y, 0x9aa4b0, 40, 4, 0.18, 0.6);
           view.fx.ring(e.x, e.y, 0x9aa4b0, 1.6, 0.4);
+        } else if (e.kind === "bomb") {
+          view.fx.burst(e.x, e.y, 0xff6a00, 120, 7, 0.24, 0.8, -4);
+          view.fx.ring(e.x, e.y, 0xff6a00, 1.5, 0.35);
+          view.fx.ring(e.x, e.y, 0xffd34d, 2.4, 0.55);
+          view.kickBloom(1.0);
+          view.addShake(0.5);
+          ui.flash("#ff6a00", 0.35);
+        } else if (e.kind === "bullseye") {
+          view.fx.ring(e.x, e.y, NEON_CYAN, 1.0, 0.3);
+          view.fx.ring(e.x, e.y, NEON_CYAN, 1.8, 0.45);
+          view.fx.burst(e.x, e.y, NEON_CYAN, 40, 4, 0.16, 0.5);
+        } else if (e.kind === "prism") {
+          view.fx.burst(e.x, e.y, 0xf5b0ff, 8, 2.5, 0.12, 0.35, -2);
+        } else if (e.kind === "finale") {
+          view.fx.ring(e.x, e.y, GOLD, 2.6, 0.6);
+          view.fx.burst(e.x, e.y, GOLD, 70, 5, 0.2, 0.8);
+          view.kickBloom(0.8);
+          ui.flash("#ffd34d", 0.3);
         }
         break;
+      case "retry":
+        ui.flash("#2de2ff", 0.45);
+        view.kickBloom(1.0);
+        view.resetPegs();
+        ui.notice(`INSURANCE — round ${e.round} again (${e.left} left)`);
+        break;
+      case "cleared":
+        ui.flash("#ffd34d", 0.5);
+        view.kickBloom(1.5);
+        view.fx.ring(0, run.sim.config.height * 0.5, GOLD, 5, 0.9);
+        ui.notice("MACHINE CLEARED — keep going");
+        break;
+      case "pegElement":
+        view.setPegElement(e.peg, e.el);
+        break;
+      case "charmExpired":
+        ui.notice(`${e.id.replace(/_/g, " ").toUpperCase()} faded`);
+        ui.updateCharms(run);
+        break;
+      case "element": {
+        const c = ELEMENTS[e.el].color;
+        switch (e.kind) {
+          case "ignite":
+            view.fx.burst(e.x, e.y, c, 14, 2.5, 0.16, 0.5, -2);
+            break;
+          case "freeze":
+            view.fx.ring(e.x, e.y, c, 0.5, 0.3);
+            view.fx.burst(e.x, e.y, 0xffffff, 6, 1.5, 0.1, 0.4, 0);
+            break;
+          case "charge":
+            view.fx.burst(e.x, e.y, c, 10, 4, 0.1, 0.25, 0);
+            break;
+          case "burn":
+            view.fx.burst(e.x, e.y, c, 8 + e.count * 6, 3, 0.18, 0.55, -3);
+            break;
+          case "shatter":
+            view.fx.burst(e.x, e.y, 0xdff6ff, 30 + e.count * 10, 5, 0.14, 0.6, -6);
+            view.fx.ring(e.x, e.y, c, 0.9, 0.35);
+            break;
+          case "steam":
+            view.fx.burst(e.x, e.y, 0xffffff, 70, 3.5, 0.28, 1.0, 2.5); // rises
+            view.fx.ring(e.x, e.y, 0xff6a00, 1.2, 0.4);
+            view.fx.ring(e.x, e.y, 0x9fe8ff, 1.8, 0.5);
+            view.kickBloom(0.8);
+            ui.flash("#dff6ff", 0.14);
+            break;
+          case "zap":
+            view.fx.burst(e.x, e.y, c, 16, 5, 0.1, 0.3, 0);
+            view.kickBloom(0.3);
+            break;
+          case "wildfire":
+            view.fx.burst(e.x, e.y, 0xff6a00, 40 + e.count * 12, 6, 0.22, 0.8, -4);
+            view.fx.ring(e.x, e.y, 0xff6a00, 2.2, 0.5);
+            view.kickBloom(1.0);
+            ui.flash("#ff6a00", 0.3);
+            break;
+          case "shatter_chain":
+            view.fx.burst(e.x, e.y, 0xdff6ff, 40 + e.count * 14, 7, 0.16, 0.8, -6);
+            view.fx.ring(e.x, e.y, 0x7df9ff, 1.4 + e.count * 0.3, 0.55);
+            view.kickBloom(0.6 + e.count * 0.1);
+            view.addShake(0.3 + e.count * 0.05);
+            ui.flash("#7df9ff", 0.2 + e.count * 0.03);
+            break;
+          default:
+            break;
+        }
+        break;
+      }
       case "combo":
         ui.setCombo(e.count, e.milestone);
         view.setHeat(Math.min(1, e.count / 45));

@@ -31,6 +31,9 @@ export class GameUI {
   onNewRun: (() => void) | null = null;
   onSubmit: ((name: string) => Promise<string>) | null = null;
   onCollection: (() => void) | null = null;
+  onBoard: (() => void) | null = null;
+  onMusic: (() => void) | null = null;
+  onVolume: ((v: number) => void) | null = null;
   private runDiscoveries: MetaNotice[] = [];
 
   constructor(private readonly project: Projector) {
@@ -45,8 +48,15 @@ export class GameUI {
       <div id="toasts"></div>
       <div id="modal" hidden></div>
       <div id="collection" hidden></div>
-      <button id="collection-btn" title="Collection (C)">◈ collection</button>
-      <div id="hint">move: aim · click / space: drop · A: auto · C: collection</div>`;
+      <div id="board-panel" hidden></div>
+      <div id="dock">
+        <input id="music-vol" type="range" min="0" max="100" title="music volume" />
+        <button id="music-btn" title="lofi girl radio (M)">♪ lofi</button>
+        <button id="board-btn" title="Scoreboard (L)">◇ scores</button>
+        <button id="collection-btn" title="Collection (C)">◈ collection</button>
+        <span id="account"></span>
+      </div>
+      <div id="hint">move: aim · click / space: drop · A: auto · C: collection · L: scores · M: music</div>`;
     this.hud = this.root.querySelector("#hud")!;
     this.charmsEl = this.root.querySelector("#charms")!;
     this.modal = this.root.querySelector("#modal")!;
@@ -54,6 +64,11 @@ export class GameUI {
     this.comboN = this.comboEl.querySelector(".n")!;
     this.flashEl = this.root.querySelector("#flash")!;
     this.root.querySelector("#collection-btn")!.addEventListener("click", () => this.onCollection?.());
+    this.root.querySelector("#board-btn")!.addEventListener("click", () => this.onBoard?.());
+    this.root.querySelector("#music-btn")!.addEventListener("click", () => this.onMusic?.());
+    this.root.querySelector<HTMLInputElement>("#music-vol")!.addEventListener("input", (e) =>
+      this.onVolume?.(Number((e.target as HTMLInputElement).value)),
+    );
     const popups = this.root.querySelector("#popups")!;
     for (let i = 0; i < POPUP_POOL; i++) {
       const el = document.createElement("div");
@@ -175,6 +190,42 @@ export class GameUI {
     el.querySelector("#collection-close")!.addEventListener("click", () => (el.hidden = true));
   }
 
+  /** Dock account chip: sign-in link, or name + sign-out. Hidden when auth is off. */
+  setAccount(state: { signIn: string } | { name: string; signOut: string } | null): void {
+    const el = this.root.querySelector<HTMLElement>("#account")!;
+    if (!state) {
+      el.innerHTML = "";
+      return;
+    }
+    el.innerHTML =
+      "signIn" in state
+        ? `<a class="btn" href="${state.signIn}" title="Sign in with Discord to save your collection across devices">⌁ sign in</a>`
+        : `<span class="who">${escapeHtml(state.name)}</span><a class="btn" href="${state.signOut}" title="Sign out">out</a>`;
+  }
+
+  /** Reflect music state on the dock. */
+  setMusic(playing: boolean, volume: number): void {
+    const dock = this.root.querySelector("#dock")!;
+    const btn = this.root.querySelector("#music-btn")!;
+    dock.classList.toggle("music-on", playing);
+    btn.classList.toggle("on", playing);
+    btn.textContent = playing ? "♪ lofi on" : "♪ lofi";
+    this.root.querySelector<HTMLInputElement>("#music-vol")!.value = String(volume);
+  }
+
+  /** Global scoreboard, available any time (L). */
+  async toggleBoard(): Promise<void> {
+    const el = this.root.querySelector<HTMLElement>("#board-panel")!;
+    if (!el.hidden) {
+      el.hidden = true;
+      return;
+    }
+    el.hidden = false;
+    el.innerHTML = `<div class="panel"><div class="row"><h2>Scoreboard</h2><button id="board-close">close</button></div><div id="board" class="dim">loading…</div></div>`;
+    el.querySelector("#board-close")!.addEventListener("click", () => (el.hidden = true));
+    await this.loadBoard(el);
+  }
+
   /** On the end screen: what this run added to the collection. */
   showRunDiscoveries(meta: MetaState, run: Run): void {
     void meta;
@@ -188,14 +239,25 @@ export class GameUI {
   }
 
   updateCharms(run: Run): void {
+    // Permanent charms collapse into counts; temporary ones show rounds left.
     const counts = new Map<string, number>();
-    for (const c of run.charms) counts.set(c, (counts.get(c) ?? 0) + 1);
-    this.charmsEl.innerHTML = [...counts]
-      .map(([id, n]) => {
-        const c = CHARMS[id as keyof typeof CHARMS];
-        return `<div class="charm ${c.rarity}" title="${c.desc}">${c.name}${n > 1 ? ` ×${n}` : ""}</div>`;
-      })
-      .join("");
+    const temps: Array<{ id: string; left: number }> = [];
+    run.charms.forEach((c, i) => {
+      const left = run.charmRoundsLeft(i);
+      if (left === null) counts.set(c, (counts.get(c) ?? 0) + 1);
+      else temps.push({ id: c, left });
+    });
+    const perm = [...counts].map(([id, n]) => {
+      const c = CHARMS[id as keyof typeof CHARMS];
+      const el = c.element ? ` el-${c.element}` : "";
+      return `<div class="charm ${c.rarity}${el}" title="${c.desc}">${c.name}${n > 1 ? ` ×${n}` : ""}</div>`;
+    });
+    const temp = temps.map(({ id, left }) => {
+      const c = CHARMS[id as keyof typeof CHARMS];
+      const el = c.element ? ` el-${c.element}` : "";
+      return `<div class="charm temp${el}" title="${c.desc}">${c.name}<span class="left">${left} round${left === 1 ? "" : "s"}</span></div>`;
+    });
+    this.charmsEl.innerHTML = [...temp, ...perm].join("");
   }
 
   handle(events: GameEvent[], run: Run): void {
@@ -300,7 +362,9 @@ export class GameUI {
   private offerCard(o: Offer, i: number): string {
     if (o.kind === "charm") {
       const c = CHARMS[o.id];
-      return `<button data-i="${i}" class="offer ${c.rarity}"><span class="tag">${c.rarity}</span><b>${c.name}</b><p>${c.desc}</p></button>`;
+      const dur = c.duration ? `<span class="dur">${c.duration} round${c.duration === 1 ? "" : "s"}</span>` : "";
+      const el = c.element ? ` el-${c.element}` : "";
+      return `<button data-i="${i}" class="offer ${c.rarity}${el}"><span class="tag">${c.rarity}${dur}</span><b>${c.name}</b><p>${c.desc}</p></button>`;
     }
     const b = BALL_TYPES[o.id];
     return `<button data-i="${i}" class="offer ball"><span class="tag">ball ×${o.count}</span><b style="color:#${b.color.toString(16).padStart(6, "0")}">${b.name}</b><p>${b.desc}</p></button>`;
@@ -332,8 +396,8 @@ export class GameUI {
     void this.loadBoard();
   }
 
-  async loadBoard(): Promise<void> {
-    const box = this.modal.querySelector("#board");
+  async loadBoard(root: ParentNode = this.modal): Promise<void> {
+    const box = root.querySelector("#board");
     if (!box) return;
     try {
       const res = await fetch("/api/scores");

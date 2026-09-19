@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { Run, type GameEvent } from "../src/game/run.js";
 import {
+  type MetaState,
   FULL_POOL,
   LocalMetaStore,
   META_KEY,
@@ -17,6 +18,8 @@ import {
   unlockedPool,
 } from "../src/game/meta.js";
 import { replay, validatePool } from "../src/game/replay.js";
+import { mergeMeta, validateMeta } from "../src/game/meta.js";
+import { handleMeta } from "../api/meta.js";
 
 const runs: Run[] = [];
 afterEach(() => {
@@ -99,6 +102,43 @@ describe("meta progression", () => {
     kv.setItem(META_KEY, JSON.stringify({ version: 999 }));
     expect(store.load().version).toBe(1);
     expect(new LocalMetaStore(null).load().stats.runs).toBe(0);
+  });
+
+  it("merges two profiles monotonically and idempotently", () => {
+    const a = emptyMeta();
+    a.stats.bestCombo = 40;
+    a.discovered.charms.push("magnet_coil");
+    a.feats.combo_25 = "2026-01-02T00:00:00Z";
+    const b = emptyMeta();
+    b.stats.bestCombo = 12;
+    b.stats.runs = 9;
+    b.discovered.charms.push("neon_sign");
+    b.feats.combo_25 = "2026-01-01T00:00:00Z";
+    const m = mergeMeta(a, b);
+    expect(m.stats.bestCombo).toBe(40);
+    expect(m.stats.runs).toBe(9);
+    expect([...m.discovered.charms].sort()).toEqual(["magnet_coil", "neon_sign"]);
+    expect(m.feats.combo_25).toBe("2026-01-01T00:00:00Z");
+    expect(mergeMeta(m, m)).toEqual(m);
+    expect(isUnlocked(m, "ball", "cannon")).toBe(true);
+    expect(validateMeta(m)).toBe(true);
+    expect(validateMeta({ version: 1, stats: { runs: -1 } })).toBe(false);
+  });
+
+  it("the meta API merges per user and rejects garbage", async () => {
+    const a = emptyMeta();
+    a.stats.wins = 2;
+    const r1 = await handleMeta("POST", { meta: a }, "user-1");
+    expect(r1.status).toBe(200);
+    const b = emptyMeta();
+    b.stats.wins = 1;
+    b.stats.runs = 5;
+    const r2 = await handleMeta("POST", { meta: b }, "user-1");
+    const merged = ((await r2.json()) as { meta: MetaState }).meta;
+    expect(merged.stats).toMatchObject({ wins: 2, runs: 5 });
+    const other = await handleMeta("GET", null, "user-2");
+    expect(((await other.json()) as { meta: MetaState | null }).meta).toBeNull();
+    expect((await handleMeta("POST", { meta: { nope: 1 } }, "user-1")).status).toBe(400);
   });
 
   it("the shop never offers locked content, and the pool is part of the replay", async () => {

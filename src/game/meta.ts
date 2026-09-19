@@ -29,6 +29,9 @@ export interface MetaStats {
   bestScore: number;
   bestBallScore: number;
   totalScore: number;
+  /** Elemental reactions of any kind, and steam specifically. */
+  reactions: number;
+  steams: number;
 }
 
 export interface MetaState {
@@ -46,6 +49,7 @@ export function emptyMeta(): MetaState {
     stats: {
       runs: 0, wins: 0, losses: 0, ballsDropped: 0, pegHits: 0, jackpots: 0,
       roundsCleared: 0, bestRound: 0, bestCombo: 0, bestScore: 0, bestBallScore: 0, totalScore: 0,
+      reactions: 0, steams: 0,
     },
     discovered: { charms: [], balls: ["steel"] },
     feats: {},
@@ -87,6 +91,11 @@ export const UNLOCK_RULES: UnlockRule[] = [
   { kind: "charm", id: "overflow", stat: "bestBallScore", value: 5000, hint: "Score 5,000 with a single ball" },
   { kind: "charm", id: "phoenix", stat: "losses", value: 3, hint: "Lose 3 runs" },
   { kind: "charm", id: "insurance", stat: "bestRound", value: 6, hint: "Reach round 6" },
+  // elemental: the basics are open, the reactions-heavy ones are earned
+  { kind: "charm", id: "melting_point", stat: "steams", value: 10, hint: "Trigger 10 steam reactions" },
+  { kind: "charm", id: "elemental_surge", stat: "reactions", value: 200, hint: "Trigger 200 elemental reactions" },
+  { kind: "charm", id: "solstice", stat: "bestRound", value: 7, hint: "Reach round 7" },
+  { kind: "charm", id: "thunderhead", stat: "reactions", value: 40, hint: "Trigger 40 elemental reactions" },
 ];
 
 export function ruleFor(kind: "charm" | "ball", id: string): UnlockRule | undefined {
@@ -124,7 +133,8 @@ export const FULL_POOL: Pool = {
 
 export type FeatId =
   | "first_win" | "combo_25" | "combo_50" | "combo_100" | "first_bomb" | "first_split"
-  | "first_revive" | "first_bullseye" | "ball_5k" | "ball_50k" | "round_5" | "run_1m" | "jackpot_streak";
+  | "first_revive" | "first_bullseye" | "ball_5k" | "ball_50k" | "round_5" | "run_1m" | "jackpot_streak"
+  | "first_steam" | "first_wildfire" | "first_shatter_chain" | "big_shatter";
 
 export const FEATS: Record<FeatId, { name: string; desc: string }> = {
   first_win: { name: "Machine Cleared", desc: "Beat round 8. The machine keeps going." },
@@ -140,6 +150,10 @@ export const FEATS: Record<FeatId, { name: string; desc: string }> = {
   round_5: { name: "Deep Machine", desc: "Reach round 5." },
   run_1m: { name: "Seven Digits", desc: "Score 1,000,000 in a run." },
   jackpot_streak: { name: "Dead Centre", desc: "Land 3 balls in a row in the centre pocket." },
+  first_steam: { name: "Steam Engine", desc: "Melt a frozen peg with fire." },
+  first_wildfire: { name: "Wildfire", desc: "Hit a burning peg with a Storm ball." },
+  first_shatter_chain: { name: "Glass Cannon", desc: "Shatter a frozen chain with Storm." },
+  big_shatter: { name: "Avalanche", desc: "Shatter 8 or more frozen pegs at once." },
 };
 
 export type MetaNotice =
@@ -228,6 +242,17 @@ export function recordEvents(
         if (e.score >= 50_000) feat(meta, "ball_50k", out, now);
         break;
       }
+      case "element":
+        s.reactions++;
+        if (e.kind === "steam") {
+          s.steams++;
+          feat(meta, "first_steam", out, now);
+        } else if (e.kind === "wildfire") feat(meta, "first_wildfire", out, now);
+        else if (e.kind === "shatter_chain") {
+          feat(meta, "first_shatter_chain", out, now);
+          if (e.count >= 8) feat(meta, "big_shatter", out, now);
+        } else if (e.kind === "shatter" && e.count >= 8) feat(meta, "big_shatter", out, now);
+        break;
       case "fx":
         if (e.kind === "bomb") feat(meta, "first_bomb", out, now);
         else if (e.kind === "split") feat(meta, "first_split", out, now);
@@ -281,6 +306,40 @@ export function recordRunEnd(meta: MetaState, run: Run): MetaNotice[] {
   for (const c of run.charms) discover(meta, "charm", c, out);
   checkUnlocks(meta, out);
   return out;
+}
+
+// --- merging ---------------------------------------------------------------------
+
+/**
+ * Combine two profiles (e.g. this browser's and the server's). Stats take the
+ * max — they are all monotonic — discoveries union, feats keep the earliest.
+ * Safe to apply in either direction, repeatedly.
+ */
+export function mergeMeta(a: MetaState, b: MetaState): MetaState {
+  const out = emptyMeta();
+  for (const k of Object.keys(out.stats) as StatKey[]) out.stats[k] = Math.max(a.stats[k] ?? 0, b.stats[k] ?? 0);
+  out.discovered.charms = [...new Set([...a.discovered.charms, ...b.discovered.charms])];
+  out.discovered.balls = [...new Set([...a.discovered.balls, ...b.discovered.balls])];
+  const featIds = new Set([...Object.keys(a.feats), ...Object.keys(b.feats)]) as Set<FeatId>;
+  for (const id of featIds) {
+    const x = a.feats[id];
+    const y = b.feats[id];
+    out.feats[id] = x && y ? (x < y ? x : y) : (x ?? y);
+  }
+  out.announced = [...new Set([...a.announced, ...b.announced])];
+  settleAnnouncements(out);
+  return out;
+}
+
+/** Shape check for profiles arriving over the network. */
+export function validateMeta(x: unknown): x is MetaState {
+  if (typeof x !== "object" || x === null) return false;
+  const m = x as Partial<MetaState>;
+  if (m.version !== META_VERSION || typeof m.stats !== "object" || m.stats === null) return false;
+  for (const v of Object.values(m.stats)) if (typeof v !== "number" || !Number.isFinite(v) || v < 0) return false;
+  if (!m.discovered || !Array.isArray(m.discovered.charms) || !Array.isArray(m.discovered.balls)) return false;
+  if (typeof m.feats !== "object" || m.feats === null) return false;
+  return true;
 }
 
 // --- persistence ---------------------------------------------------------------

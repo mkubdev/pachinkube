@@ -4,6 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>PACHINKUBE</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet" />
@@ -34,6 +35,13 @@
       #charms { top: 12px; right: 12px; width: min(220px, 18vw); display: flex; flex-direction: column; gap: 4px; pointer-events: none; }
       .charm { padding: 5px 9px; border-radius: 4px; background: rgba(10,10,20,.78); border-left: 3px solid #556; }
       .charm.uncommon { border-left-color: var(--cyan); } .charm.rare { border-left-color: var(--gold); }
+      .charm.temp { border-left-style: dashed; display: flex; justify-content: space-between; gap: 8px; }
+      .charm .left { color: #9aa4b0; font-size: 11px; white-space: nowrap; }
+      .el-fire { background: linear-gradient(90deg, rgba(255,106,0,.18), rgba(10,10,20,.78)); }
+      .el-ice { background: linear-gradient(90deg, rgba(159,232,255,.18), rgba(10,10,20,.78)); }
+      .el-storm { background: linear-gradient(90deg, rgba(125,249,255,.18), rgba(10,10,20,.78)); }
+      .offer .dur { margin-left: 8px; color: var(--gold); font-family: var(--text); text-transform: none; letter-spacing: 0; }
+      .offer.el-fire { border-color: rgba(255,106,0,.5); } .offer.el-ice { border-color: rgba(159,232,255,.5); } .offer.el-storm { border-color: rgba(125,249,255,.5); }
       #labels .pocket { position: fixed; transform: translate(-50%, 0); color: var(--cyan); font-size: 11px; font-weight: 700; pointer-events: none; text-shadow: 0 0 8px rgba(45,226,255,.6); }
       #labels .pocket.jackpot { color: var(--magenta); font-weight: 700; text-shadow: 0 0 10px rgba(255,45,149,.8); }
       .popup { position: fixed; left: 0; top: 0; pointer-events: none; font-weight: 700; white-space: nowrap; will-change: transform, opacity; font-family: var(--display); }
@@ -55,7 +63,9 @@
       @keyframes comboPop { from { transform: translateX(-50%) scale(1.35); } to { transform: translateX(-50%) scale(1); } }
       @keyframes comboHit { 0% { filter: brightness(3); letter-spacing: .12em; } 100% { filter: brightness(1); letter-spacing: 0; } }
       @keyframes comboOut { to { opacity: 0; transform: translateX(-50%) translateY(-30px) scale(1.15); } }
-      #flash { inset: 0; pointer-events: none; opacity: 0; mix-blend-mode: screen; }
+      #flash { inset: 0; pointer-events: none; opacity: 0; mix-blend-mode: screen; z-index: 1; }
+      #hud, #charms, #combo, #toasts, #dock, #hint, #labels { z-index: 2; }
+      #modal, #collection, #board-panel { z-index: 3; }
       #modal { inset: 0; display: grid; place-items: center; background: rgba(4,4,10,.72); backdrop-filter: blur(3px); }
       #modal[hidden] { display: none; }
       .panel { width: min(920px, 92vw); padding: 24px 28px; background: #0d0d18; border: 1px solid #2a2440; border-radius: 10px; box-shadow: 0 0 60px rgba(255,45,149,.15); }
@@ -81,7 +91,15 @@
       .toast b { display: block; color: #fff; } .toast small { color: #9aa4b0; }
       .toast.out { animation: toastOut .6s ease-in both; }
       @keyframes toastIn { from { opacity: 0; transform: translateX(24px); } } @keyframes toastOut { to { opacity: 0; transform: translateX(24px); } }
-      #collection-btn { right: 12px; bottom: 12px; font-size: 12px; padding: 5px 10px; background: rgba(10,10,20,.78); }
+      #dock { right: 12px; bottom: 12px; display: flex; gap: 6px; align-items: center; }
+      #dock button { font-size: 12px; padding: 5px 10px; background: rgba(10,10,20,.78); }
+      #dock button.on { border-color: var(--magenta); color: var(--magenta); }
+      #dock .btn { font-size: 12px; padding: 5px 10px; background: rgba(10,10,20,.78); border: 1px solid #2a2440; border-radius: 6px; color: #fff; text-decoration: none; }
+      #dock .who { color: var(--cyan); font-size: 12px; margin: 0 4px 0 8px; }
+      #dock input[type=range] { width: 70px; accent-color: var(--magenta); display: none; }
+      #dock.music-on input[type=range] { display: inline-block; }
+      #board-panel { inset: 0; display: grid; place-items: center; background: rgba(4,4,10,.72); backdrop-filter: blur(3px); }
+      #board-panel[hidden] { display: none; }
       #collection { inset: 0; display: grid; place-items: start center; overflow: auto; padding: 4vh 0; background: rgba(4,4,10,.82); backdrop-filter: blur(3px); }
       #collection[hidden] { display: none; }
       .panel.wide { width: min(1100px, 94vw); }

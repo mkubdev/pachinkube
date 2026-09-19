@@ -6,6 +6,7 @@
 import type { Rng } from "../sim/rng.js";
 import type { BallSpawn, Peg, SimEvent } from "../sim/types.js";
 import type { BallTypeId } from "./balls.js";
+import type { Element } from "./elements.js";
 
 export type Rarity = "common" | "uncommon" | "rare";
 export const RARITY_WEIGHT: Record<Rarity, number> = { common: 60, uncommon: 30, rare: 10 };
@@ -90,6 +91,28 @@ export interface Charm {
   roundEndMult?: number;
   /** Mult factor when a ball lands in the pocket it was aimed at. */
   sharpshooter?: number;
+
+  // --- temporary charms ------------------------------------------------------
+  /** Rounds the charm stays; undefined = permanent. Counted from acquisition. */
+  duration?: number;
+
+  // --- elemental passives ----------------------------------------------------
+  /** Every ball from the bag is imbued with this element. */
+  element?: Element;
+  /** Chance (0..1) a fresh hit ignites the peg regardless of ball element. */
+  igniteChance?: number;
+  /** Pegs frozen at the start of every round. */
+  frozenAtStart?: number;
+  /** Every Nth peg hit fires a zap from the peg to its 2 nearest pegs. */
+  zapEvery?: number;
+  /** Extra chips per lightning arc. */
+  arcChips?: number;
+  /** Extra mult on every steam reaction. */
+  steamMult?: number;
+  /** Multiplier on every elemental chip payout. */
+  elementBoost?: number;
+  /** Burning pegs also spread when hit again (not only on ignite). */
+  spreadOnRepeat?: boolean;
 }
 
 export type CharmId =
@@ -118,7 +141,20 @@ export type CharmId =
   | "duplicator"
   | "compound"
   | "sharpshooter"
-  | "low_gravity";
+  | "low_gravity"
+  // elemental passives
+  | "ember_core"
+  | "frost_bite"
+  | "static_field"
+  | "conductor"
+  | "melting_point"
+  | "tinder"
+  | "elemental_surge"
+  // temporary elemental actives (N rounds, then gone)
+  | "firestorm"
+  | "deep_freeze"
+  | "thunderhead"
+  | "solstice";
 
 function nearestUnlit(ctx: CharmCtx, from: Peg, n: number): Peg[] {
   return ctx.pegs
@@ -298,6 +334,21 @@ export const CHARMS: Record<CharmId, Charm> = {
       return { ...spawn, gravityScale: (spawn.gravityScale ?? 1) * 0.8 };
     },
   },
+
+  // --- elemental passives (permanent) --------------------------------------
+  ember_core: { id: "ember_core", name: "Ember Core", desc: "20% of fresh hits ignite the peg. Burning pegs pay ×1.5 chips and spread.", rarity: "uncommon", igniteChance: 0.2 },
+  frost_bite: { id: "frost_bite", name: "Frost Bite", desc: "6 pegs start each round frozen. Frozen pegs are glassy and shatter for chips.", rarity: "uncommon", frozenAtStart: 6 },
+  static_field: { id: "static_field", name: "Static Field", desc: "Every 6th peg hit zaps the 2 nearest pegs.", rarity: "uncommon", zapEvery: 6 },
+  conductor: { id: "conductor", name: "Conductor", desc: "Every lightning arc pays +6 chips.", rarity: "common", arcChips: 6 },
+  melting_point: { id: "melting_point", name: "Melting Point", desc: "Steam (fire on ice) gives +2 extra mult.", rarity: "rare", steamMult: 2 },
+  tinder: { id: "tinder", name: "Tinder", desc: "Burning pegs spread fire every time they are hit.", rarity: "common", spreadOnRepeat: true },
+  elemental_surge: { id: "elemental_surge", name: "Elemental Surge", desc: "All elemental chip payouts ×2.", rarity: "rare", elementBoost: 2 },
+
+  // --- temporary elemental actives -----------------------------------------
+  firestorm: { id: "firestorm", name: "Firestorm", desc: "For 3 rounds every ball is Fire.", rarity: "uncommon", duration: 3, element: "fire" },
+  deep_freeze: { id: "deep_freeze", name: "Deep Freeze", desc: "For 2 rounds every ball is Ice and 10 pegs start frozen.", rarity: "uncommon", duration: 2, element: "ice", frozenAtStart: 10 },
+  thunderhead: { id: "thunderhead", name: "Thunderhead", desc: "For 3 rounds every ball is Storm.", rarity: "uncommon", duration: 3, element: "storm" },
+  solstice: { id: "solstice", name: "Solstice", desc: "For 1 round: fire everywhere, 8 frozen pegs, arcs pay +10. Chaos.", rarity: "rare", duration: 1, element: "fire", frozenAtStart: 8, arcChips: 10, igniteChance: 0.5 },
 };
 
 export const CHARM_IDS = Object.keys(CHARMS) as CharmId[];
