@@ -94,6 +94,10 @@
       #dock { right: 12px; bottom: 12px; display: flex; gap: 6px; align-items: center; }
       #dock button { font-size: 12px; padding: 5px 10px; background: rgba(10,10,20,.78); }
       #dock button.on { border-color: var(--magenta); color: var(--magenta); }
+      #stations { display: inline-flex; border: 1px solid #2a2440; border-radius: 6px; overflow: hidden; }
+      #stations button { border: 0; border-radius: 0; padding: 5px 9px; }
+      #stations button + button { border-left: 1px solid #2a2440; }
+      #stations button.on { background: var(--magenta); color: #000; }
       #dock .btn { font-size: 12px; padding: 5px 10px; background: rgba(10,10,20,.78); border: 1px solid #2a2440; border-radius: 6px; color: #fff; text-decoration: none; }
       #dock .who { color: var(--cyan); font-size: 12px; margin: 0 4px 0 8px; }
       #dock input[type=range] { width: 70px; accent-color: var(--magenta); display: none; }

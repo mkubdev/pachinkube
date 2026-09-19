@@ -33,6 +33,7 @@ export class GameUI {
   onCollection: (() => void) | null = null;
   onBoard: (() => void) | null = null;
   onMusic: (() => void) | null = null;
+  onStation: ((id: string) => void) | null = null;
   onVolume: ((v: number) => void) | null = null;
   private runDiscoveries: MetaNotice[] = [];
 
@@ -51,7 +52,8 @@ export class GameUI {
       <div id="board-panel" hidden></div>
       <div id="dock">
         <input id="music-vol" type="range" min="0" max="100" title="music volume" />
-        <button id="music-btn" title="lofi girl radio (M)">♪ lofi</button>
+        <span id="stations"><button data-station="lofi" title="lofi girl radio">lofi</button><button data-station="dnb" title="drum &amp; bass radio">dnb</button></span>
+        <button id="music-btn" title="music on/off (M)">♪</button>
         <button id="board-btn" title="Scoreboard (L)">◇ scores</button>
         <button id="collection-btn" title="Collection (C)">◈ collection</button>
         <span id="account"></span>
@@ -66,6 +68,9 @@ export class GameUI {
     this.root.querySelector("#collection-btn")!.addEventListener("click", () => this.onCollection?.());
     this.root.querySelector("#board-btn")!.addEventListener("click", () => this.onBoard?.());
     this.root.querySelector("#music-btn")!.addEventListener("click", () => this.onMusic?.());
+    this.root.querySelectorAll<HTMLButtonElement>("#stations button").forEach((b) =>
+      b.addEventListener("click", () => this.onStation?.(b.dataset.station!)),
+    );
     this.root.querySelector<HTMLInputElement>("#music-vol")!.addEventListener("input", (e) =>
       this.onVolume?.(Number((e.target as HTMLInputElement).value)),
     );
@@ -204,12 +209,15 @@ export class GameUI {
   }
 
   /** Reflect music state on the dock. */
-  setMusic(playing: boolean, volume: number): void {
+  setMusic(playing: boolean, volume: number, station: string): void {
     const dock = this.root.querySelector("#dock")!;
     const btn = this.root.querySelector("#music-btn")!;
     dock.classList.toggle("music-on", playing);
     btn.classList.toggle("on", playing);
-    btn.textContent = playing ? "♪ lofi on" : "♪ lofi";
+    btn.textContent = playing ? "♪ on" : "♪ off";
+    this.root.querySelectorAll<HTMLButtonElement>("#stations button").forEach((b) =>
+      b.classList.toggle("on", b.dataset.station === station),
+    );
     this.root.querySelector<HTMLInputElement>("#music-vol")!.value = String(volume);
   }
 

@@ -56,10 +56,10 @@ function redisStore(): Store | null {
       const out: Array<{ name: string; score: number; verified?: boolean }> = [];
       for (let i = 0; i < flat.length; i += 2) out.push({ name: String(flat[i]), score: Number(flat[i + 1]) });
       if (out.length) {
-        const runs = await redis.hmget<Record<string, string>>(`${KEY}:runs`, ...out.map((o) => o.name));
+        const runs = await redis.hmget<Record<string, string | RunRecord>>(`${KEY}:runs`, ...out.map((o) => o.name));
         for (const o of out) {
-          const raw = runs?.[o.name];
-          if (raw) o.verified = (JSON.parse(raw) as RunRecord).verified;
+          const rec = parseRecord(runs?.[o.name]);
+          if (rec) o.verified = rec.verified;
         }
       }
       return out;
@@ -72,10 +72,15 @@ function redisStore(): Store | null {
       return { improved };
     },
     async detail(name) {
-      const raw = await redis.hget<string>(`${KEY}:runs`, name);
-      return raw ? (JSON.parse(raw) as RunRecord) : null;
+      return parseRecord(await redis.hget<string | RunRecord>(`${KEY}:runs`, name));
     },
   };
+}
+
+/** @upstash/redis auto-deserializes JSON strings on read, so accept both shapes. */
+function parseRecord(raw: string | RunRecord | null | undefined): RunRecord | null {
+  if (!raw) return null;
+  return typeof raw === "string" ? (JSON.parse(raw) as RunRecord) : raw;
 }
 
 const memory = new Map<string, RunRecord>();

@@ -53,7 +53,7 @@ if (devCharms.length) {
 }
 
 const music = new Music();
-music.onChange = () => ui.setMusic(music.playing, music.volume);
+music.onChange = () => ui.setMusic(music.playing, music.volume, music.station);
 const dims = { width: run.sim.config.width, height: run.sim.config.height, buckets: run.sim.config.buckets };
 const view = new BoardRenderer(canvas, dims);
 view.setPegs(run.sim.pegs);
@@ -124,7 +124,8 @@ void getSession()
 ui.onBoard = () => void ui.toggleBoard();
 ui.onMusic = () => music.toggle();
 ui.onVolume = (v) => music.setVolume(v);
-ui.setMusic(false, music.volume);
+ui.onStation = (id) => music.setStation(id as "lofi" | "dnb");
+ui.setMusic(false, music.volume, music.station);
 
 /** One fixed simulation step plus the presentation reactions to its events. */
 function simStep(): void {
