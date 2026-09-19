@@ -44,8 +44,10 @@ interface Store {
 }
 
 function redisStore(): Store | null {
-  const url = process.env.UPSTASH_REDIS_REST_URL;
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+  // Vercel's Upstash integration injects KV_REST_API_*; a hand-made Upstash
+  // database uses UPSTASH_REDIS_REST_*. Accept either.
+  const url = process.env.UPSTASH_REDIS_REST_URL ?? process.env.KV_REST_API_URL;
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN ?? process.env.KV_REST_API_TOKEN;
   if (!url || !token) return null;
   const redis = new Redis({ url, token });
   return {
