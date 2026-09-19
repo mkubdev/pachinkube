@@ -1,4 +1,4 @@
-import type { BallSpawn } from "../sim/types";
+import type { BallSpawn } from "../sim/types.js";
 
 export type BallTypeId =
   | "steel" | "rubber" | "heavy" | "spark"

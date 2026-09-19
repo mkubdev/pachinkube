@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { GET, POST, usingRedis } from "../api/scores";
+import { GET, POST, usingRedis } from "../api/scores.js";
 
 const post = (body: unknown) =>
   POST(new Request("http://t/api/scores", { method: "POST", body: JSON.stringify(body), headers: { "content-type": "application/json" } }));

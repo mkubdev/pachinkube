@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { Sim } from "../src/sim/world";
-import type { SimEvent } from "../src/sim/types";
+import { Sim } from "../src/sim/world.js";
+import type { SimEvent } from "../src/sim/types.js";
 
 const sims: Sim[] = [];
 afterEach(() => {

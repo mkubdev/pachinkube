@@ -18,10 +18,10 @@ import {
   RenderPass,
   VignetteEffect,
 } from "postprocessing";
-import { FxSystem } from "./fx";
+import { FxSystem } from "./fx.js";
 
-import type { Peg, Snapshot } from "../sim/types";
-import { BALL_TYPES, type BallTypeId } from "../game/balls";
+import type { Peg, Snapshot } from "../sim/types.js";
+import { BALL_TYPES, type BallTypeId } from "../game/balls.js";
 
 export const MAX_BALLS = 1024;
 

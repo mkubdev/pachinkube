@@ -5,10 +5,10 @@
  * `drop()`/`pick()` calls at the same ticks produce the same final score.
  * Everything the UI needs arrives as `GameEvent`s from `step()`.
  */
-import { Sim } from "../sim/world";
-import type { Rng } from "../sim/rng";
-import type { BallSpawn, SimEvent } from "../sim/types";
-import { BALL_TYPES, SHOP_BALLS, STARTING_BAG, type BallTypeId } from "./balls";
+import { Sim } from "../sim/world.js";
+import type { Rng } from "../sim/rng.js";
+import type { BallSpawn, SimEvent } from "../sim/types.js";
+import { BALL_TYPES, SHOP_BALLS, STARTING_BAG, type BallTypeId } from "./balls.js";
 import {
   CHARMS,
   CHARM_IDS,
@@ -18,8 +18,8 @@ import {
   type CharmCtx,
   type CharmId,
   type FxKind,
-} from "./charms";
-import { BASE_CHIPS_FRESH, BASE_CHIPS_REPEAT, ballScore, bucketMultipliers, roundTarget } from "./scoring";
+} from "./charms.js";
+import { BASE_CHIPS_FRESH, BASE_CHIPS_REPEAT, ballScore, bucketMultipliers, roundTarget } from "./scoring.js";
 
 /** Runs are endless: targets keep climbing until you miss one. Round 8 is the
  *  "machine cleared" milestone, not the end. Tests pass a finite `rounds`. */

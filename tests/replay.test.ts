@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { Run } from "../src/game/run";
-import { replay, validateLog } from "../src/game/replay";
-import { POST } from "../api/scores";
+import { Run } from "../src/game/run.js";
+import { replay, validateLog } from "../src/game/replay.js";
+import { POST } from "../api/scores.js";
 
 /** Play live with a scripted policy and return the log + score, like a client would. */
 async function playLive(seed: string) {

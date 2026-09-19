@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { Run, type GameEvent } from "../src/game/run";
-import { CHARMS, CHARM_IDS } from "../src/game/charms";
-import { formatScore } from "../src/game/format";
-import { bucketMultipliers, roundTarget } from "../src/game/scoring";
+import { Run, type GameEvent } from "../src/game/run.js";
+import { CHARMS, CHARM_IDS } from "../src/game/charms.js";
+import { formatScore } from "../src/game/format.js";
+import { bucketMultipliers, roundTarget } from "../src/game/scoring.js";
 
 const runs: Run[] = [];
 afterEach(() => {

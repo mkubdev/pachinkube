@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { Rng, hash32, makeStreams } from "../src/sim/rng";
+import { Rng, hash32, makeStreams } from "../src/sim/rng.js";
 
 describe("rng", () => {
   it("is reproducible from a seed", () => {

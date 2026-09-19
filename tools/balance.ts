@@ -5,10 +5,10 @@
  *
  *   BALANCE=1 npx vitest run tests/balance.probe.test.ts   (seeds via BALANCE_SEEDS)
  */
-import { Run } from "../src/game/run";
-import { Rng } from "../src/sim/rng";
-import { roundTarget } from "../src/game/scoring";
-import { CLEAR_ROUND as ROUNDS } from "../src/game/run";
+import { Run } from "../src/game/run.js";
+import { Rng } from "../src/sim/rng.js";
+import { roundTarget } from "../src/game/scoring.js";
+import { CLEAR_ROUND as ROUNDS } from "../src/game/run.js";
 
 async function playOne(seed: string, maxTicks: number) {
   const run = await Run.create(seed, { rounds: ROUNDS });

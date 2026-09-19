@@ -10,9 +10,9 @@
  * accepted but stored unverified, so the board can show the difference.
  */
 import { Redis } from "@upstash/redis";
-import { replay, validateLog, validatePool } from "../src/game/replay";
-import type { RunInput } from "../src/game/run";
-import type { Pool } from "../src/game/meta";
+import { replay, validateLog, validatePool } from "../src/game/replay.js";
+import type { RunInput } from "../src/game/run.js";
+import type { Pool } from "../src/game/meta.js";
 
 const KEY = "pachinkube:scores:v1";
 const TOP_N = 20;

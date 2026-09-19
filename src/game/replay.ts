@@ -5,10 +5,10 @@
  * the same ticks reproduces the same score. The leaderboard uses this to
  * verify submissions instead of trusting the client's number.
  */
-import { Run, type RunInput } from "./run";
-import { BALL_IDS, type BallTypeId } from "./balls";
-import { CHARM_IDS, type CharmId } from "./charms";
-import type { Pool } from "./meta";
+import { Run, type RunInput } from "./run.js";
+import { BALL_IDS, type BallTypeId } from "./balls.js";
+import { CHARM_IDS, type CharmId } from "./charms.js";
+import type { Pool } from "./meta.js";
 
 export interface ReplayResult {
   score: number;

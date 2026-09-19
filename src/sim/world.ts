@@ -10,7 +10,7 @@
  */
 import RAPIER from "@dimforge/rapier2d-compat";
 
-import { hash32, makeStreams, type Streams } from "./rng";
+import { hash32, makeStreams, type Streams } from "./rng.js";
 import {
   DEFAULT_CONFIG,
   type BallSpawn,
@@ -19,7 +19,7 @@ import {
   type SimConfig,
   type SimEvent,
   type Snapshot,
-} from "./types";
+} from "./types.js";
 
 let rapierReady: Promise<void> | null = null;
 function initRapier(): Promise<void> {

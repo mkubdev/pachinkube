@@ -1,10 +1,10 @@
-import { Run } from "./game/run";
-import { FixedStepper } from "./sim/loop";
-import type { Snapshot } from "./sim/types";
-import { BoardRenderer } from "./render/scene";
-import { GameUI } from "./game/ui";
-import { GameAudio } from "./game/audio";
-import { BALL_TYPES, type BallTypeId } from "./game/balls";
+import { Run } from "./game/run.js";
+import { FixedStepper } from "./sim/loop.js";
+import type { Snapshot } from "./sim/types.js";
+import { BoardRenderer } from "./render/scene.js";
+import { GameUI } from "./game/ui.js";
+import { GameAudio } from "./game/audio.js";
+import { BALL_TYPES, type BallTypeId } from "./game/balls.js";
 import {
   LocalMetaStore,
   newTracker,
@@ -14,7 +14,7 @@ import {
   recordRunEnd,
   recordRunStart,
   unlockedPool,
-} from "./game/meta";
+} from "./game/meta.js";
 
 const NEON_MAGENTA = 0xff2d95;
 const NEON_CYAN = 0x2de2ff;

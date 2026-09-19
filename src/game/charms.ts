@@ -3,9 +3,9 @@
  * Synergies emerge from composition, so hooks must stay small and honest about
  * what they touch (chips, mult, spawns, the bag).
  */
-import type { Rng } from "../sim/rng";
-import type { BallSpawn, Peg, SimEvent } from "../sim/types";
-import type { BallTypeId } from "./balls";
+import type { Rng } from "../sim/rng.js";
+import type { BallSpawn, Peg, SimEvent } from "../sim/types.js";
+import type { BallTypeId } from "./balls.js";
 
 export type Rarity = "common" | "uncommon" | "rare";
 export const RARITY_WEIGHT: Record<Rarity, number> = { common: 60, uncommon: 30, rare: 10 };

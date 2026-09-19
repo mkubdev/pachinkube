@@ -3,11 +3,11 @@
  * Roguelite menus are far easier in HTML than in-canvas, and it stays crisp
  * at any resolution.
  */
-import { CHARMS, CHARM_IDS } from "./charms";
-import { BALL_IDS, BALL_TYPES } from "./balls";
-import { formatMult, formatScore } from "./format";
-import type { GameEvent, Offer, Run } from "./run";
-import { FEATS, UNLOCK_RULES, isUnlocked, ruleFor, unlockProgress, type MetaNotice, type MetaState, type FeatId } from "./meta";
+import { CHARMS, CHARM_IDS } from "./charms.js";
+import { BALL_IDS, BALL_TYPES } from "./balls.js";
+import { formatMult, formatScore } from "./format.js";
+import type { GameEvent, Offer, Run } from "./run.js";
+import { FEATS, UNLOCK_RULES, isUnlocked, ruleFor, unlockProgress, type MetaNotice, type MetaState, type FeatId } from "./meta.js";
 
 type Projector = (x: number, y: number) => { x: number; y: number };
 

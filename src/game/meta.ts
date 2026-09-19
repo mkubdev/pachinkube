@@ -10,9 +10,9 @@
  * - unlocks: rarer content gated behind lifetime stats, so runs 2–20 keep
  *   changing what the shop can offer
  */
-import { BALL_IDS, BALL_TYPES, type BallTypeId } from "./balls";
-import { CHARMS, CHARM_IDS, type CharmId } from "./charms";
-import type { GameEvent, Offer, Run } from "./run";
+import { BALL_IDS, BALL_TYPES, type BallTypeId } from "./balls.js";
+import { CHARMS, CHARM_IDS, type CharmId } from "./charms.js";
+import type { GameEvent, Offer, Run } from "./run.js";
 
 export const META_VERSION = 1;
 
@@ -78,6 +78,7 @@ export const UNLOCK_RULES: UnlockRule[] = [
   { kind: "ball", id: "bomb", stat: "bestCombo", value: 50, hint: "Reach a 50 combo" },
   // charms
   { kind: "charm", id: "split_shot", stat: "bestCombo", value: 25, hint: "Reach a 25 combo" },
+  { kind: "charm", id: "chain_lightning", stat: "roundsCleared", value: 2, hint: "Clear 2 rounds (lifetime)" },
   { kind: "charm", id: "sharpshooter", stat: "jackpots", value: 5, hint: "Land 5 balls in the centre pocket" },
   { kind: "charm", id: "grand_finale", stat: "bestRound", value: 4, hint: "Reach round 4" },
   { kind: "charm", id: "momentum", stat: "ballsDropped", value: 200, hint: "Drop 200 balls" },

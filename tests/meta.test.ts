@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { Run, type GameEvent } from "../src/game/run";
+import { Run, type GameEvent } from "../src/game/run.js";
 import {
   FULL_POOL,
   LocalMetaStore,
@@ -15,8 +15,8 @@ import {
   recordRunStart,
   settleAnnouncements,
   unlockedPool,
-} from "../src/game/meta";
-import { replay, validatePool } from "../src/game/replay";
+} from "../src/game/meta.js";
+import { replay, validatePool } from "../src/game/replay.js";
 
 const runs: Run[] = [];
 afterEach(() => {

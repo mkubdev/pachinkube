@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { Run, type GameEvent } from "../src/game/run";
-import { BALL_IDS, BALL_TYPES, SHOP_BALLS } from "../src/game/balls";
-import { CHARMS, CHARM_IDS } from "../src/game/charms";
+import { Run, type GameEvent } from "../src/game/run.js";
+import { BALL_IDS, BALL_TYPES, SHOP_BALLS } from "../src/game/balls.js";
+import { CHARMS, CHARM_IDS } from "../src/game/charms.js";
 
 const runs: Run[] = [];
 afterEach(() => {

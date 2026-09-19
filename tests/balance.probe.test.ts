@@ -1,6 +1,6 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { describe, it } from "vitest";
-import { runBalance } from "../tools/balance";
+import { runBalance } from "../tools/balance.js";
 
 // Not a pass/fail test: a tuning probe. Run with BALANCE=1; output lands in
 // .cache/balance.txt because vitest buffers console output per worker.
