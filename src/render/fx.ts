@@ -213,6 +213,18 @@ export class FxSystem {
     return this.alive.length;
   }
 
+  /** Kill everything in flight (new run). */
+  clear(): void {
+    for (const i of this.alive) {
+      this.life[i] = 0;
+      this.free.push(i);
+    }
+    this.alive.length = 0;
+    this.lifeAttr.needsUpdate = true;
+    for (const r of this.ringState) r.age = r.life = 1;
+    for (const z of this.zaps) z.line.visible = false;
+  }
+
   update(dt: number): void {
     // Particles: integrate, retire the dead by swap-remove.
     for (let k = this.alive.length - 1; k >= 0; k--) {

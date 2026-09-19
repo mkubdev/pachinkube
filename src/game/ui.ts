@@ -23,6 +23,8 @@ export class GameUI {
   private readonly flashEl: HTMLElement;
   private comboHideAt = 0;
   private readonly labels: HTMLElement[] = [];
+  private pocketCenters: number[] = [];
+  private pocketsResizeBound = false;
   private readonly popups: HTMLElement[] = [];
   private popupIdx = 0;
   private lastHash = "--------";
@@ -95,8 +97,13 @@ export class GameUI {
       box.appendChild(el);
       this.labels.push(el);
     });
+    this.pocketCenters = centers;
     this.layoutPockets(centers);
-    addEventListener("resize", () => this.layoutPockets(centers));
+    // One listener for the lifetime of the UI; new runs just swap the centres.
+    if (!this.pocketsResizeBound) {
+      this.pocketsResizeBound = true;
+      addEventListener("resize", () => this.layoutPockets(this.pocketCenters));
+    }
   }
 
   updatePocketMults(mults: number[]): void {
@@ -127,6 +134,20 @@ export class GameUI {
         .map((b) => `<span style="color:#${BALL_TYPES[b.type].color.toString(16).padStart(6, "0")}">${BALL_TYPES[b.type].name}${b.count > 1 ? ` ×${b.count}` : ""}</span>`)
         .join("")}</div>
       <div class="row dim"><span>seed <code>${seed}</code></span><span>hash <code>${this.lastHash}</code></span></div>`;
+  }
+
+  /** Close overlays and clear per-run presentation state. */
+  resetRun(): void {
+    this.modal.hidden = true;
+    this.root.querySelector<HTMLElement>("#collection")!.hidden = true;
+    this.root.querySelector<HTMLElement>("#board-panel")!.hidden = true;
+    this.comboEl.hidden = true;
+    this.comboHideAt = 0;
+    for (const el of this.popups) el.hidden = true;
+    this.live = [];
+    this.runDiscoveries = [];
+    this.lastHash = "--------";
+    this.charmsEl.innerHTML = "";
   }
 
   /** Centre banner for run-level moments (insurance, etc.). */

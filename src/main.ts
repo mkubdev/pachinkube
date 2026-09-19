@@ -27,7 +27,7 @@ const GOLD = 0xffd34d;
 const ballColor = (tag: string): number => BALL_TYPES[tag as BallTypeId]?.color ?? 0xfff1a8;
 
 const params = new URLSearchParams(location.search);
-const seed = params.get("seed") ?? `run-${Date.now().toString(36)}`;
+let seed = params.get("seed") ?? `run-${Date.now().toString(36)}`;
 
 const canvas = document.getElementById("game") as HTMLCanvasElement;
 
@@ -74,11 +74,37 @@ ui.onPick = (i) => {
   ui.updatePocketMults(run.pocketMultipliers());
   ui.updateCharms(run);
 };
-ui.onNewRun = () => {
+ui.onNewRun = () => void newRun(`run-${Date.now().toString(36)}`);
+
+/** Start a fresh run in place: no page reload, no re-fetching assets. */
+async function newRun(nextSeed: string): Promise<void> {
+  const old = run;
+  seed = nextSeed;
   const url = new URL(location.href);
-  url.searchParams.set("seed", `run-${Date.now().toString(36)}`);
-  location.href = url.toString();
-};
+  url.searchParams.set("seed", seed);
+  url.searchParams.delete("pre");
+  url.searchParams.delete("charms");
+  history.replaceState(null, "", url);
+
+  const freshPool = unlockedPool(meta);
+  run = await Run.create(seed, { pool: freshPool });
+  old.dispose();
+  runEnded = false;
+  auto = false;
+  Object.assign(tracker, newTracker());
+  recordRunStart(meta);
+  metaStore.save(meta);
+
+  view.resetForNewRun();
+  view.setPegs(run.sim.pegs);
+  view.resetPegs();
+  ui.resetRun();
+  ui.setPockets(run.sim.bucketCenters, run.pocketMultipliers());
+  ui.updateCharms(run);
+  prev = curr = run.sim.snapshot();
+  stepper.reset();
+  ui.notice("NEW RUN");
+}
 ui.onSubmit = async (name) => {
   const res = await fetch("/api/scores", {
     method: "POST",

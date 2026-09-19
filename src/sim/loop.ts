@@ -15,6 +15,10 @@ export class FixedStepper {
     private readonly maxStepsPerFrame = 8,
   ) {}
 
+  reset(): void {
+    this.accumulator = 0;
+  }
+
   /** Advance by `frameSeconds` of wall time, calling `step` per fixed slice. */
   advance(frameSeconds: number, step: () => void): number {
     this.accumulator += Math.min(frameSeconds, this.dt * this.maxStepsPerFrame);

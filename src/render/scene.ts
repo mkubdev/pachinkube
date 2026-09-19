@@ -241,6 +241,14 @@ export class BoardRenderer {
   }
 
   setPegs(pegs: Peg[]): void {
+    if (this.pegs) {
+      // New run, new layout: drop the previous instanced mesh entirely.
+      this.scene.remove(this.pegs);
+      this.pegs.geometry.dispose();
+      (this.pegs.material as THREE.Material).dispose();
+      this.pegs = null;
+      this.pulsing.clear();
+    }
     const geo = new THREE.CylinderGeometry(1, 1, 0.5, 18);
     geo.rotateX(Math.PI / 2);
     const inst = new THREE.InstancedBufferGeometry().copy(geo as unknown as THREE.InstancedBufferGeometry);
@@ -308,6 +316,15 @@ export class BoardRenderer {
     this.pulsing.clear();
     for (let i = 0; i < this.pegs.count; i++) this.writePegColor(i, PEG_UNLIT);
     this.resetPegElements();
+  }
+
+  /** Clear transient presentation state between runs. */
+  resetForNewRun(): void {
+    this.fx.clear();
+    this.shake = 0;
+    this.heat = this.heatTarget = 0;
+    this.bloomKick = 0;
+    this.balls.count = 0;
   }
 
   /** Combo intensity 0..1; post effects ease toward it. */
