@@ -162,7 +162,7 @@ ui.setMusic(false, music.volume, music.station);
 function simStep(): void {
   if (auto && run.phase === "drop" && run.sim.tick % 24 === 0 && run.ballsLeft > 0) {
     // Deterministic sweep for the dev auto-drop: no Math.random in inputs.
-    run.drop(Math.sin(run.sim.tick / 37) * 2.2);
+    if (run.drop(Math.sin(run.sim.tick / 37) * 2.2)) recordDrop(meta);
   }
   prev = curr;
   const events = run.step();
@@ -337,6 +337,20 @@ function simStep(): void {
     }
   }
   ui.handle(events, run);
+
+  // Progression: fold this step's events into the profile.
+  if (events.length) {
+    ui.toasts(recordEvents(meta, events, run, tracker));
+    for (const e of events) {
+      if (e.type === "phase" && e.phase === "shop") ui.toasts(recordOffers(meta, run.offers));
+      if (e.type === "phase" && (e.phase === "won" || e.phase === "lost") && !runEnded) {
+        runEnded = true;
+        ui.toasts(recordRunEnd(meta, run));
+        ui.showRunDiscoveries(meta, run);
+      }
+    }
+    metaStore.save(meta);
+  }
 }
 
 let last = performance.now();
@@ -364,4 +378,8 @@ if (pre > 0) {
   prev = curr;
 }
 if (params.get("collection") === "1") ui.toggleCollection(meta);
+// ?debugmeta=1 prints the profile after the pre-roll (headless verification aid).
+if (params.get("debugmeta") === "1") {
+  console.log("META", JSON.stringify({ stats: meta.stats, feats: Object.keys(meta.feats), announced: meta.announced.length, signedIn: metaStore.signedIn }));
+}
 requestAnimationFrame(loop);
