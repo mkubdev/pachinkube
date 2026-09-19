@@ -10,7 +10,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { loadEnv, type Plugin } from "vite";
 
 const ROUTES: Array<[RegExp, string]> = [
-  [/^\/api\/auth(\/.*)?$/, "api/auth/[...auth].ts"],
+  [/^\/api\/auth(\/.*)?$/, "api/auth.ts"],
   [/^\/api\/scores\/?$/, "api/scores.ts"],
   [/^\/api\/meta\/?$/, "api/meta.ts"],
 ];
