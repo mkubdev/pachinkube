@@ -74,33 +74,33 @@ export interface UnlockRule {
 export const UNLOCK_RULES: UnlockRule[] = [
   // balls
   { kind: "ball", id: "gold", stat: "roundsCleared", value: 3, hint: "Clear 3 rounds (lifetime)" },
-  { kind: "ball", id: "feather", stat: "ballsDropped", value: 100, hint: "Drop 100 balls" },
-  { kind: "ball", id: "cannon", stat: "bestCombo", value: 30, hint: "Reach a 30 combo" },
-  { kind: "ball", id: "magnet", stat: "jackpots", value: 10, hint: "Land 10 balls in the centre pocket" },
+  { kind: "ball", id: "feather", stat: "ballsDropped", value: 250, hint: "Drop 250 balls" },
+  { kind: "ball", id: "cannon", stat: "bestCombo", value: 60, hint: "Reach a 60 combo" },
+  { kind: "ball", id: "magnet", stat: "jackpots", value: 25, hint: "Land 25 balls in the centre pocket" },
   { kind: "ball", id: "twin", stat: "bestRound", value: 4, hint: "Reach round 4" },
-  { kind: "ball", id: "prism", stat: "pegHits", value: 2000, hint: "Hit 2,000 pegs" },
-  { kind: "ball", id: "bomb", stat: "bestCombo", value: 50, hint: "Reach a 50 combo" },
+  { kind: "ball", id: "prism", stat: "pegHits", value: 6000, hint: "Hit 6,000 pegs" },
+  { kind: "ball", id: "bomb", stat: "bestCombo", value: 100, hint: "Reach a 100 combo" },
   // charms
-  { kind: "charm", id: "split_shot", stat: "bestCombo", value: 25, hint: "Reach a 25 combo" },
-  { kind: "charm", id: "chain_lightning", stat: "roundsCleared", value: 2, hint: "Clear 2 rounds (lifetime)" },
-  { kind: "charm", id: "sharpshooter", stat: "jackpots", value: 5, hint: "Land 5 balls in the centre pocket" },
+  { kind: "charm", id: "split_shot", stat: "bestCombo", value: 40, hint: "Reach a 40 combo" },
+  { kind: "charm", id: "chain_lightning", stat: "roundsCleared", value: 5, hint: "Clear 5 rounds (lifetime)" },
+  { kind: "charm", id: "sharpshooter", stat: "jackpots", value: 12, hint: "Land 12 balls in the centre pocket" },
   { kind: "charm", id: "grand_finale", stat: "bestRound", value: 4, hint: "Reach round 4" },
-  { kind: "charm", id: "momentum", stat: "ballsDropped", value: 200, hint: "Drop 200 balls" },
-  { kind: "charm", id: "compound", stat: "totalScore", value: 100_000, hint: "Score 100K across all runs" },
+  { kind: "charm", id: "momentum", stat: "ballsDropped", value: 400, hint: "Drop 400 balls" },
+  { kind: "charm", id: "compound", stat: "totalScore", value: 500_000, hint: "Score 500K across all runs" },
   { kind: "charm", id: "bumper_kings", stat: "bestRound", value: 5, hint: "Reach round 5" },
-  { kind: "charm", id: "overflow", stat: "bestBallScore", value: 5000, hint: "Score 5,000 with a single ball" },
+  { kind: "charm", id: "overflow", stat: "bestBallScore", value: 25_000, hint: "Score 25,000 with a single ball" },
   { kind: "charm", id: "phoenix", stat: "losses", value: 3, hint: "Lose 3 runs" },
   { kind: "charm", id: "insurance", stat: "bestRound", value: 6, hint: "Reach round 6" },
   // elemental: the basics are open, the reactions-heavy ones are earned
-  { kind: "charm", id: "melting_point", stat: "steams", value: 10, hint: "Trigger 10 steam reactions" },
-  { kind: "charm", id: "elemental_surge", stat: "reactions", value: 200, hint: "Trigger 200 elemental reactions" },
+  { kind: "charm", id: "melting_point", stat: "steams", value: 30, hint: "Trigger 30 steam reactions" },
+  { kind: "charm", id: "elemental_surge", stat: "reactions", value: 800, hint: "Trigger 800 elemental reactions" },
   { kind: "charm", id: "solstice", stat: "bestRound", value: 7, hint: "Reach round 7" },
-  { kind: "charm", id: "thunderhead", stat: "reactions", value: 40, hint: "Trigger 40 elemental reactions" },
+  { kind: "charm", id: "thunderhead", stat: "reactions", value: 200, hint: "Trigger 200 elemental reactions" },
   { kind: "charm", id: "drift", stat: "bestRound", value: 4, hint: "Reach round 4" },
-  { kind: "charm", id: "roulette", stat: "jackpots", value: 15, hint: "Land 15 balls in the centre pocket" },
+  { kind: "charm", id: "roulette", stat: "jackpots", value: 40, hint: "Land 40 balls in the centre pocket" },
   { kind: "charm", id: "jackpot_growth", stat: "bestRound", value: 8, hint: "Reach round 8" },
-  { kind: "charm", id: "inversion", stat: "roundsCleared", value: 12, hint: "Clear 12 rounds (lifetime)" },
-  { kind: "charm", id: "restless_board", stat: "roundsCleared", value: 20, hint: "Clear 20 rounds (lifetime)" },
+  { kind: "charm", id: "inversion", stat: "roundsCleared", value: 25, hint: "Clear 25 rounds (lifetime)" },
+  { kind: "charm", id: "restless_board", stat: "roundsCleared", value: 40, hint: "Clear 40 rounds (lifetime)" },
 ];
 
 export function ruleFor(kind: "charm" | "ball", id: string): UnlockRule | undefined {
@@ -137,15 +137,15 @@ export const FULL_POOL: Pool = {
 // --- feats (discoveries you *do*) ---------------------------------------------
 
 export type FeatId =
-  | "first_win" | "combo_25" | "combo_50" | "combo_100" | "first_bomb" | "first_split"
+  | "first_win" | "combo_40" | "combo_80" | "combo_150" | "first_bomb" | "first_split"
   | "first_revive" | "first_bullseye" | "ball_5k" | "ball_50k" | "round_5" | "run_1m" | "jackpot_streak"
   | "first_steam" | "first_wildfire" | "first_shatter_chain" | "big_shatter";
 
 export const FEATS: Record<FeatId, { name: string; desc: string }> = {
   first_win: { name: "Machine Cleared", desc: "Beat round 8. The machine keeps going." },
-  combo_25: { name: "Warming Up", desc: "Reach a 25 combo." },
-  combo_50: { name: "Overdrive", desc: "Reach a 50 combo." },
-  combo_100: { name: "Meltdown", desc: "Reach a 100 combo." },
+  combo_40: { name: "Warming Up", desc: "Reach a 40 combo." },
+  combo_80: { name: "Overdrive", desc: "Reach an 80 combo." },
+  combo_150: { name: "Meltdown", desc: "Reach a 150 combo." },
   first_bomb: { name: "Fire in the Hole", desc: "Detonate a Bomb ball." },
   first_split: { name: "Mitosis", desc: "Trigger Split Shot." },
   first_revive: { name: "Rise Again", desc: "Have Phoenix relaunch a ball." },
@@ -231,9 +231,9 @@ export function recordEvents(
         break;
       case "combo":
         if (e.count > s.bestCombo) s.bestCombo = e.count;
-        if (e.count >= 25) feat(meta, "combo_25", out, now);
-        if (e.count >= 50) feat(meta, "combo_50", out, now);
-        if (e.count >= 100) feat(meta, "combo_100", out, now);
+        if (e.count >= 40) feat(meta, "combo_40", out, now);
+        if (e.count >= 80) feat(meta, "combo_80", out, now);
+        if (e.count >= 150) feat(meta, "combo_150", out, now);
         break;
       case "ballScored": {
         const centre = (run.sim.config.buckets - 1) / 2;

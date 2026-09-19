@@ -44,6 +44,9 @@ export class Sim {
   private readonly pegRow: number[] = [];
   private motion: PegMotion | null = null;
   private pegOffsets: Float32Array = new Float32Array(0);
+  private globalPull = 0;
+  /** Bottom sensors send the next N balls back to the top instead of out. */
+  private portalsArmed = 0;
   private readonly bucketSensors = new Map<number, number>();
   private wallHandles = new Set<number>();
   private nextBallId = 1;
@@ -82,6 +85,15 @@ export class Sim {
       );
       this.wallHandles.add(c.handle);
     }
+
+    // Ceiling above the spawn line: flipped gravity, Phoenix relaunches and
+    // bouncy builds must never put a ball outside the board.
+    this.world.createCollider(
+      RAPIER.ColliderDesc.cuboid(half + wallThickness, wallThickness / 2)
+        .setTranslation(0, height + 1.3)
+        .setRestitution(0.3),
+      fixed,
+    );
 
     // Pockets along the bottom: short divider walls so a ball settles into
     // exactly one, and a sensor per pocket that reports which one it was.
@@ -213,6 +225,7 @@ export class Sim {
 
     const out: SimEvent[] = [];
     const lost: Array<[number, number]> = [];
+    const teleported = new Set<number>();
     this.events.drainCollisionEvents((h1, h2, started) => {
       if (!started) return;
       const ballId = this.colliderToBall.get(h1) ?? this.colliderToBall.get(h2);
@@ -221,6 +234,22 @@ export class Sim {
 
       const bucket = this.bucketSensors.get(other);
       if (bucket !== undefined) {
+        if (bucket >= 0 && this.portalsArmed > 0 && !teleported.has(ballId)) {
+          // Portal: back to the top above the same pocket, velocity wiped.
+          this.portalsArmed--;
+          teleported.add(ballId);
+          const body = this.balls.get(ballId);
+          const meta = this.ballMeta.get(ballId);
+          if (body && meta) {
+            body.setTranslation({ x: this.bucketCenters[bucket] ?? 0, y: this.config.height + 0.5 }, true);
+            body.setLinvel({ x: 0, y: 0 }, true);
+            meta.minY = Number.POSITIVE_INFINITY;
+            meta.stale = 0;
+            meta.born = this.tick;
+          }
+          out.push({ type: "portal", ball: ballId, bucket });
+          return;
+        }
         if (!lost.some(([id]) => id === ballId)) lost.push([ballId, bucket]);
         return;
       }
@@ -293,16 +322,37 @@ export class Sim {
     return { x: p.x + (this.pegOffsets[id] ?? 0), y: p.y };
   }
 
+  // --- combo-event hooks: all pure functions of run state, so replays match --
+
+  /** Scale world gravity (negative flips it). 1 restores the configured value. */
+  setGravityScaleAll(factor: number): void {
+    this.world.gravity = { x: 0, y: this.config.gravity * factor };
+  }
+
+  /** Extra centre pull applied to every ball, on top of per-ball `pull`. */
+  setGlobalPull(pull: number): void {
+    this.globalPull = pull;
+  }
+
+  armPortals(count: number): void {
+    this.portalsArmed = Math.max(0, count);
+  }
+
+  get portalsArmedCount(): number {
+    return this.portalsArmed;
+  }
+
   /** Balls with `pull` are nudged toward the centre line every step. */
   private applyPulls(): void {
     const g = Math.abs(this.config.gravity);
     for (const [id, body] of this.balls) {
       const meta = this.ballMeta.get(id);
-      if (!meta || meta.pull === 0) continue;
+      const pull = (meta?.pull ?? 0) + this.globalPull;
+      if (!meta || pull === 0) continue;
       const x = body.translation().x;
       const dir = x > 0.05 ? -1 : x < -0.05 ? 1 : 0;
       if (dir === 0) continue;
-      body.addForce({ x: dir * meta.pull * body.mass() * g, y: 0 }, true);
+      body.addForce({ x: dir * pull * body.mass() * g, y: 0 }, true);
     }
   }
 

@@ -42,13 +42,16 @@ describe("replay verification", () => {
   });
 
   it("rejects a tampered score through the API", async () => {
+    // A client only submits a finished run: drop at the edge pocket so the
+    // scripted player loses within a few rounds.
     const full = await Run.create("replay-3");
-    for (let t = 0; t < 20000; t++) {
+    for (let t = 0; t < 120000; t++) {
       if (full.phase === "shop") full.pick(0);
       if (full.phase === "won" || full.phase === "lost") break;
-      if (t % 50 === 0 && full.ballsLeft > 0) full.drop(0.3);
+      if (t % 50 === 0 && full.ballsLeft > 0) full.drop(2.9);
       full.step();
     }
+    expect(full.phase).toBe("lost");
     const body = { name: "cheater", score: full.totalScore * 10 + 1, seed: "replay-3", ticks: full.sim.tick, log: full.log };
     const res = await POST(new Request("http://t/api/scores", { method: "POST", body: JSON.stringify(body) }));
     expect(res.status).toBe(422);

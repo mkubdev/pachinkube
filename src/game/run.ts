@@ -21,6 +21,7 @@ import {
 } from "./charms.js";
 import { BASE_CHIPS_FRESH, BASE_CHIPS_REPEAT, ballScore, bucketMultipliers, roundTarget } from "./scoring.js";
 import { ICE_RESTITUTION, react, type Element, type PegElementState, type Reaction } from "./elements.js";
+import { COMBO_EVENTS, COMBO_EVENT_COOLDOWN_TICKS, COMBO_EVENT_EVERY, COMBO_EVENT_KINDS, type ComboEventKind } from "./comboEvents.js";
 
 /** Runs are endless: targets keep climbing until you miss one. Round 8 is the
  *  "machine cleared" milestone, not the end. Tests pass a finite `rounds`. */
@@ -34,7 +35,7 @@ export type Phase = "drop" | "shop" | "won" | "lost";
 export type Offer = { kind: "charm"; id: CharmId } | { kind: "ball"; id: BallTypeId; count: number };
 
 /** Peg hits closer together than this (in ticks) chain into one combo. */
-export const COMBO_WINDOW_TICKS = 72; // 0.6 s at 120 Hz
+export const COMBO_WINDOW_TICKS = 36; // 0.3 s at 120 Hz: multiball must actually be dense
 export const COMBO_MILESTONE = 10;
 
 export type GameEvent =
@@ -58,6 +59,12 @@ export type GameEvent =
   | { type: "charmExpired"; id: CharmId }
   /** Pocket multipliers changed; `lottery` is the highlighted pocket or -1. */
   | { type: "pockets"; mults: number[]; lottery: number }
+  /** A combo event fired. Laser: `y` is the beam height. */
+  | { type: "comboEvent"; kind: ComboEventKind; x: number; y: number; ticks: number; label: string }
+  /** A physical combo effect ended (quake, gravity flip, magnet storm). */
+  | { type: "comboEventEnd"; kind: ComboEventKind }
+  /** A portal sent a ball back to the top. */
+  | { type: "portal"; ball: number; from: { x: number; y: number }; to: { x: number; y: number } }
   | { type: "pegsReset" }
   | { type: "ballScored"; ball: number; score: number; bucket: number; chips: number; mult: number }
   | { type: "roundEnd"; round: number; passed: boolean; roundScore: number; target: number }
@@ -114,6 +121,9 @@ export class Run {
   private pocketStreak = 0;
   /** Rounds cleared this run: feeds Jackpot Growth. */
   private clearedThisRun = 0;
+  /** Timed combo effects in flight: tick on which each ends. */
+  private readonly activeEffects = new Map<ComboEventKind, number>();
+  private lastComboEventTick = -1_000_000;
 
   private readonly rounds: number;
   private readonly ballsPerRound: number;
@@ -251,6 +261,13 @@ export class Run {
     const events = this.sim.step();
     for (const ev of events) this.handle(ev, out);
 
+    for (const [kind, until] of this.activeEffects) {
+      if (this.sim.tick >= until) {
+        this.activeEffects.delete(kind);
+        this.endEffect(kind);
+        out.push({ type: "comboEventEnd", kind });
+      }
+    }
     if (this.combo > 0 && this.sim.tick - this.lastHitTick > this.comboWindow()) {
       out.push({ type: "comboEnd", count: this.combo });
       this.combo = 0;
@@ -297,6 +314,75 @@ export class Run {
     return null;
   }
 
+  /** Board motion from charms: the largest drift among held charms wins. */
+  private applyBoardMotion(): void {
+    const drift = this.charms
+      .map((id) => CHARMS[id].pegDrift)
+      .filter((d): d is { amplitude: number; period: number } => !!d)
+      .sort((a, b) => b.amplitude - a.amplitude)[0];
+    this.sim.setPegMotion(drift ? { amplitude: drift.amplitude, omega: (2 * Math.PI) / (drift.period / this.sim.config.dt) } : null);
+  }
+
+  // --- combo events ------------------------------------------------------------
+
+  /** Fire a combo event; exported for tests and dev tooling. */
+  triggerComboEvent(kind: ComboEventKind, out: GameEvent[]): void {
+    const def = COMBO_EVENTS[kind];
+    const H = this.sim.config.height;
+    let x = 0;
+    let y = H * 0.55;
+    switch (kind) {
+      case "laser": {
+        // Pick a peg row; light every unlit peg on it and pay every ball in flight.
+        const rows = [...new Set(this.sim.pegs.map((p) => Math.round(p.y * 100) / 100))];
+        y = this.sim.streams.fx.pick(rows);
+        let lit = 0;
+        for (const p of this.sim.pegs) {
+          if (Math.abs(p.y - y) < 0.05 && !this.lit.has(p.id)) {
+            this.lit.add(p.id);
+            out.push({ type: "pegLit", peg: p.id });
+            lit++;
+          }
+        }
+        const chips = lit * 6;
+        for (const b of this.balls.values()) b.chips += chips;
+        if (chips) out.push({ type: "popup", x: 0, y, text: `+${chips} laser · all balls`, kind: "chips" });
+        break;
+      }
+      case "portal":
+        this.sim.armPortals(this.sim.portalsArmedCount + 2);
+        y = 0.6;
+        break;
+      case "quake":
+        this.sim.setPegMotion({ amplitude: 0.55, omega: (2 * Math.PI) / (0.9 / this.sim.config.dt) });
+        break;
+      case "rain": {
+        for (let i = 0; i < 3; i++) {
+          x = this.sim.streams.fx.range(-2.2, 2.2);
+          this.spawn({ x, type: "steel", radius: 0.09, density: 4, tag: "shard", element: this.activeElement() }, false);
+        }
+        y = H + 0.4;
+        break;
+      }
+      case "gravity_flip":
+        this.sim.setGravityScaleAll(-0.55);
+        break;
+      case "magnet_storm":
+        this.sim.setGlobalPull(0.9);
+        break;
+      case "slowmo":
+        break;
+    }
+    if (def.ticks > 0) this.activeEffects.set(kind, this.sim.tick + def.ticks);
+    out.push({ type: "comboEvent", kind, x, y, ticks: def.ticks, label: def.name });
+  }
+
+  private endEffect(kind: ComboEventKind): void {
+    if (kind === "quake") this.applyBoardMotion();
+    else if (kind === "gravity_flip") this.sim.setGravityScaleAll(1);
+    else if (kind === "magnet_storm") this.sim.setGlobalPull(0);
+  }
+
   private setPegElement(peg: number, state: PegElementState | null, out: GameEvent[]): void {
     if (state) this.pegElements.set(peg, state);
     else this.pegElements.delete(peg);
@@ -337,12 +423,11 @@ export class Run {
     this.phase = "drop";
     // One more ball every five rounds, so deep runs keep widening.
     this.ballsLeft = this.ballsPerRound + Math.floor((this.round - 1) / 5) + this.sumCharm((c) => c.extraBalls ?? 0);
-    // Board motion: the largest drift among held charms wins.
-    const drift = this.charms
-      .map((id) => CHARMS[id].pegDrift)
-      .filter((d): d is { amplitude: number; period: number } => !!d)
-      .sort((a, b) => b.amplitude - a.amplitude)[0];
-    this.sim.setPegMotion(drift ? { amplitude: drift.amplitude, omega: (2 * Math.PI) / (drift.period / this.sim.config.dt) } : null);
+    this.activeEffects.clear();
+    this.sim.setGravityScaleAll(1);
+    this.sim.setGlobalPull(0);
+    this.sim.armPortals(0);
+    this.applyBoardMotion();
     // Shuffle the owned balls with the shop stream so the order is seeded.
     this.bag = shuffle([...this.ownedBalls], this.sim.streams.shop).slice(0, this.ballsLeft);
     while (this.bag.length < this.ballsLeft) this.bag.push("steel");
@@ -463,6 +548,12 @@ export class Run {
       this.lastHitTick = this.sim.tick;
       const milestone = this.combo % this.comboMilestone() === 0;
       out.push({ type: "combo", count: this.combo, milestone });
+      // Combo events: every 50th hit, but never two within the cooldown.
+      if (this.combo % COMBO_EVENT_EVERY === 0 && this.sim.tick - this.lastComboEventTick >= COMBO_EVENT_COOLDOWN_TICKS) {
+        this.lastComboEventTick = this.sim.tick;
+        const kind = weightedPick(this.sim.streams.fx, COMBO_EVENT_KINDS, (k) => COMBO_EVENTS[k].weight);
+        this.triggerComboEvent(kind, out);
+      }
       if (milestone) {
         for (const b of this.balls.values()) b.mult += 1;
         out.push({ type: "popup", x: 0, y: this.sim.config.height * 0.55, text: `COMBO ${this.combo} · +1 mult all`, kind: "mult" });
@@ -515,6 +606,13 @@ export class Run {
 
     if (ev.type === "wallHit") {
       for (const id of this.charms) CHARMS[id].onWallHit?.(ctx);
+      return;
+    }
+
+    if (ev.type === "portal") {
+      ctx.addMult(2, "portal");
+      const cx = this.sim.bucketCenters[ev.bucket] ?? 0;
+      out.push({ type: "portal", ball: ev.ball, from: { x: cx, y: 0.6 }, to: { x: cx, y: this.sim.config.height + 0.5 } });
       return;
     }
 

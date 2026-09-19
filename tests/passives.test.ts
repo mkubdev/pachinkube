@@ -101,10 +101,10 @@ describe("passive charms", () => {
 
   it("long fuse and milestone maker change combo parameters", async () => {
     const run = await make("fuse");
-    expect(run.comboWindow()).toBe(72);
+    expect(run.comboWindow()).toBe(36);
     expect(run.comboMilestone()).toBe(10);
     run.charms.push("long_fuse", "milestone_maker", "milestone_maker", "milestone_maker");
-    expect(run.comboWindow()).toBe(120);
+    expect(run.comboWindow()).toBe(66);
     expect(run.comboMilestone()).toBe(5); // floored
   });
 

@@ -46,7 +46,7 @@ const CHARM_GLYPH: Record<CharmId, keyof typeof G> = {
 };
 
 const FEAT_GLYPH: Record<FeatId, keyof typeof G> = {
-  first_win: "trophy", combo_25: "star", combo_50: "star", combo_100: "sun", first_bomb: "bomb", first_split: "split",
+  first_win: "trophy", combo_40: "star", combo_80: "star", combo_150: "sun", first_bomb: "bomb", first_split: "split",
   first_revive: "flame", first_bullseye: "eye", ball_5k: "coin", ball_50k: "coin", round_5: "trophy", run_1m: "trophy",
   jackpot_streak: "eye", first_steam: "sun", first_wildfire: "flame", first_shatter_chain: "snow", big_shatter: "snow",
 };

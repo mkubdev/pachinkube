@@ -6,7 +6,8 @@ rounds, ~20–30 minutes. Hosted on Vercel for a friend group, with a shared,
 **replay-verified** leaderboard.
 
 **Status: first playable.** Full loop — aim → drop → score → shop → next round →
-endless → submit — with 44 charms (incl. 6 temporary), 11 ball types, three
+endless → submit — with 44 charms (incl. 6 temporary), 11 ball types, 7 combo
+events, three
 elements with reactions, combos, meta-progression, effects, audio, lofi radio,
 a Blender cabinet, and server-side score verification. Balance is probe-tuned.
 
@@ -67,10 +68,21 @@ twice (×1.5, ×2, …), *Jackpot Growth* adds +1 to the centre per round cleare
 (1 round) makes the edges the jackpots. Labels bump and strips brighten as the
 multipliers move.
 
-**Combos.** Peg hits closer than 0.6 s apart — across every ball in flight —
-chain into one combo. Every 10th hit is a milestone: **+1 mult to all balls in
-play**, so multiball is worth engineering. The counter climbs through colour
-tiers (10 / 20 / 40) and the whole screen heats up with it.
+**Combos.** Peg hits closer than **0.3 s** apart — across every ball in flight —
+chain into one combo (it was 0.6 s; with six balls in play that never lapsed
+and every combo-gated unlock fell in one run). Every 10th hit is a milestone:
+**+1 mult to all balls in play**, so multiball is worth engineering. The
+counter climbs through colour tiers (10 / 20 / 40) and the screen heats up.
+
+**Combo events** (`src/game/comboEvents.ts`). Every **50th** combo hit, with a
+6 s cooldown, one fires from the seeded stream: **Laser Sweep** (a beam lights a
+whole peg row and pays every ball in flight), **Portal** (the next two balls to
+reach the bottom come back from the top with +2 mult), **Quake** (3 s of violent
+drift), **Ball Rain** (three bonus shards), **Gravity Flip** (everything falls up
+for a second), **Magnet Storm** (2 s of centre pull), **Slow Motion** (1.5 s of
+time dilation — render pacing only, so replays stay exact). Physics-side effects
+are pure functions of run state and end on a tick, so they verify too. The board
+has a ceiling now: flipped gravity cannot throw a ball out.
 
 **Progression** (`src/game/meta.ts`). A profile persists across runs: lifetime
 stats, discoveries (first time you see a charm/ball), 17 feats, and 20 unlock
@@ -133,9 +145,10 @@ in Node. That single constraint pays for:
   reproduce (HTTP 422). Verified runs get a ✓ on the board.
 - **Balance probe** — `BALANCE=1 npx vitest run tests/balance.probe.test.ts`
   plays 40 seeded runs with a dumb policy and writes per-round pass rates to
-  `.cache/balance.txt`. Targets in `scoring.ts` grow `1.62×` through round 8
-  then `1.42×` (r10 ≈ 53K, r12 ≈ 107K, r15 ≈ 306K) — the late bend came from a
-  real 140K run that still fell at round 10 under the old curve.
+  `.cache/balance.txt`. The policy keeps up to four balls in flight (how the game
+  is actually played). Targets in `scoring.ts` start at 800 and grow `1.62×`
+  through round 8, then `1.42×` (r10 ≈ 47K, r12 ≈ 95K, r15 ≈ 272K): currently
+  100/100/100/88/69/67/56/44 % pass by round, 4 wins in 40.
 
 Supporting rules: **fixed 120 Hz timestep** (`sim/loop.ts`, renderer
 interpolates), and **no `Math.random`** in `sim/` or `game/` — four named
@@ -152,7 +165,7 @@ npm run dev               # http://localhost:5173
 
 | Command | |
 |---|---|
-| `npm test` | 64 tests: RNG, sim, run, balls, passives, elements, pockets, meta, icons, replay, scores/meta API |
+| `npm test` | 72 tests: RNG, sim, run, balls, passives, elements, pockets, combo events, meta, icons, replay, scores/meta API, main.ts wiring |
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm run build` | production bundle to `dist/` |
 
@@ -281,7 +294,11 @@ NAT cannot reach the add-on's `localhost:9876`.
   or the function dies with `ERR_MODULE_NOT_FOUND` in production only.
 - zsh does not word-split `$VAR` with spaces: `V="npx vercel"; $V x` fails.
 - **Scripted `str.replace` edits fail silently** when the anchor drifts (here: a
-  re-indent). Four rounds of `main.ts` wiring no-op'd unnoticed. Assert the anchor
-  exists, or grep for the result.
+  re-indent). Four rounds of `main.ts` wiring no-op'd unnoticed — including the
+  whole progression feed, so combos never unlocked anything in the browser while
+  every unit test stayed green. `tests/wiring.test.ts` now asserts the call sites.
+- **A run must be finished before its replay is compared.** Two "live ≠ replay"
+  test failures were the live loop hitting its tick cap mid-round, not
+  non-determinism; a tick-by-tick hash bisect showed zero divergence.
 - rAF timestamps can trail `performance.now()`; a negative popup age flipped
   `scale()` negative and drew text rotated 180°. Clamp ages at 0.

@@ -67,6 +67,8 @@ export const DEFAULT_CONFIG: SimConfig = {
 /** Gameplay events the roguelite layer subscribes to; charms hook in here. */
 export type SimEvent =
   | { type: "pegHit"; ball: number; peg: number; speed: number }
+  /** A portal caught the ball at pocket `bucket` and sent it back to the top. */
+  | { type: "portal"; ball: number; bucket: number }
   /** Ball left the board through pocket `bucket` (0..buckets-1), or -1. */
   | { type: "ballLost"; ball: number; bucket: number }
   | { type: "wallHit"; ball: number };

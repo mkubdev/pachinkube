@@ -172,6 +172,15 @@ export class GameUI {
     this.popup(0, 6.5, text, "info", 1.6);
   }
 
+  /** Huge Orbitron banner for combo events. */
+  banner(text: string): void {
+    const el = document.createElement("div");
+    el.className = "banner";
+    el.textContent = text;
+    this.root.appendChild(el);
+    setTimeout(() => el.remove(), 1400);
+  }
+
   // --- progression -------------------------------------------------------------
 
   /** Bottom-right toast stack for discoveries, unlocks and feats. */

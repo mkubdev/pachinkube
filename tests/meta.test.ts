@@ -49,11 +49,11 @@ describe("meta progression", () => {
     settleAnnouncements(meta);
     const run = { totalScore: 0, sim: { config: { buckets: 7 } } } as unknown as Run;
     const tracker = newTracker();
-    const events: GameEvent[] = [{ type: "combo", count: 30, milestone: true }];
+    const events: GameEvent[] = [{ type: "combo", count: 60, milestone: true }];
     const notices = recordEvents(meta, events, run, tracker, () => "2026-09-19T00:00:00Z");
-    // 30 combo: cannon (30) and split_shot (25) unlock, plus the 25-combo feat.
+    // 60 combo: cannon (60) and split_shot (40) unlock, plus the 40-combo feat.
     expect(notices.map((n) => `${n.kind}:${"id" in n ? n.id : ""}`).sort()).toEqual(
-      ["feat:combo_25", "unlock:cannon", "unlock:split_shot"].sort(),
+      ["feat:combo_40", "unlock:cannon", "unlock:split_shot"].sort(),
     );
     expect(isUnlocked(meta, "ball", "cannon")).toBe(true);
     expect(isUnlocked(meta, "ball", "bomb")).toBe(false);
@@ -106,19 +106,19 @@ describe("meta progression", () => {
 
   it("merges two profiles monotonically and idempotently", () => {
     const a = emptyMeta();
-    a.stats.bestCombo = 40;
+    a.stats.bestCombo = 70;
     a.discovered.charms.push("magnet_coil");
-    a.feats.combo_25 = "2026-01-02T00:00:00Z";
+    a.feats.combo_40 = "2026-01-02T00:00:00Z";
     const b = emptyMeta();
     b.stats.bestCombo = 12;
     b.stats.runs = 9;
     b.discovered.charms.push("neon_sign");
-    b.feats.combo_25 = "2026-01-01T00:00:00Z";
+    b.feats.combo_40 = "2026-01-01T00:00:00Z";
     const m = mergeMeta(a, b);
-    expect(m.stats.bestCombo).toBe(40);
+    expect(m.stats.bestCombo).toBe(70);
     expect(m.stats.runs).toBe(9);
     expect([...m.discovered.charms].sort()).toEqual(["magnet_coil", "neon_sign"]);
-    expect(m.feats.combo_25).toBe("2026-01-01T00:00:00Z");
+    expect(m.feats.combo_40).toBe("2026-01-01T00:00:00Z");
     expect(mergeMeta(m, m)).toEqual(m);
     expect(isUnlocked(m, "ball", "cannon")).toBe(true);
     expect(validateMeta(m)).toBe(true);
@@ -155,12 +155,13 @@ describe("meta progression", () => {
     // Play a short run with the gated pool and verify it replays with it.
     const live = await Run.create("gated-replay", { pool });
     runs.push(live);
-    for (let t = 0; t < 20000; t++) {
+    for (let t = 0; t < 120000; t++) {
       if (live.phase === "shop") live.pick(0);
-      if (live.phase !== "drop") break;
-      if (t % 50 === 0 && live.ballsLeft > 0) live.drop([-1, 0.5, 1.5, -2][t % 4]!);
+      if (live.phase === "won" || live.phase === "lost") break;
+      if (t % 50 === 0 && live.ballsLeft > 0) live.drop(2.9);
       live.step();
     }
+    expect(live.phase).toBe("lost");
     const withPool = await replay("gated-replay", [...live.log], pool);
     expect(withPool.score).toBe(live.totalScore);
     expect(validatePool(pool)).toBe(true);

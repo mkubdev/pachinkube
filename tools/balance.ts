@@ -22,7 +22,8 @@ async function playOne(seed: string, maxTicks: number) {
       run.pick(i >= 0 ? i : 0);
     }
     if (run.phase === "won" || run.phase === "lost") break;
-    if (run.ballsLeft > 0 && run.inFlight < 2 && t % 20 === 0) {
+    // Up to four balls in flight: closer to how players actually play.
+    if (run.ballsLeft > 0 && run.inFlight < 4 && t % 20 === 0) {
       // Aim near the centre with noise: what a casual player does.
       run.drop(policy.range(-1.6, 1.6));
     }

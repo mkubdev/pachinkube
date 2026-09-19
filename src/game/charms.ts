@@ -348,7 +348,7 @@ export const CHARMS: Record<CharmId, Charm> = {
   grand_finale: { id: "grand_finale", name: "Grand Finale", desc: "The last ball of each round lands with mult ×2.", rarity: "uncommon", finaleMult: 2 },
   fresh_paint: { id: "fresh_paint", name: "Fresh Paint", desc: "Fresh pegs are worth +5 chips.", rarity: "common", freshChipBonus: 5 },
   echo: { id: "echo", name: "Echo", desc: "Already-lit pegs are worth +4 chips.", rarity: "common", repeatChipBonus: 4 },
-  long_fuse: { id: "long_fuse", name: "Long Fuse", desc: "Combos stay alive 0.4 s longer.", rarity: "common", comboWindowBonus: 48 },
+  long_fuse: { id: "long_fuse", name: "Long Fuse", desc: "Combos stay alive 0.25 s longer.", rarity: "common", comboWindowBonus: 30 },
   milestone_maker: { id: "milestone_maker", name: "Milestone Maker", desc: "Combo milestones every 8 hits instead of 10.", rarity: "uncommon", milestoneDelta: -2 },
   insurance: { id: "insurance", name: "Insurance", desc: "Fail a round once and replay it instead of losing.", rarity: "rare", retries: 1 },
   duplicator: { id: "duplicator", name: "Duplicator", desc: "Ball offers in the shop give one more ball.", rarity: "common", ballOfferBonus: 1 },

@@ -121,6 +121,10 @@ ui.onSubmit = async (name) => {
 };
 
 const stepper = new FixedStepper(run.sim.config.dt);
+// Presentation-only time dilation (slow-mo combo event): scales wall time
+// before it reaches the fixed stepper, so the simulation itself is untouched.
+let timeScale = 1;
+let slowmoUntil = 0;
 let prev: Snapshot = run.sim.snapshot();
 let curr: Snapshot = prev;
 let aimX: number | null = 0;
@@ -236,6 +240,52 @@ function simStep(): void {
         break;
       case "pegElement":
         view.setPegElement(e.peg, e.el);
+        break;
+      case "comboEvent": {
+        ui.banner(e.label);
+        view.kickBloom(1.2);
+        switch (e.kind) {
+          case "laser":
+            view.laserSweep(e.y);
+            view.shock(0, e.y, 0.6);
+            ui.flash("#ff2d95", 0.3);
+            break;
+          case "portal":
+            view.fx.ring(0, 0.6, 0xb46cff, 3.2, 0.7);
+            ui.flash("#b46cff", 0.25);
+            break;
+          case "quake":
+            view.addShake(1);
+            view.setTint(0xff6a00, 0.5);
+            break;
+          case "rain":
+            view.fx.burst(0, run.sim.config.height + 0.4, 0xffffff, 60, 4, 0.16, 0.7, -8);
+            break;
+          case "gravity_flip":
+            view.setTint(0x2de2ff, 0.8);
+            view.shock(0, run.sim.config.height * 0.5, 1);
+            ui.flash("#2de2ff", 0.35);
+            break;
+          case "magnet_storm":
+            view.setTint(0xb46cff, 0.7);
+            break;
+          case "slowmo":
+            timeScale = 0.3;
+            slowmoUntil = performance.now() + 1500;
+            view.setHeat(1);
+            ui.flash("#ffffff", 0.2);
+            break;
+          default:
+            break;
+        }
+        break;
+      }
+      case "comboEventEnd":
+        view.setTint(null);
+        break;
+      case "portal":
+        view.portal(e.from, e.to);
+        view.shock(e.from.x, e.from.y, 0.5);
         break;
       case "pockets":
         ui.updatePocketMults(e.mults, e.lottery);
@@ -359,7 +409,12 @@ function loop(now: number): void {
   const dtSec = Math.min((now - last) / 1000, 0.1);
   last = now;
 
-  const alpha = stepper.advance(dtSec, simStep);
+  if (slowmoUntil && now > slowmoUntil) {
+    slowmoUntil = 0;
+    timeScale = 1;
+    view.setHeat(Math.min(1, run.combo / 45));
+  }
+  const alpha = stepper.advance(dtSec * timeScale, simStep);
 
   view.setAim(run.phase === "drop" ? aimX : null);
   view.render(prev, curr, alpha, dtSec);

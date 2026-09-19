@@ -173,6 +173,11 @@ export class BoardRenderer {
   private pegStampAttr: THREE.InstancedBufferAttribute | null = null;
   private pegBase: Peg[] = [];
   private readonly pocketStrips: THREE.Mesh[] = [];
+  private readonly laser: THREE.Mesh;
+  private laserLife = 0;
+  private tint = 0; // 0..1 board tint strength (gravity flip / magnet storm)
+  private tintColor = new THREE.Color(0xffffff);
+  private baseBackground: THREE.Color;
   private time = 0;
   private shockwave: ShockWaveEffect;
   private readonly shockPos = new THREE.Vector3();
@@ -205,6 +210,7 @@ export class BoardRenderer {
     this.renderer.toneMappingExposure = 1.1;
 
     this.scene.background = new THREE.Color(0x07070c);
+    this.baseBackground = new THREE.Color(0x07070c);
     // Room environment immediately so chrome never renders black; the neon
     // HDRI swaps in when it arrives (see loadEnvironment).
     const pmrem = new THREE.PMREMGenerator(this.renderer);
@@ -255,6 +261,16 @@ export class BoardRenderer {
     this.auras.frustumCulled = false;
     this.auras.renderOrder = 8;
     this.scene.add(this.auras);
+
+    // Laser sweep beam: a thin additive quad across the board, flashed on demand.
+    this.laser = new THREE.Mesh(
+      new THREE.PlaneGeometry(board.width + 1.2, 0.14),
+      new THREE.MeshBasicMaterial({ color: 0xff2d95, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false }),
+    );
+    this.laser.position.z = 0.2;
+    this.laser.visible = false;
+    this.laser.renderOrder = 12;
+    this.scene.add(this.laser);
 
     this.aim = new THREE.Mesh(
       new THREE.ConeGeometry(0.16, 0.32, 4),
@@ -402,6 +418,33 @@ export class BoardRenderer {
       this.pegStampAttr.setX(peg, this.time);
       this.pegStampAttr.needsUpdate = true;
     }
+  }
+
+  /** Laser sweep at board height y: beam flash plus sparks along the row. */
+  laserSweep(y: number, color: number | THREE.Color = 0xff2d95): void {
+    this.laser.position.y = y;
+    (this.laser.material as THREE.MeshBasicMaterial).color.set(color);
+    this.laser.visible = true;
+    this.laserLife = 1;
+    const half = this.board.width / 2;
+    for (let x = -half; x <= half; x += 0.35) this.fx.burst(x, y, color, 4, 2.5, 0.12, 0.45, -3);
+    this.kickBloom(1.0);
+  }
+
+  /** Portal rings at both ends of a teleport. */
+  portal(from: { x: number; y: number }, to: { x: number; y: number }): void {
+    for (const p of [from, to]) {
+      this.fx.ring(p.x, p.y, 0xb46cff, 0.9, 0.45);
+      this.fx.ring(p.x, p.y, 0x7df9ff, 1.3, 0.6);
+      this.fx.burst(p.x, p.y, 0xb46cff, 40, 4, 0.16, 0.6, 0);
+    }
+    this.fx.zap(from, to, 0xb46cff, 0.35, false);
+  }
+
+  /** Whole-board colour cast for physics events (0 clears). */
+  setTint(color: number | null, strength = 0.6): void {
+    this.tint = color === null ? 0 : strength;
+    if (color !== null) this.tintColor.setHex(color);
   }
 
   /** Screen-space shockwave from a board point (steam, chains, bombs). */
@@ -627,6 +670,19 @@ export class BoardRenderer {
       }
     }
     if (this.pegMat) this.pegMat.uniforms.uTime!.value = this.time;
+
+    // Laser beam decays; the tint leaks into the vignette colour cheaply via bloom kick.
+    if (this.laserLife > 0) {
+      this.laserLife = Math.max(0, this.laserLife - dt * 2.2);
+      (this.laser.material as THREE.MeshBasicMaterial).opacity = this.laserLife * 1.5;
+      this.laser.scale.y = 1 + (1 - this.laserLife) * 4;
+      if (this.laserLife === 0) this.laser.visible = false;
+    }
+    if (this.tint > 0) {
+      (this.scene.background as THREE.Color).lerp(this.tintColor, 0.02 * this.tint);
+    } else {
+      (this.scene.background as THREE.Color).lerp(this.baseBackground, 0.05);
+    }
 
     // Post effects ride the combo heat plus momentary kicks.
     this.heat += (this.heatTarget - this.heat) * Math.min(1, dt * 4);

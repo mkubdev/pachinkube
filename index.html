@@ -75,6 +75,8 @@
       @keyframes comboPop { from { transform: translateX(-50%) scale(1.35); } to { transform: translateX(-50%) scale(1); } }
       @keyframes comboHit { 0% { filter: brightness(3); letter-spacing: .12em; } 100% { filter: brightness(1); letter-spacing: 0; } }
       @keyframes comboOut { to { opacity: 0; transform: translateX(-50%) translateY(-30px) scale(1.15); } }
+      .banner { left: 50%; top: 42%; transform: translate(-50%, -50%); font-family: var(--display); font-weight: 900; font-size: clamp(28px, 6vw, 72px); letter-spacing: .12em; color: #fff; text-shadow: 0 0 24px rgba(255,255,255,.7), 0 0 60px rgba(255,45,149,.8); pointer-events: none; z-index: 2; animation: bannerIn 1.4s cubic-bezier(.2,1.4,.3,1) both; white-space: nowrap; }
+      @keyframes bannerIn { 0% { opacity: 0; transform: translate(-50%, -50%) scale(2.2); letter-spacing: .6em; } 18% { opacity: 1; transform: translate(-50%, -50%) scale(1); letter-spacing: .12em; } 80% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, -60%) scale(1.05); } }
       #flash { inset: 0; pointer-events: none; opacity: 0; mix-blend-mode: screen; z-index: 1; }
       #hud, #charms, #combo, #toasts, #dock, #hint, #labels { z-index: 2; }
       #modal, #collection, #board-panel { z-index: 3; }
