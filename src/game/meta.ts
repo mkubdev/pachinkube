@@ -14,7 +14,7 @@ import { BALL_IDS, BALL_TYPES, type BallTypeId } from "./balls.js";
 import { CHARMS, CHARM_IDS, type CharmId } from "./charms.js";
 import type { GameEvent, Offer, Run } from "./run.js";
 
-export const META_VERSION = 1;
+export const META_VERSION = 2; // 2: progression reset, ball ladder on peg hits
 
 export interface MetaStats {
   runs: number;
@@ -32,13 +32,16 @@ export interface MetaStats {
   /** Elemental reactions of any kind, and steam specifically. */
   reactions: number;
   steams: number;
+  /** Combo events fired, and portal rides taken. */
+  comboEvents: number;
+  portals: number;
 }
 
 export interface MetaState {
   version: number;
   stats: MetaStats;
   discovered: { charms: CharmId[]; balls: BallTypeId[] };
-  feats: Partial<Record<FeatId, string>>; // ISO date achieved
+  feats: Partial<Record<string, string>>; // feat id -> ISO date achieved
   /** Unlock ids already announced, so the toast fires once. */
   announced: string[];
 }
@@ -49,7 +52,7 @@ export function emptyMeta(): MetaState {
     stats: {
       runs: 0, wins: 0, losses: 0, ballsDropped: 0, pegHits: 0, jackpots: 0,
       roundsCleared: 0, bestRound: 0, bestCombo: 0, bestScore: 0, bestBallScore: 0, totalScore: 0,
-      reactions: 0, steams: 0,
+      reactions: 0, steams: 0, comboEvents: 0, portals: 0,
     },
     discovered: { charms: [], balls: ["steel"] },
     feats: {},
@@ -72,14 +75,14 @@ export interface UnlockRule {
 
 /** Content not listed here is available from the first run. */
 export const UNLOCK_RULES: UnlockRule[] = [
-  // balls
-  { kind: "ball", id: "gold", stat: "roundsCleared", value: 3, hint: "Clear 3 rounds (lifetime)" },
-  { kind: "ball", id: "feather", stat: "ballsDropped", value: 250, hint: "Drop 250 balls" },
-  { kind: "ball", id: "cannon", stat: "bestCombo", value: 60, hint: "Reach a 60 combo" },
-  { kind: "ball", id: "magnet", stat: "jackpots", value: 25, hint: "Land 25 balls in the centre pocket" },
-  { kind: "ball", id: "twin", stat: "bestRound", value: 4, hint: "Reach round 4" },
-  { kind: "ball", id: "prism", stat: "pegHits", value: 6000, hint: "Hit 6,000 pegs" },
-  { kind: "ball", id: "bomb", stat: "bestCombo", value: 100, hint: "Reach a 100 combo" },
+  // balls: one ladder, lifetime peg hits. Steel is all you start with.
+  ...(
+    [
+      ["rubber", 400], ["heavy", 1_000], ["spark", 2_000], ["gold", 3_500], ["feather", 5_000],
+      ["cannon", 7_500], ["magnet", 10_000], ["twin", 14_000], ["prism", 18_000], ["bomb", 25_000],
+      ["mirror", 35_000], ["comet", 45_000], ["glass", 60_000],
+    ] as Array<[BallTypeId, number]>
+  ).map(([id, value]) => ({ kind: "ball" as const, id, stat: "pegHits" as const, value, hint: `Hit ${value.toLocaleString("en-US")} pegs (lifetime)` })),
   // charms
   { kind: "charm", id: "split_shot", stat: "bestCombo", value: 40, hint: "Reach a 40 combo" },
   { kind: "charm", id: "chain_lightning", stat: "roundsCleared", value: 5, hint: "Clear 5 rounds (lifetime)" },
@@ -100,6 +103,9 @@ export const UNLOCK_RULES: UnlockRule[] = [
   { kind: "charm", id: "roulette", stat: "jackpots", value: 40, hint: "Land 40 balls in the centre pocket" },
   { kind: "charm", id: "jackpot_growth", stat: "bestRound", value: 8, hint: "Reach round 8" },
   { kind: "charm", id: "inversion", stat: "roundsCleared", value: 25, hint: "Clear 25 rounds (lifetime)" },
+  { kind: "charm", id: "echo_chamber", stat: "comboEvents", value: 10, hint: "Trigger 10 combo events" },
+  { kind: "charm", id: "second_wind", stat: "bestCombo", value: 80, hint: "Reach an 80 combo" },
+  { kind: "charm", id: "overclock", stat: "bestRound", value: 10, hint: "Reach round 10" },
   { kind: "charm", id: "restless_board", stat: "roundsCleared", value: 40, hint: "Clear 40 rounds (lifetime)" },
 ];
 
@@ -136,35 +142,66 @@ export const FULL_POOL: Pool = {
 
 // --- feats (discoveries you *do*) ---------------------------------------------
 
-export type FeatId =
-  | "first_win" | "combo_40" | "combo_80" | "combo_150" | "first_bomb" | "first_split"
-  | "first_revive" | "first_bullseye" | "ball_5k" | "ball_50k" | "round_5" | "run_1m" | "jackpot_streak"
-  | "first_steam" | "first_wildfire" | "first_shatter_chain" | "big_shatter";
+/** Feats earned by crossing a lifetime/best stat. Generated into FEATS below. */
+export interface ThresholdFeat {
+  id: string;
+  name: string;
+  desc: string;
+  stat: StatKey;
+  value: number;
+}
 
-export const FEATS: Record<FeatId, { name: string; desc: string }> = {
+const tier = (stat: StatKey, prefix: string, names: string[], values: number[], fmt: (v: number) => string): ThresholdFeat[] =>
+  values.map((value, i) => ({ id: `${prefix}_${value}`, name: names[i]!, desc: fmt(value), stat, value }));
+
+export const THRESHOLD_FEATS: ThresholdFeat[] = [
+  ...tier("bestCombo", "combo", ["Warming Up", "Overdrive", "Meltdown", "Critical Mass", "Singularity", "Event Horizon", "Beyond"], [40, 80, 150, 200, 300, 400, 500], (v) => `Reach a ${v} combo.`),
+  ...tier("bestScore", "run", ["Six Digits", "Seven Digits", "Whale", "Leviathan", "Kraken"], [250_000, 1_000_000, 5_000_000, 25_000_000, 100_000_000], (v) => `Score ${v.toLocaleString("en-US")} in one run.`),
+  ...tier("bestBallScore", "ball", ["Fat Ball", "Obese Ball", "Planet", "Star", "Black Hole"], [5_000, 50_000, 500_000, 5_000_000, 50_000_000], (v) => `Score ${v.toLocaleString("en-US")} with one ball.`),
+  ...tier("bestRound", "round", ["Deep Machine", "Double Digits", "Bottomless", "Abyss", "The Void"], [5, 10, 15, 20, 30], (v) => `Reach round ${v}.`),
+  ...tier("runs", "runs", ["Regular", "Habit", "Lifer"], [10, 50, 200], (v) => `Play ${v} runs.`),
+  ...tier("wins", "wins", ["Cleared Twice", "Clearing House", "Machine Whisperer"], [2, 10, 50], (v) => `Clear the machine ${v} times.`),
+  ...tier("ballsDropped", "drops", ["Bucket", "Truckload", "Avalanche of Steel"], [500, 2_500, 10_000], (v) => `Drop ${v.toLocaleString("en-US")} balls.`),
+  ...tier("pegHits", "pegs", ["Percussionist", "Drummer", "Thunderstorm"], [5_000, 25_000, 100_000], (v) => `Hit ${v.toLocaleString("en-US")} pegs.`),
+  ...tier("jackpots", "jackpots", ["Marksman", "Sniper", "Dead Eye"], [25, 100, 500], (v) => `Land ${v} balls in the centre pocket.`),
+  ...tier("reactions", "reactions", ["Chemist", "Alchemist", "Elementalist"], [250, 1_000, 5_000], (v) => `Trigger ${v.toLocaleString("en-US")} elemental reactions.`),
+  ...tier("comboEvents", "events", ["Trigger Happy", "Chaos Agent", "Storm Chaser"], [5, 25, 100], (v) => `Fire ${v} combo events.`),
+  ...tier("portals", "portals", ["Round Trip", "Frequent Flyer"], [5, 25], (v) => `Ride the portal ${v} times.`),
+];
+
+const MOMENT_FEATS = {
   first_win: { name: "Machine Cleared", desc: "Beat round 8. The machine keeps going." },
-  combo_40: { name: "Warming Up", desc: "Reach a 40 combo." },
-  combo_80: { name: "Overdrive", desc: "Reach an 80 combo." },
-  combo_150: { name: "Meltdown", desc: "Reach a 150 combo." },
   first_bomb: { name: "Fire in the Hole", desc: "Detonate a Bomb ball." },
   first_split: { name: "Mitosis", desc: "Trigger Split Shot." },
   first_revive: { name: "Rise Again", desc: "Have Phoenix relaunch a ball." },
   first_bullseye: { name: "Called It", desc: "Sharpshooter pays out." },
-  ball_5k: { name: "Fat Ball", desc: "Score 5,000 with one ball." },
-  ball_50k: { name: "Obese Ball", desc: "Score 50,000 with one ball." },
-  round_5: { name: "Deep Machine", desc: "Reach round 5." },
-  run_1m: { name: "Seven Digits", desc: "Score 1,000,000 in a run." },
   jackpot_streak: { name: "Dead Centre", desc: "Land 3 balls in a row in the centre pocket." },
   first_steam: { name: "Steam Engine", desc: "Melt a frozen peg with fire." },
   first_wildfire: { name: "Wildfire", desc: "Hit a burning peg with a Storm ball." },
   first_shatter_chain: { name: "Glass Cannon", desc: "Shatter a frozen chain with Storm." },
   big_shatter: { name: "Avalanche", desc: "Shatter 8 or more frozen pegs at once." },
+  first_laser: { name: "Pew", desc: "See a Laser Sweep." },
+  first_portal: { name: "Wormhole", desc: "Open a Portal." },
+  first_quake: { name: "Richter", desc: "Survive a Quake." },
+  first_rain: { name: "Hailstorm", desc: "Watch Ball Rain fall." },
+  first_gravity_flip: { name: "Upside Down", desc: "Flip gravity." },
+  first_magnet_storm: { name: "Attractive", desc: "Summon a Magnet Storm." },
+  first_slowmo: { name: "Bullet Time", desc: "Bend time." },
+  full_hand: { name: "Full Hand", desc: "Hold 10 charms at once." },
+  five_in_flight: { name: "Juggler", desc: "Have 8 balls in play at the same time." },
+} as const;
+
+export type FeatId = keyof typeof MOMENT_FEATS | (typeof THRESHOLD_FEATS)[number]["id"];
+
+export const FEATS: Record<string, { name: string; desc: string }> = {
+  ...MOMENT_FEATS,
+  ...Object.fromEntries(THRESHOLD_FEATS.map((f) => [f.id, { name: f.name, desc: f.desc }])),
 };
 
 export type MetaNotice =
   | { kind: "discover"; what: "charm" | "ball"; id: string; label: string }
   | { kind: "unlock"; what: "charm" | "ball"; id: string; label: string }
-  | { kind: "feat"; id: FeatId; label: string };
+  | { kind: "feat"; id: string; label: string };
 
 // --- recording -----------------------------------------------------------------
 
@@ -176,10 +213,15 @@ function discover(meta: MetaState, what: "charm" | "ball", id: string, out: Meta
   out.push({ kind: "discover", what, id, label });
 }
 
-function feat(meta: MetaState, id: FeatId, out: MetaNotice[], now: () => string): void {
-  if (meta.feats[id]) return;
+function feat(meta: MetaState, id: string, out: MetaNotice[], now: () => string): void {
+  if (meta.feats[id] || !FEATS[id]) return;
   meta.feats[id] = now();
   out.push({ kind: "feat", id, label: FEATS[id].name });
+}
+
+/** Stat-threshold feats: evaluated after every stats change. */
+function checkThresholdFeats(meta: MetaState, out: MetaNotice[], now: () => string): void {
+  for (const f of THRESHOLD_FEATS) if (meta.stats[f.stat] >= f.value) feat(meta, f.id, out, now);
 }
 
 /** Compare unlock state before/after a stats change and announce new ones once. */
@@ -231,9 +273,13 @@ export function recordEvents(
         break;
       case "combo":
         if (e.count > s.bestCombo) s.bestCombo = e.count;
-        if (e.count >= 40) feat(meta, "combo_40", out, now);
-        if (e.count >= 80) feat(meta, "combo_80", out, now);
-        if (e.count >= 150) feat(meta, "combo_150", out, now);
+        break;
+      case "comboEvent":
+        s.comboEvents++;
+        feat(meta, `first_${e.kind}`, out, now);
+        break;
+      case "portal":
+        s.portals++;
         break;
       case "ballScored": {
         const centre = (run.sim.config.buckets - 1) / 2;
@@ -243,8 +289,6 @@ export function recordEvents(
           if (tracker.jackpotStreak >= 3) feat(meta, "jackpot_streak", out, now);
         } else tracker.jackpotStreak = 0;
         if (e.score > s.bestBallScore) s.bestBallScore = e.score;
-        if (e.score >= 5000) feat(meta, "ball_5k", out, now);
-        if (e.score >= 50_000) feat(meta, "ball_50k", out, now);
         break;
       }
       case "element":
@@ -268,7 +312,6 @@ export function recordEvents(
         if (e.passed) {
           s.roundsCleared++;
           if (e.round + 1 > s.bestRound) s.bestRound = e.round + 1;
-          if (e.round + 1 >= 5) feat(meta, "round_5", out, now);
         }
         break;
       case "cleared":
@@ -287,7 +330,10 @@ export function recordEvents(
         break;
     }
   }
-  if (run.totalScore >= 1_000_000) feat(meta, "run_1m", out, now);
+  if (run.totalScore > s.bestScore) s.bestScore = run.totalScore;
+  if (run.charms.length >= 10) feat(meta, "full_hand", out, now);
+  if (run.inFlight >= 8) feat(meta, "five_in_flight", out, now);
+  checkThresholdFeats(meta, out, now);
   checkUnlocks(meta, out);
   return out;
 }
@@ -309,6 +355,7 @@ export function recordRunEnd(meta: MetaState, run: Run): MetaNotice[] {
   s.totalScore += run.totalScore;
   if (run.totalScore > s.bestScore) s.bestScore = run.totalScore;
   for (const c of run.charms) discover(meta, "charm", c, out);
+  checkThresholdFeats(meta, out, () => new Date().toISOString());
   checkUnlocks(meta, out);
   return out;
 }

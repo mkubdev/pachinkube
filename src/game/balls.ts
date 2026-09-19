@@ -2,7 +2,8 @@ import type { BallSpawn } from "../sim/types.js";
 
 export type BallTypeId =
   | "steel" | "rubber" | "heavy" | "spark"
-  | "gold" | "feather" | "cannon" | "magnet" | "twin" | "prism" | "bomb";
+  | "gold" | "feather" | "cannon" | "magnet" | "twin" | "prism" | "bomb"
+  | "mirror" | "comet" | "glass";
 
 /** Mechanical quirks the run reads; physics quirks go through `physics`. */
 export interface BallTraits {
@@ -17,6 +18,13 @@ export interface BallTraits {
   /** On this hit number, light every unlit peg within `detonateRadius`. */
   detonateAt?: number;
   detonateRadius?: number;
+  /** Landing also pays the pocket mirrored across the centre. */
+  mirrorPocket?: boolean;
+  /** Every Nth hit ignites a bare peg. */
+  igniteEvery?: number;
+  /** On this hit the ball shatters: chips ×2 and `shatterShards` shards spawn. */
+  shatterAt?: number;
+  shatterShards?: number;
 }
 
 export interface BallType {
@@ -77,6 +85,18 @@ export const BALL_TYPES: Record<BallTypeId, BallType> = {
   bomb: {
     id: "bomb", name: "Bomb", desc: "On its 12th hit, lights every peg nearby.",
     color: 0xff6a00, physics: { radius: 0.16, density: 9 }, chipFactor: 1, traits: { detonateAt: 12, detonateRadius: 1.3 }, shopWeight: 5,
+  },
+  mirror: {
+    id: "mirror", name: "Mirror", desc: "Lands in two pockets at once: its own and the one mirrored across the centre.",
+    color: 0xc8f0ff, physics: { radius: 0.13, density: 6 }, chipFactor: 1, traits: { mirrorPocket: true }, shopWeight: 5,
+  },
+  comet: {
+    id: "comet", name: "Comet", desc: "Every 3rd peg it touches catches fire.",
+    color: 0xffb347, physics: { radius: 0.12, density: 5, restitution: 0.7 }, chipFactor: 1, traits: { igniteEvery: 3 }, shopWeight: 5,
+  },
+  glass: {
+    id: "glass", name: "Glass", desc: "×2 chips. Shatters on its 6th hit into three shards.",
+    color: 0xe0ffff, physics: { radius: 0.14, density: 3, restitution: 0.75 }, chipFactor: 2, traits: { shatterAt: 6, shatterShards: 3 }, shopWeight: 4,
   },
 };
 

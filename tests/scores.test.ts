@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { DELETE, GET, POST, submitScore, usingRedis } from "../api/scores.js";
+import { RULES_VERSION } from "../src/game/version.js";
 
 const post = (body: unknown) =>
   POST(new Request("http://t/api/scores", { method: "POST", body: JSON.stringify(body), headers: { "content-type": "application/json" } }));
@@ -15,6 +16,17 @@ describe("scores api (memory fallback)", () => {
     expect((await post({ name: "ok", score: 1, seed: "", ticks: 1 })).status).toBe(400);
     expect((await post({ name: "ok", score: 1, seed: "s", ticks: 1.5 })).status).toBe(400);
     expect((await post({ name: "<script>", score: 1, seed: "s", ticks: 1 })).status).toBe(400);
+  });
+
+  it("a log from other rules is stored unverified instead of rejected", async () => {
+    const res = await post({ name: "older", score: 999_999, seed: "s", ticks: 1, rules: RULES_VERSION - 1, log: [{ tick: 0, action: { type: "drop", x: 0 } }] });
+    expect(res.status).toBe(201);
+    const data = (await res.json()) as { verified: boolean; reason?: string; rules: number };
+    expect(data.verified).toBe(false);
+    expect(data.reason).toBe("rules_version");
+    expect(data.rules).toBe(RULES_VERSION);
+    const board = (await (await GET(new Request("http://t/api/scores"))).json()) as { rules: number };
+    expect(board.rules).toBe(RULES_VERSION);
   });
 
   it("DELETE needs the admin token and removes members", async () => {
@@ -49,7 +61,7 @@ describe("scores api (memory fallback)", () => {
     const res = await GET(new Request("http://t/api/scores"));
     const data = (await res.json()) as { top: Array<{ name: string; score: number; verified: boolean; discord?: boolean }> };
     // No log was sent, so these are stored unverified.
-    expect(data.top.filter((r) => !r.discord)).toEqual([
+    expect(data.top.filter((r) => !r.discord && (r.name === "ana" || r.name === "max"))).toEqual([
       { name: "ana", score: 250, verified: false, discord: false },
       { name: "max", score: 100, verified: false, discord: false },
     ]);

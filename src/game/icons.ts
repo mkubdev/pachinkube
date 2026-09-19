@@ -43,12 +43,19 @@ const CHARM_GLYPH: Record<CharmId, keyof typeof G> = {
   melting_point: "sun", tinder: "flame", elemental_surge: "sun", firestorm: "flame", deep_freeze: "snow",
   thunderhead: "bolt", solstice: "sun", drift: "wave", restless_board: "gear",
   roulette: "dice", hot_pocket: "flame", groove: "arrow", jackpot_growth: "coin", pocket_lottery: "star", inversion: "split",
+  echo_chamber: "wave", second_wind: "heart", overclock: "clock",
 };
 
-const FEAT_GLYPH: Record<FeatId, keyof typeof G> = {
-  first_win: "trophy", combo_40: "star", combo_80: "star", combo_150: "sun", first_bomb: "bomb", first_split: "split",
-  first_revive: "flame", first_bullseye: "eye", ball_5k: "coin", ball_50k: "coin", round_5: "trophy", run_1m: "trophy",
+const FEAT_GLYPH: Record<string, keyof typeof G> = {
+  first_win: "trophy", first_bomb: "bomb", first_split: "split", first_revive: "flame", first_bullseye: "eye",
   jackpot_streak: "eye", first_steam: "sun", first_wildfire: "flame", first_shatter_chain: "snow", big_shatter: "snow",
+  first_laser: "bolt", first_portal: "eye", first_quake: "wave", first_rain: "ball", first_gravity_flip: "arrow",
+  first_magnet_storm: "magnet", first_slowmo: "clock", full_hand: "dice", five_in_flight: "ball",
+};
+/** Threshold feats share a glyph per family via their id prefix. */
+const FAMILY_GLYPH: Record<string, keyof typeof G> = {
+  combo: "star", run: "trophy", ball: "coin", round: "trophy", runs: "clock", wins: "trophy", drops: "ball",
+  pegs: "gear", jackpots: "eye", reactions: "sun", events: "bolt", portals: "eye",
 };
 
 interface Palette { primary: string; secondary: string; highlight: string }
@@ -99,8 +106,9 @@ export function ballIcon(id: BallTypeId, locked = false): string {
   return pixelSvg(G.ball!, pal);
 }
 
-export function featIcon(id: FeatId, got: boolean): string {
-  return pixelSvg(G[FEAT_GLYPH[id]]!, got ? RARITY.feat! : RARITY.locked!);
+export function featIcon(id: FeatId | string, got: boolean): string {
+  const glyph = FEAT_GLYPH[id] ?? FAMILY_GLYPH[id.split("_")[0] ?? ""] ?? "star";
+  return pixelSvg(G[glyph]!, got ? RARITY.feat! : RARITY.locked!);
 }
 
 export const GLYPH_NAMES = Object.keys(G);

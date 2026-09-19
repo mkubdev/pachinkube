@@ -192,7 +192,7 @@ export class GameUI {
       const el = document.createElement("div");
       el.className = `toast ${n.kind}`;
       const head = n.kind === "unlock" ? "UNLOCKED" : n.kind === "feat" ? "DISCOVERY" : "NEW";
-      const detail = n.kind === "feat" ? FEATS[n.id].desc : n.kind === "unlock" ? "now appears in the shop" : "added to your collection";
+      const detail = n.kind === "feat" ? (FEATS[n.id]?.desc ?? "") : n.kind === "unlock" ? "now appears in the shop" : "added to your collection";
       const icon = n.kind === "feat" ? featIcon(n.id, true) : n.what === "charm" ? charmIcon(n.id as CharmId) : ballIcon(n.id as BallTypeId);
       el.innerHTML = `<div class="ic">${icon}</div><div><span class="head">${head}</span><b>${escapeHtml(n.label)}</b><small>${escapeHtml(detail)}</small></div>`;
       box.appendChild(el);
@@ -223,13 +223,14 @@ export class GameUI {
         const p = unlockProgress(meta, rule);
         return `<div class="card locked"><div class="ic">${icon}</div><span class="tag">locked</span><b>???</b><p>${escapeHtml(rule.hint)}</p><div class="prog"><div style="width:${(p.current / p.target) * 100}%"></div></div><small>${p.current.toLocaleString("en-US")} / ${p.target.toLocaleString("en-US")}</small></div>`;
       }
-      if (!seen) return `<div class="card unseen"><div class="ic dim">${icon}</div><span class="tag ${rarity}">${rarity}</span><b>?</b><p>Available — not yet seen in a run.</p></div>`;
-      return `<div class="card ${rarity}"><div class="ic">${icon}</div><span class="tag ${rarity}">${rarity}</span><b style="${color ? `color:${color}` : ""}">${escapeHtml(name)}</b><p>${escapeHtml(desc)}</p></div>`;
+      const fresh = seen ? "" : ' <span class="tag new">new</span>';
+      return `<div class="card ${rarity}${seen ? "" : " fresh"}"><div class="ic">${icon}</div><span class="tag ${rarity}">${rarity}</span>${fresh}<b style="${color ? `color:${color}` : ""}">${escapeHtml(name)}</b><p>${escapeHtml(desc)}</p></div>`;
     };
-    const feats = (Object.keys(FEATS) as FeatId[])
+    const feats = Object.keys(FEATS)
       .map((id) => {
         const got = meta.feats[id];
-        return `<div class="card feat ${got ? "" : "locked"}"><div class="ic">${featIcon(id, !!got)}</div><b>${got ? FEATS[id].name : "???"}</b><p>${FEATS[id].desc}</p>${got ? `<small>${new Date(got).toLocaleDateString()}</small>` : ""}</div>`;
+        const f = FEATS[id]!;
+        return `<div class="card feat ${got ? "" : "locked"}"><div class="ic">${featIcon(id, !!got)}</div><b>${got ? f.name : "???"}</b><p>${f.desc}</p>${got ? `<small>${new Date(got).toLocaleDateString()}</small>` : ""}</div>`;
       })
       .join("");
     const unlockedCount = UNLOCK_RULES.filter((r) => isUnlocked(meta, r.kind, r.id)).length;

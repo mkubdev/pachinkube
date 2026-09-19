@@ -132,6 +132,12 @@ export interface Charm {
   lottery?: number;
   /** Reverse the pattern: edges become the jackpots. */
   invertPockets?: boolean;
+
+  // --- combo economy ---------------------------------------------------------
+  /** Change to how many combo hits a combo event needs (50 by default, floor 20). */
+  eventEveryDelta?: number;
+  /** When a combo of at least this many hits ends, +1 ball this round (once per round). */
+  secondWindAt?: number;
 }
 
 export type CharmId =
@@ -183,7 +189,11 @@ export type CharmId =
   | "groove"
   | "jackpot_growth"
   | "pocket_lottery"
-  | "inversion";
+  | "inversion"
+  // combo economy
+  | "echo_chamber"
+  | "second_wind"
+  | "overclock";
 
 function nearestUnlit(ctx: CharmCtx, from: Peg, n: number): Peg[] {
   return ctx.pegs
@@ -390,6 +400,11 @@ export const CHARMS: Record<CharmId, Charm> = {
   jackpot_growth: { id: "jackpot_growth", name: "Jackpot Growth", desc: "Centre pocket +1 for every round you clear this run.", rarity: "rare", jackpotGrowth: 1 },
   pocket_lottery: { id: "pocket_lottery", name: "Pocket Lottery", desc: "Each round one pocket is drawn and carries +3.", rarity: "common", lottery: 3 },
   inversion: { id: "inversion", name: "Inversion", desc: "For 1 round the edges are the jackpots and the centre pays ×1.", rarity: "uncommon", duration: 1, invertPockets: true },
+
+  // --- combo economy -------------------------------------------------------
+  echo_chamber: { id: "echo_chamber", name: "Echo Chamber", desc: "Combo events fire every 40 hits instead of 50.", rarity: "rare", eventEveryDelta: -10 },
+  second_wind: { id: "second_wind", name: "Second Wind", desc: "When a combo of 60+ ends, gain a ball (once per round).", rarity: "uncommon", secondWindAt: 60 },
+  overclock: { id: "overclock", name: "Overclock", desc: "Combos stay alive 0.15 s longer, but milestones come every 12 hits.", rarity: "uncommon", comboWindowBonus: 18, milestoneDelta: 2 },
 };
 
 export const CHARM_IDS = Object.keys(CHARMS) as CharmId[];

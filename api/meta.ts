@@ -19,6 +19,7 @@ const json = (data: unknown, status = 200): Response =>
 interface Store {
   get(id: string): Promise<MetaState | null>;
   set(id: string, meta: MetaState): Promise<void>;
+  wipe(): Promise<number>;
 }
 
 function redisStore(): Store | null {
@@ -37,6 +38,11 @@ function redisStore(): Store | null {
     async set(id, meta) {
       await redis.hset(KEY, { [id]: JSON.stringify(meta) });
     },
+    async wipe() {
+      const n = await redis.hlen(KEY);
+      await redis.del(KEY);
+      return n;
+    },
   };
 }
 
@@ -47,6 +53,11 @@ const memoryStore: Store = {
   },
   async set(id, meta) {
     memory.set(id, meta);
+  },
+  async wipe() {
+    const n = memory.size;
+    memory.clear();
+    return n;
   },
 };
 const store: Store = redisStore() ?? memoryStore;
@@ -80,3 +91,11 @@ async function withUser(req: Request): Promise<Response> {
 
 export const GET = withUser;
 export const POST = withUser;
+
+/** Owner reset of every server profile (progression wipe). Bearer ADMIN_TOKEN. */
+export async function DELETE(req: Request): Promise<Response> {
+  const token = process.env.ADMIN_TOKEN;
+  if (!token) return json({ error: "not found" }, 404);
+  if (req.headers.get("authorization") !== `Bearer ${token}`) return json({ error: "forbidden" }, 403);
+  return json({ ok: true, wiped: await store.wipe() });
+}

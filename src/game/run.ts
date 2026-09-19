@@ -124,6 +124,7 @@ export class Run {
   /** Timed combo effects in flight: tick on which each ends. */
   private readonly activeEffects = new Map<ComboEventKind, number>();
   private lastComboEventTick = -1_000_000;
+  private secondWindUsed = false;
 
   private readonly rounds: number;
   private readonly ballsPerRound: number;
@@ -270,6 +271,14 @@ export class Run {
     }
     if (this.combo > 0 && this.sim.tick - this.lastHitTick > this.comboWindow()) {
       out.push({ type: "comboEnd", count: this.combo });
+      // Second Wind: a big combo ending buys one more ball this round.
+      const sw = Math.min(...this.charms.map((id) => CHARMS[id].secondWindAt ?? Infinity));
+      if (!this.secondWindUsed && this.combo >= sw) {
+        this.secondWindUsed = true;
+        this.ballsLeft++;
+        this.bag.push("steel");
+        out.push({ type: "popup", x: 0, y: this.sim.config.height * 0.5, text: "SECOND WIND · +1 ball", kind: "mult" });
+      }
       this.combo = 0;
     }
     if (this.ballsLeft === 0 && this.sim.ballCount === 0) this.endRound(out);
@@ -424,6 +433,7 @@ export class Run {
     // One more ball every five rounds, so deep runs keep widening.
     this.ballsLeft = this.ballsPerRound + Math.floor((this.round - 1) / 5) + this.sumCharm((c) => c.extraBalls ?? 0);
     this.activeEffects.clear();
+    this.secondWindUsed = false;
     this.sim.setGravityScaleAll(1);
     this.sim.setGlobalPull(0);
     this.sim.armPortals(0);
@@ -549,7 +559,8 @@ export class Run {
       const milestone = this.combo % this.comboMilestone() === 0;
       out.push({ type: "combo", count: this.combo, milestone });
       // Combo events: every 50th hit, but never two within the cooldown.
-      if (this.combo % COMBO_EVENT_EVERY === 0 && this.sim.tick - this.lastComboEventTick >= COMBO_EVENT_COOLDOWN_TICKS) {
+      const every = Math.max(20, COMBO_EVENT_EVERY + this.sumCharm((c) => c.eventEveryDelta ?? 0));
+      if (this.combo % every === 0 && this.sim.tick - this.lastComboEventTick >= COMBO_EVENT_COOLDOWN_TICKS) {
         this.lastComboEventTick = this.sim.tick;
         const kind = weightedPick(this.sim.streams.fx, COMBO_EVENT_KINDS, (k) => COMBO_EVENTS[k].weight);
         this.triggerComboEvent(kind, out);
@@ -572,6 +583,19 @@ export class Run {
           if (ctx.lightPeg(p.id, ev.peg)) ctx.addChips(5, "prism");
         }
         ctx.fx("prism", peg.x, peg.y, 0.5);
+      }
+      if (t?.igniteEvery && ball.hits % t.igniteEvery === 0 && !this.pegElements.has(ev.peg)) {
+        this.setPegElement(ev.peg, { el: "fire", stacks: 1 }, out);
+        out.push({ type: "element", kind: "ignite", peg: ev.peg, x: peg.x, y: peg.y, el: "fire", count: 1, chips: 0 });
+      }
+      if (t?.shatterAt && ball.hits === t.shatterAt) {
+        ball.chips *= 2;
+        for (let i = 0; i < (t.shatterShards ?? 3); i++) {
+          const a = (i / (t.shatterShards ?? 3)) * Math.PI + Math.PI * 0.15;
+          this.spawn({ type: "steel", x: peg.x + Math.cos(a) * 0.25, y: peg.y + 0.2, vx: Math.cos(a) * 2.2, vy: 1.5, radius: 0.08, density: 3, tag: "shard", element: this.ballElements.get(ball.id) ?? null }, false);
+        }
+        ctx.fx("split", peg.x, peg.y, 1);
+        out.push({ type: "popup", x: peg.x, y: peg.y, text: "SHATTER ×2", kind: "mult" });
       }
       if (t?.detonateAt && ball.hits === t.detonateAt) {
         const r2 = (t.detonateRadius ?? 1) ** 2;
@@ -618,7 +642,12 @@ export class Run {
 
     // ballLost
     const mults = this.pocketMultipliers();
-    const bucketMult = ev.bucket >= 0 ? (mults[ev.bucket] ?? 1) : 0;
+    let bucketMult = ev.bucket >= 0 ? (mults[ev.bucket] ?? 1) : 0;
+    if (BALL_TYPES[ball.type].traits?.mirrorPocket && ev.bucket >= 0) {
+      const mirrored = mults[mults.length - 1 - ev.bucket] ?? 0;
+      bucketMult += mirrored;
+      out.push({ type: "popup", x: this.sim.bucketCenters[mults.length - 1 - ev.bucket] ?? 0, y: 0.9, text: `mirror ×${mirrored}`, kind: "mult" });
+    }
     const extra = this.ballExtra.get(ev.ball);
     const cxLand = this.sim.bucketCenters[ev.bucket] ?? 0;
 

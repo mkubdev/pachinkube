@@ -39,7 +39,7 @@ describe("meta progression", () => {
       const list = r.kind === "charm" ? pool.charms : pool.balls;
       expect(list).not.toContain(r.id);
     }
-    expect([...pool.balls].sort()).toEqual(["heavy", "rubber", "spark"]);
+    expect(pool.balls).toEqual([]); // every ball but Steel sits on the peg-hit ladder
     expect(meta.discovered.balls).toEqual(["steel"]);
     expect(pool.charms.length + UNLOCK_RULES.filter((r) => r.kind === "charm").length).toBe(FULL_POOL.charms.length);
   });
@@ -47,23 +47,24 @@ describe("meta progression", () => {
   it("stats unlock content and announce it exactly once", () => {
     const meta = emptyMeta();
     settleAnnouncements(meta);
-    const run = { totalScore: 0, sim: { config: { buckets: 7 } } } as unknown as Run;
+    const run = { totalScore: 0, charms: [], inFlight: 0, sim: { config: { buckets: 7 } } } as unknown as Run;
     const tracker = newTracker();
     const events: GameEvent[] = [{ type: "combo", count: 60, milestone: true }];
     const notices = recordEvents(meta, events, run, tracker, () => "2026-09-19T00:00:00Z");
-    // 60 combo: cannon (60) and split_shot (40) unlock, plus the 40-combo feat.
+    // 60 combo: split_shot (40) unlocks plus the 40-combo feat; balls sit on the peg ladder.
     expect(notices.map((n) => `${n.kind}:${"id" in n ? n.id : ""}`).sort()).toEqual(
-      ["feat:combo_40", "unlock:cannon", "unlock:split_shot"].sort(),
+      ["feat:combo_40", "unlock:split_shot"].sort(),
     );
-    expect(isUnlocked(meta, "ball", "cannon")).toBe(true);
-    expect(isUnlocked(meta, "ball", "bomb")).toBe(false);
+    expect(isUnlocked(meta, "charm", "split_shot")).toBe(true);
+    expect(isUnlocked(meta, "charm", "second_wind")).toBe(false);
+    expect(isUnlocked(meta, "ball", "rubber")).toBe(false);
     // Same event again: nothing new to announce.
     expect(recordEvents(meta, events, run, tracker, () => "x")).toEqual([]);
   });
 
   it("jackpot streak feat needs three centre landings in a row", () => {
     const meta = emptyMeta();
-    const run = { totalScore: 0, sim: { config: { buckets: 7 } } } as unknown as Run;
+    const run = { totalScore: 0, charms: [], inFlight: 0, sim: { config: { buckets: 7 } } } as unknown as Run;
     const tracker = newTracker();
     const centre = (b: number): GameEvent => ({ type: "ballScored", ball: 1, score: 10, bucket: b, chips: 1, mult: 1 });
     recordEvents(meta, [centre(3), centre(3), centre(0)], run, tracker);
@@ -100,7 +101,7 @@ describe("meta progression", () => {
     kv.setItem(META_KEY, "{not json");
     expect(store.load().stats.bestCombo).toBe(0);
     kv.setItem(META_KEY, JSON.stringify({ version: 999 }));
-    expect(store.load().version).toBe(1);
+    expect(store.load().version).toBe(2);
     expect(new LocalMetaStore(null).load().stats.runs).toBe(0);
   });
 
@@ -120,7 +121,7 @@ describe("meta progression", () => {
     expect([...m.discovered.charms].sort()).toEqual(["magnet_coil", "neon_sign"]);
     expect(m.feats.combo_40).toBe("2026-01-01T00:00:00Z");
     expect(mergeMeta(m, m)).toEqual(m);
-    expect(isUnlocked(m, "ball", "cannon")).toBe(true);
+    expect(isUnlocked(m, "charm", "split_shot")).toBe(true);
     expect(validateMeta(m)).toBe(true);
     expect(validateMeta({ version: 1, stats: { runs: -1 } })).toBe(false);
   });

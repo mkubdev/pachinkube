@@ -14,6 +14,7 @@ import { replay, validateLog, validatePool } from "../src/game/replay.js";
 import type { RunInput } from "../src/game/run.js";
 import type { Pool } from "../src/game/meta.js";
 import { getSessionUser } from "../src/server/auth.js";
+import { RULES_VERSION } from "../src/game/version.js";
 
 const KEY = "pachinkube:scores:v1";
 const TOP_N = 20;
@@ -138,7 +139,7 @@ export const usingRedis = store !== memoryStore;
 
 // --- validation ----------------------------------------------------------------
 
-function parseSubmission(body: unknown, sessionName?: string): (RunSubmission & { log?: RunInput[]; pool?: Pool }) | string {
+function parseSubmission(body: unknown, sessionName?: string): (RunSubmission & { log?: RunInput[]; pool?: Pool; rules?: number }) | string {
   if (typeof body !== "object" || body === null) return "body must be an object";
   const b = body as Record<string, unknown>;
   // Signed in: the Discord username is the name, whatever the client sent.
@@ -153,7 +154,9 @@ function parseSubmission(body: unknown, sessionName?: string): (RunSubmission & 
   if (!Number.isInteger(ticks) || ticks < 0) return "ticks must be a non-negative integer";
   if (b.log !== undefined && !validateLog(b.log)) return "log is malformed";
   if (b.pool !== undefined && !validatePool(b.pool)) return "pool is malformed";
-  return { name, score, seed, ticks, log: b.log as RunInput[] | undefined, pool: b.pool as Pool | undefined };
+  const rules = b.rules === undefined ? undefined : Number(b.rules);
+  if (rules !== undefined && !Number.isInteger(rules)) return "rules must be an integer";
+  return { name, score, seed, ticks, log: b.log as RunInput[] | undefined, pool: b.pool as Pool | undefined, rules };
 }
 
 // --- handlers ------------------------------------------------------------------
@@ -164,7 +167,7 @@ export async function GET(req: Request): Promise<Response> {
     const run = await store.detail(name);
     return run ? json(run) : json({ error: "not found" }, 404);
   }
-  return json({ top: await store.top(TOP_N), storage: usingRedis ? "redis" : "memory" });
+  return json({ top: await store.top(TOP_N), storage: usingRedis ? "redis" : "memory", rules: RULES_VERSION });
 }
 
 /**
@@ -207,16 +210,20 @@ export async function POST(req: Request): Promise<Response> {
 export async function submitScore(body: unknown, user: { discordId: string; name: string } | null): Promise<Response> {
   const parsed = parseSubmission(body, user?.name);
   if (typeof parsed === "string") return json({ error: parsed }, 400);
-  const { log, pool, ...run } = parsed;
+  const { log, pool, rules, ...run } = parsed;
   let verified = false;
-  if (log) {
+  let reason: string | undefined;
+  if (log && rules !== undefined && rules !== RULES_VERSION) {
+    // Played under other rules (a deploy happened mid-run): keep it, unverified.
+    reason = "rules_version";
+  } else if (log) {
     // The pool the client played with shapes the shop, so the replay needs it.
     const r = await replay(run.seed, log, pool);
     if (r.score !== run.score) {
       return json({ error: "score does not reproduce from log", replayed: r.score }, 422);
     }
     verified = true;
-  }
+  } else reason = "no_log";
   const result = await store.submit({ ...run, verified, at: new Date().toISOString(), discordId: user?.discordId });
-  return json({ ok: true, verified, name: run.name, ...result }, 201);
+  return json({ ok: true, verified, reason, name: run.name, rules: RULES_VERSION, ...result }, 201);
 }

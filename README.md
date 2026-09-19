@@ -6,7 +6,7 @@ rounds, ~20–30 minutes. Hosted on Vercel for a friend group, with a shared,
 **replay-verified** leaderboard.
 
 **Status: first playable.** Full loop — aim → drop → score → shop → next round →
-endless → submit — with 44 charms (incl. 6 temporary), 11 ball types, 7 combo
+endless → submit — with 47 charms (incl. 6 temporary), 14 ball types, 7 combo
 events, three
 elements with reactions, combos, meta-progression, effects, audio, lofi radio,
 a Blender cabinet, and server-side score verification. Balance is probe-tuned.
@@ -34,6 +34,14 @@ a Blender cabinet, and server-side score verification. Balance is probe-tuned.
 | Twin | two small balls from one bag slot |
 | Prism | each fresh peg also lights its nearest neighbour |
 | Bomb | 12th hit lights every peg within 1.3 |
+| Mirror | lands in two pockets: its own and the one mirrored across the centre |
+| Comet | every 3rd peg it touches catches fire |
+| Glass | ×2 chips; shatters into three shards on its 6th hit |
+
+Every ball except Steel sits on one **peg-hit ladder** (lifetime): Rubber 400 →
+Heavy 1,000 → Spark 2,000 → Gold 3,500 → Feather 5,000 → Cannon 7,500 → Magnet
+10,000 → Twin 14,000 → Prism 18,000 → Bomb 25,000 → Mirror 35,000 → Comet
+45,000 → Glass 60,000.
 
 **Charms** (`src/game/charms.ts`) are trigger→effect data. Active: Magnet Coil,
 Neon Sign, Split Shot, Jackpot Lens, Rubber Soul, Heavy Metal, Chain Lightning,
@@ -42,7 +50,9 @@ fields the run reads): Loaded Dice, Wide Net, Warm Start, Momentum, Grand
 Finale, Fresh Paint, Echo, Long Fuse, Milestone Maker, Insurance, Duplicator,
 Compound, Sharpshooter, Low Gravity. Elemental: Ember Core, Frost Bite, Static
 Field, Conductor, Melting Point, Tinder, Elemental Surge, plus the four
-temporary actives above.
+temporary actives above. Combo economy: Echo Chamber (events every 40), Second
+Wind (a 60+ combo ending grants a ball), Overclock (longer window, milestones
+every 12).
 
 **Elements** (`src/game/elements.ts`). Pegs can be *burning*, *frozen* or
 *charged*; balls can be imbued (Firestorm, Deep Freeze, Thunderhead, Solstice —
@@ -85,8 +95,11 @@ are pure functions of run state and end on a tick, so they verify too. The board
 has a ceiling now: flipped gravity cannot throw a ball out.
 
 **Progression** (`src/game/meta.ts`). A profile persists across runs: lifetime
-stats, discoveries (first time you see a charm/ball), 17 feats, and 20 unlock
-rules that gate rarer content behind stats. The shop rolls only from your
+stats, discoveries (first time you see a charm/ball), **60+ feats** (combo tiers
+40→500, run score 250K→100M, single-ball 5K→50M, rounds 5→30, lifetime counters,
+and a "first time" feat per combo event — threshold feats are generated from a
+table), and 30+ unlock rules that gate content behind stats. The collection
+shows every unlocked item in full, with a *new* tag until it appears in a run. The shop rolls only from your
 unlocked pool. Signed in with Discord, the profile also lives on the server keyed
 by your Discord id and merges across devices (`api/meta.ts`, `SyncedMetaStore`).
 
@@ -142,7 +155,11 @@ in Node. That single constraint pays for:
   identical final score (`tests/determinism.test.ts`, `tests/run.test.ts`).
 - **Replay verification** — the client submits `seed + input log`; `api/scores`
   replays it headless (`src/game/replay.ts`) and rejects scores that do not
-  reproduce (HTTP 422). Verified runs get a ✓ on the board.
+  reproduce (HTTP 422). Verified runs get a ✓ on the board. Every submission
+  carries `RULES_VERSION` (`src/game/version.ts`, bumped on any rule change):
+  a run played under other rules — a deploy landed mid-run — is stored
+  *unverified* instead of rejected, and dev-modified runs (`?charms=`, `?pre=`)
+  submit without a log by design.
 - **Balance probe** — `BALANCE=1 npx vitest run tests/balance.probe.test.ts`
   plays 40 seeded runs with a dumb policy and writes per-round pass rates to
   `.cache/balance.txt`. The policy keeps up to four balls in flight (how the game
@@ -165,7 +182,7 @@ npm run dev               # http://localhost:5173
 
 | Command | |
 |---|---|
-| `npm test` | 72 tests: RNG, sim, run, balls, passives, elements, pockets, combo events, meta, icons, replay, scores/meta API, main.ts wiring |
+| `npm test` | 81 tests: RNG, sim, run, balls, passives, elements, pockets, combo events, meta, discoveries, icons, replay, scores/meta API, main.ts wiring |
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm run build` | production bundle to `dist/` |
 
@@ -238,6 +255,9 @@ per-instance memory; without Discord vars `/api/auth/*` returns 503 with a messa
 After that the dock shows **sign in**; signed-in players' collections sync via
 `/api/meta` and their leaderboard entries are keyed by Discord id and named by
 their Discord username.
+
+**Progression reset** (owner): `curl -X DELETE -H "authorization: Bearer $ADMIN_TOKEN" https://pachinkube.vercel.app/api/meta`
+wipes every server profile; bump `META_VERSION` so browsers discard their local one too.
 
 **Leaderboard cleanup** (owner): set `ADMIN_TOKEN`, then
 `curl -X DELETE -H "authorization: Bearer $ADMIN_TOKEN" -H "content-type: application/json" -d '{"members":["name","d:<discordId>"]}' https://pachinkube.vercel.app/api/scores`.

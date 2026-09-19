@@ -9,6 +9,7 @@ import type { CharmId } from "./game/charms.js";
 import { BALL_TYPES, type BallTypeId } from "./game/balls.js";
 import { ELEMENTS } from "./game/elements.js";
 import { SyncedMetaStore } from "./game/metaSync.js";
+import { RULES_VERSION } from "./game/version.js";
 import { getSession, signInUrl, signOutUrl } from "./game/auth.js";
 import {
   LocalMetaStore,
@@ -47,6 +48,9 @@ let run = await Run.create(seed, { pool });
 let runEnded = false;
 // ?charms=firestorm,frost_bite — dev aid to start a run holding charms.
 const devCharms = (params.get("charms") ?? "").split(",").filter(Boolean) as CharmId[];
+// Dev aids change the run without going through the input log, so such a run
+// can never verify: submit it without a log rather than fail at the end.
+let tainted = devCharms.length > 0 || Number(params.get("pre") ?? 0) > 0;
 if (devCharms.length) {
   run.charms.push(...devCharms);
   (run as unknown as { startRound(): void }).startRound();
@@ -77,6 +81,15 @@ ui.onPick = (i) => {
 };
 ui.onNewRun = () => void newRun(`run-${Date.now().toString(36)}`);
 
+// If the server's rules moved under this tab, the next run can only verify
+// after a refresh: say so once, when the board is fetched.
+void fetch("/api/scores")
+  .then((r) => r.json())
+  .then((d: { rules?: number }) => {
+    if (d.rules !== undefined && d.rules !== RULES_VERSION) ui.notice("GAME UPDATED — refresh for verified scores");
+  })
+  .catch(() => {});
+
 /** Start a fresh run in place: no page reload, no re-fetching assets. */
 async function newRun(nextSeed: string): Promise<void> {
   const old = run;
@@ -91,6 +104,7 @@ async function newRun(nextSeed: string): Promise<void> {
   run = await Run.create(seed, { pool: freshPool });
   old.dispose();
   runEnded = false;
+  tainted = false; // a fresh in-place run has no dev modifications
   auto = false;
   Object.assign(tracker, newTracker());
   recordRunStart(meta);
@@ -111,12 +125,16 @@ ui.onSubmit = async (name) => {
   const res = await fetch("/api/scores", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    // The input log lets the server replay the run and verify the score.
-    body: JSON.stringify({ name, score: run.totalScore, seed, ticks: run.sim.tick, log: run.log, pool: run.pool }),
+    // The input log lets the server replay the run and verify the score. A
+    // tainted (dev-modified) run sends no log and is stored unverified.
+    body: JSON.stringify({
+      name, score: run.totalScore, seed, ticks: run.sim.tick, rules: RULES_VERSION,
+      ...(tainted ? {} : { log: run.log, pool: run.pool }),
+    }),
   });
-  const data = (await res.json()) as { improved?: boolean; verified?: boolean; error?: string };
+  const data = (await res.json()) as { improved?: boolean; verified?: boolean; reason?: string; error?: string };
   if (!res.ok) return `error: ${data.error}`;
-  const v = data.verified ? "verified · " : "";
+  const v = data.verified ? "verified · " : data.reason === "rules_version" ? "unverified (game updated mid-run) · " : tainted ? "unverified (dev run) · " : "unverified · ";
   return v + (data.improved ? "new personal best!" : "submitted (not your best)");
 };
 

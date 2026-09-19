@@ -16,6 +16,8 @@ describe("main.ts wiring", () => {
     expect(main).toMatch(/showRunDiscoveries\(meta, run\)/);
     expect((main.match(/recordDrop\(meta\)/g) ?? []).length).toBeGreaterThanOrEqual(2);
     expect(main).toMatch(/metaStore\.save\(meta\)/);
+    expect(main).toMatch(/rules: RULES_VERSION/);
+    expect(main).toMatch(/tainted \? \{\} : \{ log: run\.log, pool: run\.pool \}/);
   });
 
   it("handles every presentation-relevant game event", () => {
