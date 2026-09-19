@@ -185,8 +185,17 @@ export class FxSystem {
     r.color.set(color);
   }
 
-  /** Jittered lightning arc that fades out. */
-  zap(from: { x: number; y: number }, to: { x: number; y: number }, color: THREE.Color | number, life = 0.28): void {
+  /** Jittered lightning arc that fades out, with a short side fork. */
+  zap(from: { x: number; y: number }, to: { x: number; y: number }, color: THREE.Color | number, life = 0.28, fork = true): void {
+    if (fork) {
+      // A branch leaves the main bolt about a third of the way along.
+      const t = 0.3 + Math.random() * 0.3;
+      const bx = from.x + (to.x - from.x) * t;
+      const by = from.y + (to.y - from.y) * t;
+      const len = Math.hypot(to.x - from.x, to.y - from.y) * 0.45;
+      const ang = Math.atan2(to.y - from.y, to.x - from.x) + (Math.random() < 0.5 ? 1 : -1) * (0.7 + Math.random() * 0.5);
+      this.zap({ x: bx, y: by }, { x: bx + Math.cos(ang) * len, y: by + Math.sin(ang) * len }, color, life * 0.7, false);
+    }
     const z = this.zaps[this.zapCursor++ % MAX_ZAPS]!;
     const arr = (z.line.geometry.getAttribute("position") as THREE.BufferAttribute).array as Float32Array;
     const dx = to.x - from.x;

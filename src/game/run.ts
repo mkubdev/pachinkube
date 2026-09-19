@@ -298,7 +298,14 @@ export class Run {
     this.landedThisRound = 0;
     this.ballExtra.clear();
     this.phase = "drop";
-    this.ballsLeft = this.ballsPerRound + this.sumCharm((c) => c.extraBalls ?? 0);
+    // One more ball every five rounds, so deep runs keep widening.
+    this.ballsLeft = this.ballsPerRound + Math.floor((this.round - 1) / 5) + this.sumCharm((c) => c.extraBalls ?? 0);
+    // Board motion: the largest drift among held charms wins.
+    const drift = this.charms
+      .map((id) => CHARMS[id].pegDrift)
+      .filter((d): d is { amplitude: number; period: number } => !!d)
+      .sort((a, b) => b.amplitude - a.amplitude)[0];
+    this.sim.setPegMotion(drift ? { amplitude: drift.amplitude, omega: (2 * Math.PI) / (drift.period / this.sim.config.dt) } : null);
     // Shuffle the owned balls with the shop stream so the order is seeded.
     this.bag = shuffle([...this.ownedBalls], this.sim.streams.shop).slice(0, this.ballsLeft);
     while (this.bag.length < this.ballsLeft) this.bag.push("steel");
@@ -394,7 +401,7 @@ export class Run {
     const ctx = this.ctxFor(ball, out);
 
     if (ev.type === "pegHit") {
-      const peg = this.sim.pegs[ev.peg];
+      const peg = this.sim.pegs[ev.peg] && { ...this.sim.pegs[ev.peg]!, ...this.sim.pegPosition(ev.peg) };
       if (!peg) return;
       const fresh = !this.lit.has(ev.peg);
       ball.hits++;

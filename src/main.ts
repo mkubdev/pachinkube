@@ -199,6 +199,7 @@ function simStep(): void {
           view.fx.burst(e.x, e.y, 0x9aa4b0, 40, 4, 0.18, 0.6);
           view.fx.ring(e.x, e.y, 0x9aa4b0, 1.6, 0.4);
         } else if (e.kind === "bomb") {
+          view.shock(e.x, e.y, 1);
           view.fx.burst(e.x, e.y, 0xff6a00, 120, 7, 0.24, 0.8, -4);
           view.fx.ring(e.x, e.y, 0xff6a00, 1.5, 0.35);
           view.fx.ring(e.x, e.y, 0xffd34d, 2.4, 0.55);
@@ -225,6 +226,7 @@ function simStep(): void {
         ui.notice(`INSURANCE — round ${e.round} again (${e.left} left)`);
         break;
       case "cleared":
+        view.shock(0, run.sim.config.height * 0.5, 1);
         ui.flash("#ffd34d", 0.5);
         view.kickBloom(1.5);
         view.fx.ring(0, run.sim.config.height * 0.5, GOLD, 5, 0.9);
@@ -258,6 +260,7 @@ function simStep(): void {
             view.fx.ring(e.x, e.y, c, 0.9, 0.35);
             break;
           case "steam":
+            view.shock(e.x, e.y, 0.6);
             view.fx.burst(e.x, e.y, 0xffffff, 70, 3.5, 0.28, 1.0, 2.5); // rises
             view.fx.ring(e.x, e.y, 0xff6a00, 1.2, 0.4);
             view.fx.ring(e.x, e.y, 0x9fe8ff, 1.8, 0.5);
@@ -269,12 +272,14 @@ function simStep(): void {
             view.kickBloom(0.3);
             break;
           case "wildfire":
+            view.shock(e.x, e.y, 0.8);
             view.fx.burst(e.x, e.y, 0xff6a00, 40 + e.count * 12, 6, 0.22, 0.8, -4);
             view.fx.ring(e.x, e.y, 0xff6a00, 2.2, 0.5);
             view.kickBloom(1.0);
             ui.flash("#ff6a00", 0.3);
             break;
           case "shatter_chain":
+            view.shock(e.x, e.y, Math.min(1, 0.4 + e.count * 0.1));
             view.fx.burst(e.x, e.y, 0xdff6ff, 40 + e.count * 14, 7, 0.16, 0.8, -6);
             view.fx.ring(e.x, e.y, 0x7df9ff, 1.4 + e.count * 0.3, 0.55);
             view.kickBloom(0.6 + e.count * 0.1);

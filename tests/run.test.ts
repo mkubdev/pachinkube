@@ -13,7 +13,7 @@ afterEach(() => {
  * Scripted policy: drop a ball at a seeded x every 40 ticks while allowed,
  * always pick shop offer 0. Deterministic given the seed.
  */
-async function play(seed: string, maxTicks = 20000, opts: { rounds?: number; ballsPerRound?: number } = {}) {
+async function play(seed: string, maxTicks = 40000, opts: { rounds?: number; ballsPerRound?: number } = {}) {
   const run = await Run.create(seed, { rounds: 8, ...opts });
   runs.push(run);
   const events: GameEvent[] = [];

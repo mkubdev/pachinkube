@@ -113,6 +113,10 @@ export interface Charm {
   elementBoost?: number;
   /** Burning pegs also spread when hit again (not only on ignite). */
   spreadOnRepeat?: boolean;
+
+  // --- board motion ---------------------------------------------------------
+  /** Pegs drift sideways: amplitude in board units, period in seconds. */
+  pegDrift?: { amplitude: number; period: number };
 }
 
 export type CharmId =
@@ -154,7 +158,10 @@ export type CharmId =
   | "firestorm"
   | "deep_freeze"
   | "thunderhead"
-  | "solstice";
+  | "solstice"
+  // board motion
+  | "drift"
+  | "restless_board";
 
 function nearestUnlit(ctx: CharmCtx, from: Peg, n: number): Peg[] {
   return ctx.pegs
@@ -349,6 +356,10 @@ export const CHARMS: Record<CharmId, Charm> = {
   deep_freeze: { id: "deep_freeze", name: "Deep Freeze", desc: "For 2 rounds every ball is Ice and 10 pegs start frozen.", rarity: "uncommon", duration: 2, element: "ice", frozenAtStart: 10 },
   thunderhead: { id: "thunderhead", name: "Thunderhead", desc: "For 3 rounds every ball is Storm.", rarity: "uncommon", duration: 3, element: "storm" },
   solstice: { id: "solstice", name: "Solstice", desc: "For 1 round: fire everywhere, 8 frozen pegs, arcs pay +10. Chaos.", rarity: "rare", duration: 1, element: "fire", frozenAtStart: 8, arcChips: 10, igniteChance: 0.5 },
+
+  // --- board motion --------------------------------------------------------
+  drift: { id: "drift", name: "Drift", desc: "For 1 round the pegs slide sideways, alternating rows in opposite directions.", rarity: "uncommon", duration: 1, pegDrift: { amplitude: 0.45, period: 3.2 } },
+  restless_board: { id: "restless_board", name: "Restless Board", desc: "Pegs never quite sit still.", rarity: "rare", pegDrift: { amplitude: 0.14, period: 2.1 } },
 };
 
 export const CHARM_IDS = Object.keys(CHARMS) as CharmId[];

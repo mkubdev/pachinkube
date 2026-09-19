@@ -8,6 +8,9 @@ import { BALL_IDS, BALL_TYPES } from "./balls.js";
 import { formatMult, formatScore } from "./format.js";
 import type { GameEvent, Offer, Run } from "./run.js";
 import { FEATS, UNLOCK_RULES, isUnlocked, ruleFor, unlockProgress, type MetaNotice, type MetaState, type FeatId } from "./meta.js";
+import { ballIcon, charmIcon, featIcon } from "./icons.js";
+import type { CharmId } from "./charms.js";
+import type { BallTypeId } from "./balls.js";
 
 type Projector = (x: number, y: number) => { x: number; y: number };
 
@@ -169,7 +172,8 @@ export class GameUI {
       el.className = `toast ${n.kind}`;
       const head = n.kind === "unlock" ? "UNLOCKED" : n.kind === "feat" ? "DISCOVERY" : "NEW";
       const detail = n.kind === "feat" ? FEATS[n.id].desc : n.kind === "unlock" ? "now appears in the shop" : "added to your collection";
-      el.innerHTML = `<span class="head">${head}</span><b>${escapeHtml(n.label)}</b><small>${escapeHtml(detail)}</small>`;
+      const icon = n.kind === "feat" ? featIcon(n.id, true) : n.what === "charm" ? charmIcon(n.id as CharmId) : ballIcon(n.id as BallTypeId);
+      el.innerHTML = `<div class="ic">${icon}</div><div><span class="head">${head}</span><b>${escapeHtml(n.label)}</b><small>${escapeHtml(detail)}</small></div>`;
       box.appendChild(el);
       setTimeout(() => el.classList.add("out"), 3600);
       setTimeout(() => el.remove(), 4300);
@@ -192,18 +196,19 @@ export class GameUI {
       const color = kind === "ball" ? `#${BALL_TYPES[id as keyof typeof BALL_TYPES].color.toString(16).padStart(6, "0")}` : "";
       const unlocked = isUnlocked(meta, kind, id);
       const seen = (kind === "charm" ? meta.discovered.charms : meta.discovered.balls).includes(id as never);
+      const icon = kind === "charm" ? charmIcon(id as CharmId, !unlocked) : ballIcon(id as BallTypeId, !unlocked);
       if (!unlocked) {
         const rule = ruleFor(kind, id)!;
         const p = unlockProgress(meta, rule);
-        return `<div class="card locked"><span class="tag">locked</span><b>???</b><p>${escapeHtml(rule.hint)}</p><div class="prog"><div style="width:${(p.current / p.target) * 100}%"></div></div><small>${p.current.toLocaleString("en-US")} / ${p.target.toLocaleString("en-US")}</small></div>`;
+        return `<div class="card locked"><div class="ic">${icon}</div><span class="tag">locked</span><b>???</b><p>${escapeHtml(rule.hint)}</p><div class="prog"><div style="width:${(p.current / p.target) * 100}%"></div></div><small>${p.current.toLocaleString("en-US")} / ${p.target.toLocaleString("en-US")}</small></div>`;
       }
-      if (!seen) return `<div class="card unseen"><span class="tag ${rarity}">${rarity}</span><b>?</b><p>Available — not yet seen in a run.</p></div>`;
-      return `<div class="card ${rarity}"><span class="tag ${rarity}">${rarity}</span><b style="${color ? `color:${color}` : ""}">${escapeHtml(name)}</b><p>${escapeHtml(desc)}</p></div>`;
+      if (!seen) return `<div class="card unseen"><div class="ic dim">${icon}</div><span class="tag ${rarity}">${rarity}</span><b>?</b><p>Available — not yet seen in a run.</p></div>`;
+      return `<div class="card ${rarity}"><div class="ic">${icon}</div><span class="tag ${rarity}">${rarity}</span><b style="${color ? `color:${color}` : ""}">${escapeHtml(name)}</b><p>${escapeHtml(desc)}</p></div>`;
     };
     const feats = (Object.keys(FEATS) as FeatId[])
       .map((id) => {
         const got = meta.feats[id];
-        return `<div class="card feat ${got ? "" : "locked"}"><b>${got ? FEATS[id].name : "???"}</b><p>${FEATS[id].desc}</p>${got ? `<small>${new Date(got).toLocaleDateString()}</small>` : ""}</div>`;
+        return `<div class="card feat ${got ? "" : "locked"}"><div class="ic">${featIcon(id, !!got)}</div><b>${got ? FEATS[id].name : "???"}</b><p>${FEATS[id].desc}</p>${got ? `<small>${new Date(got).toLocaleDateString()}</small>` : ""}</div>`;
       })
       .join("");
     const unlockedCount = UNLOCK_RULES.filter((r) => isUnlocked(meta, r.kind, r.id)).length;
@@ -279,14 +284,14 @@ export class GameUI {
       else temps.push({ id: c, left });
     });
     const perm = [...counts].map(([id, n]) => {
-      const c = CHARMS[id as keyof typeof CHARMS];
+      const c = CHARMS[id as CharmId];
       const el = c.element ? ` el-${c.element}` : "";
-      return `<div class="charm ${c.rarity}${el}" title="${c.desc}">${c.name}${n > 1 ? ` ×${n}` : ""}</div>`;
+      return `<div class="charm ${c.rarity}${el}" title="${c.desc}">${charmIcon(id as CharmId)}<span>${c.name}${n > 1 ? ` ×${n}` : ""}</span></div>`;
     });
     const temp = temps.map(({ id, left }) => {
-      const c = CHARMS[id as keyof typeof CHARMS];
+      const c = CHARMS[id as CharmId];
       const el = c.element ? ` el-${c.element}` : "";
-      return `<div class="charm temp${el}" title="${c.desc}">${c.name}<span class="left">${left} round${left === 1 ? "" : "s"}</span></div>`;
+      return `<div class="charm temp${el}" title="${c.desc}">${charmIcon(id as CharmId)}<span>${c.name}</span><span class="left">${left} round${left === 1 ? "" : "s"}</span></div>`;
     });
     this.charmsEl.innerHTML = [...temp, ...perm].join("");
   }
@@ -395,10 +400,10 @@ export class GameUI {
       const c = CHARMS[o.id];
       const dur = c.duration ? `<span class="dur">${c.duration} round${c.duration === 1 ? "" : "s"}</span>` : "";
       const el = c.element ? ` el-${c.element}` : "";
-      return `<button data-i="${i}" class="offer ${c.rarity}${el}"><span class="tag">${c.rarity}${dur}</span><b>${c.name}</b><p>${c.desc}</p></button>`;
+      return `<button data-i="${i}" class="offer ${c.rarity}${el}"><span class="tag">${c.rarity}${dur}</span><div class="ic">${charmIcon(o.id)}</div><b>${c.name}</b><p>${c.desc}</p></button>`;
     }
     const b = BALL_TYPES[o.id];
-    return `<button data-i="${i}" class="offer ball"><span class="tag">ball ×${o.count}</span><b style="color:#${b.color.toString(16).padStart(6, "0")}">${b.name}</b><p>${b.desc}</p></button>`;
+    return `<button data-i="${i}" class="offer ball"><span class="tag">ball ×${o.count}</span><div class="ic">${ballIcon(o.id)}</div><b style="color:#${b.color.toString(16).padStart(6, "0")}">${b.name}</b><p>${b.desc}</p></button>`;
   }
 
   private showEnd(run: Run, phase: "won" | "lost"): void {

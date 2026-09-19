@@ -33,7 +33,15 @@
       #hud .bar { height: 5px; margin: 6px 0; background: #1a1d2a; border-radius: 3px; overflow: hidden; }
       #hud .bar div { height: 100%; background: linear-gradient(90deg, var(--cyan), var(--magenta)); transition: width .2s; }
       #charms { top: 12px; right: 12px; width: min(220px, 18vw); display: flex; flex-direction: column; gap: 4px; pointer-events: none; }
-      .charm { padding: 5px 9px; border-radius: 4px; background: rgba(10,10,20,.78); border-left: 3px solid #556; }
+      .charm { padding: 5px 9px; border-radius: 4px; background: rgba(10,10,20,.78); border-left: 3px solid #556; display: flex; align-items: center; gap: 8px; }
+      .charm span:first-of-type { flex: 1; }
+      svg.px { width: 24px; height: 24px; image-rendering: pixelated; flex: none; filter: drop-shadow(0 0 4px rgba(255,255,255,.15)); }
+      .charm svg.px { width: 18px; height: 18px; }
+      .ic { display: flex; align-items: center; margin: 4px 0 6px; } .ic svg.px { width: 36px; height: 36px; }
+      .ic.dim svg.px { opacity: .35; }
+      .toast { display: flex; gap: 10px; align-items: center; } .toast .ic { margin: 0; } .toast .ic svg.px { width: 28px; height: 28px; }
+      .card .ic svg.px { width: 32px; height: 32px; } .card.locked .ic svg.px { filter: none; }
+      .offer .ic svg.px { width: 40px; height: 40px; filter: drop-shadow(0 0 8px rgba(255,255,255,.25)); }
       .charm.uncommon { border-left-color: var(--cyan); } .charm.rare { border-left-color: var(--gold); }
       .charm.temp { border-left-style: dashed; display: flex; justify-content: space-between; gap: 8px; }
       .charm .left { color: #9aa4b0; font-size: 11px; white-space: nowrap; }

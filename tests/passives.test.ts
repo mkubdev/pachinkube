@@ -150,3 +150,44 @@ describe("passive charms", () => {
     else expect(run.totalScore).toBe(0);
   });
 });
+
+describe("board motion and ball scaling", () => {
+  it("adds a ball every five rounds", async () => {
+    const run = await make("scale");
+    const at = (round: number) => {
+      (run as unknown as { round: number }).round = round;
+      (run as unknown as { startRound(): void }).startRound();
+      return run.ballsLeft;
+    };
+    expect(at(1)).toBe(6);
+    expect(at(5)).toBe(6);
+    expect(at(6)).toBe(7);
+    expect(at(11)).toBe(8);
+  });
+
+  it("drift moves pegs deterministically and Restless Board keeps them moving", async () => {
+    const a = await make("drift-a");
+    a.charms.push("drift");
+    (a as unknown as { startRound(): void }).startRound();
+    expect(a.sim.pegMotion).not.toBeNull();
+    for (let i = 0; i < 60; i++) a.step();
+    const offA = a.sim.snapshot().pegOffsets!;
+    expect(Math.max(...offA.map(Math.abs))).toBeGreaterThan(0.1);
+    // Alternating rows move in opposite directions.
+    expect(Math.sign(offA[0]!)).not.toBe(Math.sign(offA[a.sim.config.pegCols]!));
+    const b = await make("drift-a");
+    b.charms.push("drift");
+    (b as unknown as { startRound(): void }).startRound();
+    for (let i = 0; i < 60; i++) b.step();
+    expect(Array.from(b.sim.snapshot().pegOffsets!)).toEqual(Array.from(offA));
+    // Pegs never leave the walls.
+    for (let i = 0; i < a.sim.pegs.length; i++) {
+      expect(Math.abs(a.sim.pegPosition(i).x)).toBeLessThan(a.sim.config.width / 2 - 0.2);
+    }
+    // Motion stops when the charm is gone.
+    a.charms.length = 0;
+    (a as unknown as { startRound(): void }).startRound();
+    expect(a.sim.pegMotion).toBeNull();
+    expect(a.sim.snapshot().pegOffsets).toBeUndefined();
+  });
+});

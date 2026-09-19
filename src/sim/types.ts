@@ -71,7 +71,16 @@ export type SimEvent =
   | { type: "ballLost"; ball: number; bucket: number }
   | { type: "wallHit"; ball: number };
 
+/** Horizontal drift applied to pegs; alternating rows move in opposite phase. */
+export interface PegMotion {
+  amplitude: number;
+  /** Radians per tick. */
+  omega: number;
+}
+
 export interface Snapshot {
   tick: number;
   balls: BallState[];
+  /** Current x offset per peg id when pegs are moving; absent when static. */
+  pegOffsets?: Float32Array;
 }

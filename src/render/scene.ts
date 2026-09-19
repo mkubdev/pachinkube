@@ -16,6 +16,7 @@ import {
   EffectComposer,
   EffectPass,
   RenderPass,
+  ShockWaveEffect,
   VignetteEffect,
 } from "postprocessing";
 import { FxSystem } from "./fx.js";
@@ -27,24 +28,31 @@ import { ELEMENTS, type Element } from "../game/elements.js";
  * fire (rolling noise flicker), ice (faceted glint) or storm (crackle).
  */
 const pegVert = /* glsl */ `
+  uniform float uTime;
   attribute vec3 instanceColorA;
   attribute float aElement;
+  attribute float aStamp;
   varying vec3 vColor;
   varying float vElement;
+  varying float vAge;
   varying vec3 vLocal;
   varying vec3 vNormalW;
   void main() {
     vColor = instanceColorA;
     vElement = aElement;
+    vAge = uTime - aStamp;
     vLocal = position;
     vNormalW = normalize(mat3(instanceMatrix) * normal);
-    gl_Position = projectionMatrix * modelViewMatrix * instanceMatrix * vec4(position, 1.0);
+    // Freshly set elements pop: scale in over ~0.35 s.
+    float pop = aElement > 0.5 ? 1.0 + 0.6 * max(0.0, 1.0 - vAge * 2.8) : 1.0;
+    gl_Position = projectionMatrix * modelViewMatrix * instanceMatrix * vec4(position * pop, 1.0);
   }`;
 
 const pegFrag = /* glsl */ `
   uniform float uTime;
   varying vec3 vColor;
   varying float vElement;
+  varying float vAge;
   varying vec3 vLocal;
   varying vec3 vNormalW;
   float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
@@ -73,10 +81,59 @@ const pegFrag = /* glsl */ `
       float flame = n * 0.6 + n2 * 0.4;
       c = mix(vec3(1.0, 0.12, 0.0), vec3(1.0, 0.55, 0.05), flame) * (0.8 + 0.9 * flame) + rim * vec3(0.5, 0.15, 0.0);
     }
+    // White-hot flash the instant an element lands, fading over ~0.4 s.
+    if (vElement > 0.5) c += vec3(2.5) * max(0.0, 1.0 - vAge * 2.5);
     gl_FragColor = vec4(c, 1.0);
   }`;
 
 const ELEMENT_ID: Record<Element, number> = { fire: 1, ice: 2, storm: 3 };
+
+/** Additive billboard discs around imbued balls: corona / crystal shards / arcs. */
+const auraVert = /* glsl */ `
+  attribute float aElement;
+  attribute float aSeed;
+  varying vec2 vUv;
+  varying float vElement;
+  varying float vSeed;
+  void main() {
+    vUv = uv * 2.0 - 1.0;
+    vElement = aElement;
+    vSeed = aSeed;
+    // Billboard: take the instance translation/scale, drop its rotation.
+    vec4 centre = modelViewMatrix * instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0);
+    float s = length(vec3(instanceMatrix[0]));
+    gl_Position = projectionMatrix * (centre + vec4(position.xy * s, 0.0, 0.0));
+  }`;
+const auraFrag = /* glsl */ `
+  uniform float uTime;
+  varying vec2 vUv;
+  varying float vElement;
+  varying float vSeed;
+  float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+  void main() {
+    float r = length(vUv);
+    if (r > 1.0) discard;
+    float a = atan(vUv.y, vUv.x);
+    float t = uTime + vSeed * 10.0;
+    vec3 c; float alpha;
+    if (vElement > 2.5) {
+      // storm: three rotating arcs
+      float arc = smoothstep(0.35, 0.0, abs(fract((a / 6.2831 + t * 0.9) * 3.0) - 0.5) - 0.28) * smoothstep(1.0, 0.55, r) * smoothstep(0.35, 0.6, r);
+      float spark = step(0.94, hash(floor(vUv * 9.0) + floor(t * 12.0)));
+      c = vec3(0.5, 0.95, 1.0) * 2.2; alpha = arc * 0.9 + spark * 0.8;
+    } else if (vElement > 1.5) {
+      // ice: six slow crystal spokes
+      float spokes = pow(abs(cos(a * 3.0 + t * 0.6)), 24.0) * smoothstep(1.0, 0.3, r);
+      float halo = smoothstep(1.0, 0.4, r) * 0.25;
+      c = vec3(0.65, 0.92, 1.0) * 1.8; alpha = spokes + halo;
+    } else {
+      // fire: flickering corona
+      float flick = 0.7 + 0.3 * sin(t * 17.0 + a * 4.0) * sin(t * 11.0);
+      float corona = smoothstep(1.0, 0.35, r) * flick;
+      c = mix(vec3(1.0, 0.25, 0.0), vec3(1.0, 0.75, 0.2), corona) * 1.9; alpha = corona * 0.85;
+    }
+    gl_FragColor = vec4(c * alpha, alpha);
+  }`;
 
 import type { Peg, Snapshot } from "../sim/types.js";
 import { BALL_TYPES, type BallTypeId } from "../game/balls.js";
@@ -109,6 +166,15 @@ export class BoardRenderer {
   private readonly vignette: VignetteEffect;
   readonly fx: FxSystem;
   private readonly balls: THREE.InstancedMesh;
+  private readonly auras: THREE.InstancedMesh;
+  private readonly auraMat: THREE.ShaderMaterial;
+  private readonly auraElement: THREE.InstancedBufferAttribute;
+  private readonly auraSeed: THREE.InstancedBufferAttribute;
+  private pegStampAttr: THREE.InstancedBufferAttribute | null = null;
+  private pegBase: Peg[] = [];
+  private time = 0;
+  private shockwave: ShockWaveEffect;
+  private readonly shockPos = new THREE.Vector3();
   private pegs: THREE.InstancedMesh | null = null;
   private pegMat: THREE.ShaderMaterial | null = null;
   private pegColorAttr: THREE.InstancedBufferAttribute | null = null;
@@ -169,6 +235,26 @@ export class BoardRenderer {
     this.balls.frustumCulled = false;
     this.scene.add(this.balls);
 
+    const auraGeo = new THREE.InstancedBufferGeometry().copy(new THREE.PlaneGeometry(2, 2) as unknown as THREE.InstancedBufferGeometry);
+    auraGeo.instanceCount = MAX_BALLS;
+    this.auraElement = new THREE.InstancedBufferAttribute(new Float32Array(MAX_BALLS), 1).setUsage(THREE.DynamicDrawUsage);
+    this.auraSeed = new THREE.InstancedBufferAttribute(new Float32Array(MAX_BALLS), 1).setUsage(THREE.DynamicDrawUsage);
+    auraGeo.setAttribute("aElement", this.auraElement);
+    auraGeo.setAttribute("aSeed", this.auraSeed);
+    this.auraMat = new THREE.ShaderMaterial({
+      vertexShader: auraVert,
+      fragmentShader: auraFrag,
+      uniforms: { uTime: { value: 0 } },
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    });
+    this.auras = new THREE.InstancedMesh(auraGeo, this.auraMat, MAX_BALLS);
+    this.auras.count = 0;
+    this.auras.frustumCulled = false;
+    this.auras.renderOrder = 8;
+    this.scene.add(this.auras);
+
     this.aim = new THREE.Mesh(
       new THREE.ConeGeometry(0.16, 0.32, 4),
       new THREE.MeshBasicMaterial({ color: new THREE.Color(NEON_CYAN).multiplyScalar(1.6) }),
@@ -185,6 +271,10 @@ export class BoardRenderer {
     this.bloom = new BloomEffect({ intensity: 1.35, luminanceThreshold: 0.55, luminanceSmoothing: 0.2, mipmapBlur: true });
     this.chroma = new ChromaticAberrationEffect({ offset: new THREE.Vector2(0.0004, 0.0004), radialModulation: true, modulationOffset: 0.25 });
     this.vignette = new VignetteEffect({ offset: 0.32, darkness: 0.45 });
+    this.shockwave = new ShockWaveEffect(this.camera, this.shockPos, { speed: 2.2, maxRadius: 0.9, waveSize: 0.18, amplitude: 0.06 });
+    // The shockwave distorts UVs, which postprocessing refuses to combine with a
+    // convolution (bloom) in one pass; it gets its own pass, applied first.
+    this.composer.addPass(new EffectPass(this.camera, this.shockwave));
     this.composer.addPass(new EffectPass(this.camera, this.bloom, this.chroma, this.vignette));
     this.resize();
     addEventListener("resize", () => this.resize());
@@ -255,8 +345,11 @@ export class BoardRenderer {
     inst.instanceCount = pegs.length;
     this.pegColorAttr = new THREE.InstancedBufferAttribute(new Float32Array(pegs.length * 3), 3).setUsage(THREE.DynamicDrawUsage);
     this.pegElementAttr = new THREE.InstancedBufferAttribute(new Float32Array(pegs.length), 1).setUsage(THREE.DynamicDrawUsage);
+    this.pegStampAttr = new THREE.InstancedBufferAttribute(new Float32Array(pegs.length).fill(-10), 1).setUsage(THREE.DynamicDrawUsage);
     inst.setAttribute("instanceColorA", this.pegColorAttr);
     inst.setAttribute("aElement", this.pegElementAttr);
+    inst.setAttribute("aStamp", this.pegStampAttr);
+    this.pegBase = pegs;
     this.pegMat = new THREE.ShaderMaterial({
       vertexShader: pegVert,
       fragmentShader: pegFrag,
@@ -286,9 +379,21 @@ export class BoardRenderer {
 
   /** Paint a peg's element (null clears it). */
   setPegElement(peg: number, el: Element | null): void {
-    if (!this.pegElementAttr) return;
+    if (!this.pegElementAttr || !this.pegStampAttr) return;
     this.pegElementAttr.setX(peg, el ? ELEMENT_ID[el] : 0);
     this.pegElementAttr.needsUpdate = true;
+    if (el) {
+      this.pegStampAttr.setX(peg, this.time);
+      this.pegStampAttr.needsUpdate = true;
+    }
+  }
+
+  /** Screen-space shockwave from a board point (steam, chains, bombs). */
+  shock(x: number, y: number, strength = 1): void {
+    this.shockPos.set(x, y, 0);
+    this.shockwave.amplitude = 0.04 + 0.05 * strength;
+    this.shockwave.maxRadius = 0.5 + 0.5 * strength;
+    this.shockwave.explode();
   }
 
   resetPegElements(): void {
@@ -325,6 +430,7 @@ export class BoardRenderer {
     this.heat = this.heatTarget = 0;
     this.bloomKick = 0;
     this.balls.count = 0;
+    this.auras.count = 0;
   }
 
   /** Combo intensity 0..1; post effects ease toward it. */
@@ -448,6 +554,53 @@ export class BoardRenderer {
       budget--;
     }
 
+    // Drift: pegs follow their sim offsets, interpolated like the balls.
+    if (this.pegs && curr.pegOffsets) {
+      const po = prev.pegOffsets;
+      for (let i = 0; i < this.pegBase.length; i++) {
+        const p = this.pegBase[i]!;
+        const o1 = curr.pegOffsets[i] ?? 0;
+        const o0 = po ? (po[i] ?? o1) : o1;
+        this.dummy.position.set(p.x + o0 + (o1 - o0) * alpha, p.y, 0);
+        this.dummy.scale.setScalar(p.radius);
+        this.dummy.updateMatrix();
+        this.pegs.setMatrixAt(i, this.dummy.matrix);
+      }
+      this.pegs.instanceMatrix.needsUpdate = true;
+    } else if (this.pegs && prev.pegOffsets && !curr.pegOffsets) {
+      // Motion just ended: snap pegs home.
+      for (let i = 0; i < this.pegBase.length; i++) {
+        const p = this.pegBase[i]!;
+        this.dummy.position.set(p.x, p.y, 0);
+        this.dummy.scale.setScalar(p.radius);
+        this.dummy.updateMatrix();
+        this.pegs.setMatrixAt(i, this.dummy.matrix);
+      }
+      this.pegs.instanceMatrix.needsUpdate = true;
+    }
+
+    // Element auras ride along with imbued balls.
+    let na = 0;
+    for (let i = 0; i < n; i++) {
+      const b = curr.balls[i]!;
+      const el = this.elementOf(b.id);
+      if (!el) continue;
+      const p = prevById.get(b.id) ?? b;
+      this.dummy.position.set(p.x + (b.x - p.x) * alpha, p.y + (b.y - p.y) * alpha, 0.05);
+      this.dummy.scale.setScalar(b.radius * 2.6);
+      this.dummy.updateMatrix();
+      this.auras.setMatrixAt(na, this.dummy.matrix);
+      this.auraElement.setX(na, ELEMENT_ID[el]);
+      this.auraSeed.setX(na, (b.id % 97) / 97);
+      na++;
+    }
+    this.auras.count = na;
+    this.auras.instanceMatrix.needsUpdate = true;
+    this.auraElement.needsUpdate = true;
+    this.auraSeed.needsUpdate = true;
+    this.time += dt;
+    this.auraMat.uniforms.uTime!.value = this.time;
+
     // Peg pulses decay back to their resting colour; the shader animates elements.
     if (this.pegs && this.pulsing.size) {
       for (const i of this.pulsing) {
@@ -457,7 +610,7 @@ export class BoardRenderer {
         if (v <= 0) this.pulsing.delete(i);
       }
     }
-    if (this.pegMat) this.pegMat.uniforms.uTime!.value += dt;
+    if (this.pegMat) this.pegMat.uniforms.uTime!.value = this.time;
 
     // Post effects ride the combo heat plus momentary kicks.
     this.heat += (this.heatTarget - this.heat) * Math.min(1, dt * 4);

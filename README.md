@@ -53,6 +53,12 @@ steam** (chips + mult), **storm on ice = shatter chain** through every touching
 frozen peg, **storm on fire = wildfire**. Pegs render through a custom instanced
 shader (rolling flame noise, faceted ice glints, electric crackle).
 
+**Moving pegs.** *Drift* (temporary, 1 round) slides the peg rows sideways,
+alternating rows in opposite phase like a conveyor; *Restless Board* (rare,
+permanent) keeps a small drift on always. Motion is a pure function of the
+tick inside the sim, so replays still verify. **+1 ball every 5 rounds** keeps
+deep runs widening.
+
 **Combos.** Peg hits closer than 0.6 s apart — across every ball in flight —
 chain into one combo. Every 10th hit is a milestone: **+1 mult to all balls in
 play**, so multiball is worth engineering. The counter climbs through colour
@@ -85,6 +91,14 @@ shockwave rings in one `InstancedMesh`, 32 lightning arcs.
 | Chain Lightning | jittered arc peg→peg + cyan burst |
 | Split Shot / Phoenix / Overflow / Heavy Metal | bespoke burst + ring + flash |
 | pocket landing | magenta shockwave and burst scaled by log₁₀(score), popup size follows, camera shake |
+| element lands on a peg | white-hot flash + scale pop in the peg shader (per-instance timestamp) |
+| imbued ball | additive aura shader: fire corona / ice crystal spokes / storm arcs |
+| steam, wildfire, shatter chain, bomb, machine cleared | screen-space **shockwave** (`ShockWaveEffect`, its own pass — it cannot share one with bloom) |
+| lightning | main bolt plus a random side fork |
+
+**8-bit icons** (`src/game/icons.ts`): 20 hand-drawn 12×12 pixel glyphs mapped
+per charm/ball/feat, rendered as crisp inline SVG and tinted by rarity or
+element; used in the collection, shop, charm panel and toasts.
 
 ## Stack
 
@@ -129,7 +143,7 @@ npm run dev               # http://localhost:5173
 
 | Command | |
 |---|---|
-| `npm test` | 49 tests: RNG, sim, run, balls, passives, elements, meta, replay, scores/meta API |
+| `npm test` | 55 tests: RNG, sim, run, balls, passives, elements, meta, icons, replay, scores/meta API |
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm run build` | production bundle to `dist/` |
 
@@ -246,8 +260,9 @@ NAT cannot reach the add-on's `localhost:9876`.
   it is empty forever → **set `frustumCulled = false`** on dynamic instanced meshes.
 - glTF is Y-up: author Blender geometry with Z as "up" or convert, or the
   export lies flat.
-- Stuck balls hold a round open forever; the sim nudges after 0.5 s of
-  stillness and force-pockets after three nudges.
+- Stuck balls hold a round open forever. Three detectors: 0.5 s of stillness,
+  4 s without a clearly lower point (a Heavy ball can vibrate between pegs at
+  0.1 u/s indefinitely), and a hard 40 s age cap. Nudge, then force-pocket.
 - Compare Blender RNA nodes by `.name`, never `is`.
 - Poly Haven's API 403s on urllib's default User-Agent.
 - `pkill -f` matches its own shell command line; use `pgrep -f "[v]ite ..."`.

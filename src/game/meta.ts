@@ -96,6 +96,8 @@ export const UNLOCK_RULES: UnlockRule[] = [
   { kind: "charm", id: "elemental_surge", stat: "reactions", value: 200, hint: "Trigger 200 elemental reactions" },
   { kind: "charm", id: "solstice", stat: "bestRound", value: 7, hint: "Reach round 7" },
   { kind: "charm", id: "thunderhead", stat: "reactions", value: 40, hint: "Trigger 40 elemental reactions" },
+  { kind: "charm", id: "drift", stat: "bestRound", value: 4, hint: "Reach round 4" },
+  { kind: "charm", id: "restless_board", stat: "roundsCleared", value: 20, hint: "Clear 20 rounds (lifetime)" },
 ];
 
 export function ruleFor(kind: "charm" | "ball", id: string): UnlockRule | undefined {

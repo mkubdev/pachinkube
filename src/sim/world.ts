@@ -16,6 +16,7 @@ import {
   type BallSpawn,
   type BallState,
   type Peg,
+  type PegMotion,
   type SimConfig,
   type SimEvent,
   type Snapshot,
@@ -36,10 +37,13 @@ export class Sim {
   private readonly world: RAPIER.World;
   private readonly events = new RAPIER.EventQueue(true);
   private readonly balls = new Map<number, RAPIER.RigidBody>();
-  private readonly ballMeta = new Map<number, { radius: number; tag?: string; collider: number; still: number; nudges: number; pull: number }>();
+  private readonly ballMeta = new Map<number, { radius: number; tag?: string; collider: number; still: number; nudges: number; pull: number; minY: number; stale: number; born: number }>();
   private readonly colliderToBall = new Map<number, number>();
   private readonly colliderToPeg = new Map<number, number>();
   private readonly pegColliders: RAPIER.Collider[] = [];
+  private readonly pegRow: number[] = [];
+  private motion: PegMotion | null = null;
+  private pegOffsets: Float32Array = new Float32Array(0);
   private readonly bucketSensors = new Map<number, number>();
   private wallHandles = new Set<number>();
   private nextBallId = 1;
@@ -141,6 +145,7 @@ export class Sim {
         this.pegs.push({ id, x, y, radius: pegRadius });
         this.colliderToPeg.set(col.handle, id);
         this.pegColliders.push(col);
+        this.pegRow.push(r);
         id++;
       }
     }
@@ -178,7 +183,7 @@ export class Sim {
     );
     const id = this.nextBallId++;
     this.balls.set(id, body);
-    this.ballMeta.set(id, { radius, tag: spawn.tag, collider: col.handle, still: 0, nudges: 0, pull: spawn.pull ?? 0 });
+    this.ballMeta.set(id, { radius, tag: spawn.tag, collider: col.handle, still: 0, nudges: 0, pull: spawn.pull ?? 0, minY: Number.POSITIVE_INFINITY, stale: 0, born: this.tick });
     this.colliderToBall.set(col.handle, id);
     return id;
   }
@@ -201,6 +206,7 @@ export class Sim {
   /** Advance exactly one fixed step and return the gameplay events it produced. */
   step(): SimEvent[] {
     this.applyPulls();
+    this.movePegs();
     this.world.step(this.events);
     this.tick++;
     const forced = this.unstickBalls();
@@ -243,6 +249,50 @@ export class Sim {
     return out;
   }
 
+  /**
+   * Moving pegs ("drift"): a pure function of the tick, so replays match.
+   * Alternating rows swing in opposite phase, like a conveyor. Colliders on a
+   * fixed body are repositioned directly; amplitude and speed stay small
+   * enough that CCD on the balls handles the contact.
+   */
+  setPegMotion(motion: PegMotion | null): void {
+    this.motion = motion;
+    if (!motion) {
+      this.pegOffsets = new Float32Array(0);
+      this.pegs.forEach((p, i) => this.pegColliders[i]?.setTranslation({ x: p.x, y: p.y }));
+    } else if (this.pegOffsets.length !== this.pegs.length) {
+      this.pegOffsets = new Float32Array(this.pegs.length);
+    }
+  }
+
+  get pegMotion(): PegMotion | null {
+    return this.motion;
+  }
+
+  private movePegs(): void {
+    const m = this.motion;
+    if (!m) return;
+    const t = this.tick + 1; // position the pegs for the step about to run
+    const half = this.config.width / 2;
+    for (let i = 0; i < this.pegs.length; i++) {
+      const p = this.pegs[i]!;
+      const sign = this.pegRow[i]! % 2 === 0 ? 1 : -1;
+      let dx = sign * m.amplitude * Math.sin(m.omega * t + this.pegRow[i]! * 0.7);
+      // Keep pegs clear of the walls.
+      const maxDx = half - 0.25 - p.radius;
+      if (p.x + dx > maxDx) dx = maxDx - p.x;
+      if (p.x + dx < -maxDx) dx = -maxDx - p.x;
+      this.pegOffsets[i] = dx;
+      this.pegColliders[i]?.setTranslation({ x: p.x + dx, y: p.y });
+    }
+  }
+
+  /** Current world position of a peg (accounts for drift). */
+  pegPosition(id: number): { x: number; y: number } {
+    const p = this.pegs[id]!;
+    return { x: p.x + (this.pegOffsets[id] ?? 0), y: p.y };
+  }
+
   /** Balls with `pull` are nudged toward the centre line every step. */
   private applyPulls(): void {
     const g = Math.abs(this.config.gravity);
@@ -257,22 +307,37 @@ export class Sim {
   }
 
   /**
-   * A ball resting on a divider or wedged between pegs would hold the round
-   * open forever. After ~0.5 s of stillness it gets a small seeded nudge; after
-   * three nudges it is dropped into the pocket under it.
+   * A ball resting on a divider, wedged between pegs, or vibrating in a pocket
+   * of pegs would hold the round open forever. Two detectors: ~0.5 s of
+   * stillness, or ~4 s without reaching a new lowest point (perpetual jitter).
+   * Either earns a small seeded nudge; after three nudges the ball is dropped
+   * into the pocket under it.
    */
   private unstickBalls(): Array<[number, number]> {
     const forced: Array<[number, number]> = [];
     if (this.tick % 6 !== 0) return forced;
     const stillTicks = 60;
+    const staleTicks = 480;
+    const maxAgeTicks = 40 * 120; // a ball gets 40 s, then it is pocketed where it is
     for (const [id, body] of this.balls) {
       const meta = this.ballMeta.get(id);
       if (!meta) continue;
       const v = body.linvel();
+      const y = body.translation().y;
+      // Progress means a clearly new low point, not a few centimetres of jitter.
+      if (y < meta.minY - 0.15) {
+        meta.minY = y;
+        meta.stale = 0;
+      } else meta.stale += 6;
       if (v.x * v.x + v.y * v.y < 0.0025) meta.still += 6;
       else meta.still = 0;
-      if (meta.still < stillTicks) continue;
+      if (this.tick - meta.born > maxAgeTicks) {
+        forced.push([id, this.bucketAt(body.translation().x)]);
+        continue;
+      }
+      if (meta.still < stillTicks && meta.stale < staleTicks) continue;
       meta.still = 0;
+      meta.stale = 0;
       if (meta.nudges >= 3) {
         forced.push([id, this.bucketAt(body.translation().x)]);
         continue;
@@ -310,7 +375,9 @@ export class Sim {
       const meta = this.ballMeta.get(id);
       balls.push({ id, x: p.x, y: p.y, vx: v.x, vy: v.y, radius: meta?.radius ?? this.config.ballRadius, tag: meta?.tag });
     }
-    return { tick: this.tick, balls };
+    const snap: Snapshot = { tick: this.tick, balls };
+    if (this.motion) snap.pegOffsets = Float32Array.from(this.pegOffsets);
+    return snap;
   }
 
   /**
