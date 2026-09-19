@@ -22,7 +22,7 @@ async function make(seed: string) {
 
 /** Drive a reaction directly at peg `pegId` with a ball carrying `el`. */
 function hit(run: Run, el: "fire" | "ice" | "storm" | null, pegId: number, fresh = true) {
-  const ball: BallScoreState = { id: 999, type: "steel", chips: 0, mult: 1, hits: 1, freshHits: 1, revives: 0 };
+  const ball: BallScoreState = { id: 999, type: "steel", chips: 0, mult: 1, hits: 1, freshHits: 1, revives: 0, zaps: 0 };
   run.balls.set(ball.id, ball);
   if (el) run.ballElements.set(ball.id, el);
   else run.ballElements.delete(ball.id);
@@ -43,7 +43,9 @@ describe("reaction table", () => {
     expect(react("storm", { el: "fire", stacks: 2 })).toEqual({ kind: "wildfire", spread: 5 });
     expect(react("fire", { el: "ice", stacks: 2 })).toMatchObject({ kind: "steam", chips: 80 });
     expect(react("storm", { el: "ice", stacks: 1 }).kind).toBe("shatter_chain");
-    expect(react("ice", { el: "ice", stacks: 1 }).kind).toBe("shatter");
+    expect(react("ice", { el: "ice", stacks: 1 })).toEqual({ kind: "thicken", stacks: 2 });
+    expect(react("ice", { el: "ice", stacks: 4 }).kind).toBe("shatter"); // max thickness
+    expect(react("fire", { el: "fire", stacks: 1 })).toEqual({ kind: "flare", chipMult: 2.5, spread: 2 });
     expect(react("storm", { el: "storm", stacks: 1 })).toEqual({ kind: "zap", arcs: 4 });
   });
 });

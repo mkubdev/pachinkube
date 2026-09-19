@@ -22,6 +22,17 @@ import {
   type Snapshot,
 } from "./types.js";
 
+/**
+ * Clearance between a wall and the surface of the nearest peg, and the reach of
+ * a gravity-well ball. The biggest ball (Heavy, r=0.2) must pass the edge gap
+ * with room to spare or it wedges between wall and peg; the drift clamp keeps
+ * moving pegs honouring the same gap.
+ */
+export const EDGE_GAP = 0.5;
+export const WELL_RADIUS = 2.4;
+/** Summed well pull on one ball, as a fraction of its weight. */
+export const WELL_MAX_PULL = 0.6;
+
 let rapierReady: Promise<void> | null = null;
 function initRapier(): Promise<void> {
   rapierReady ??= RAPIER.init();
@@ -37,7 +48,7 @@ export class Sim {
   private readonly world: RAPIER.World;
   private readonly events = new RAPIER.EventQueue(true);
   private readonly balls = new Map<number, RAPIER.RigidBody>();
-  private readonly ballMeta = new Map<number, { radius: number; tag?: string; collider: number; still: number; nudges: number; pull: number; pullSuspend: number; minY: number; stale: number; born: number }>();
+  private readonly ballMeta = new Map<number, { radius: number; tag?: string; collider: number; still: number; nudges: number; pull: number; well: number; pullSuspend: number; minY: number; stale: number; born: number }>();
   private readonly colliderToBall = new Map<number, number>();
   private readonly colliderToPeg = new Map<number, number>();
   private readonly pegColliders: RAPIER.Collider[] = [];
@@ -138,7 +149,8 @@ export class Sim {
     const top = height * 0.86;
     const bottom = height * 0.22;
     const rowGap = (top - bottom) / Math.max(pegRows - 1, 1);
-    const margin = 0.45;
+    // Edge pegs sit EDGE_GAP clear of the wall so no ball can wedge there.
+    const margin = EDGE_GAP + pegRadius + 0.02;
     const colGap = (width - margin * 2) / Math.max(pegCols - 1, 1);
     let id = 0;
     for (let r = 0; r < pegRows; r++) {
@@ -195,7 +207,7 @@ export class Sim {
     );
     const id = this.nextBallId++;
     this.balls.set(id, body);
-    this.ballMeta.set(id, { radius, tag: spawn.tag, collider: col.handle, still: 0, nudges: 0, pull: spawn.pull ?? 0, pullSuspend: 0, minY: Number.POSITIVE_INFINITY, stale: 0, born: this.tick });
+    this.ballMeta.set(id, { radius, tag: spawn.tag, collider: col.handle, still: 0, nudges: 0, pull: spawn.pull ?? 0, well: spawn.well ?? 0, pullSuspend: 0, minY: Number.POSITIVE_INFINITY, stale: 0, born: this.tick });
     this.colliderToBall.set(col.handle, id);
     return id;
   }
@@ -207,6 +219,20 @@ export class Sim {
 
   ballTag(id: number): string | undefined {
     return this.ballMeta.get(id)?.tag;
+  }
+
+  /** Move a ball instantly (Quantum blink); velocity is kept, progress trackers reset. */
+  teleportBall(id: number, x: number, y: number): boolean {
+    const body = this.balls.get(id);
+    const meta = this.ballMeta.get(id);
+    if (!body || !meta) return false;
+    const half = this.config.width / 2;
+    const px = Math.min(half - meta.radius - 0.01, Math.max(-half + meta.radius + 0.01, x));
+    body.setTranslation({ x: px, y }, true);
+    meta.minY = Number.POSITIVE_INFINITY;
+    meta.stale = 0;
+    meta.still = 0;
+    return true;
   }
 
   get ballCount(): number {
@@ -307,8 +333,8 @@ export class Sim {
       const p = this.pegs[i]!;
       const sign = this.pegRow[i]! % 2 === 0 ? 1 : -1;
       let dx = sign * m.amplitude * Math.sin(m.omega * t + this.pegRow[i]! * 0.7);
-      // Keep pegs clear of the walls.
-      const maxDx = half - 0.25 - p.radius;
+      // Keep pegs clear of the walls: the edge gap must survive the drift.
+      const maxDx = half - EDGE_GAP - p.radius;
       if (p.x + dx > maxDx) dx = maxDx - p.x;
       if (p.x + dx < -maxDx) dx = -maxDx - p.x;
       this.pegOffsets[i] = dx;
@@ -342,13 +368,15 @@ export class Sim {
     return this.portalsArmed;
   }
 
-  /** Balls with `pull` are nudged toward the centre line every step. */
+  /** Balls with `pull` are nudged toward the centre line every step; wells drag the others. */
   private applyPulls(): void {
     const g = Math.abs(this.config.gravity);
+    this.applyWells(g);
     for (const [id, body] of this.balls) {
       const meta = this.ballMeta.get(id);
-      const pull = (meta?.pull ?? 0) + this.globalPull;
-      if (!meta || pull === 0) continue;
+      if (!meta) continue;
+      const pull = meta.pull + this.globalPull;
+      if (pull === 0) continue;
       if (meta.pullSuspend > 0) {
         meta.pullSuspend--;
         continue;
@@ -358,9 +386,51 @@ export class Sim {
       if (v.x * v.x + v.y * v.y < 0.16) continue;
       const x = body.translation().x;
       // Dead zone around the centre column so the ball drops between pegs.
+      // A negative pull (Orbit) pushes outward instead.
       const dir = x > 0.35 ? -1 : x < -0.35 ? 1 : 0;
       if (dir === 0) continue;
       body.addForce({ x: dir * pull * body.mass() * g, y: 0 }, true);
+    }
+  }
+
+  /**
+   * Gravity wells (Abyss): every non-well ball inside WELL_RADIUS of a well is
+   * pulled toward it, fading linearly with distance. Three rules keep it from
+   * becoming a trap: wells ignore each other (no mutual orbit), a well never
+   * pulls a ball *upward* (it herds, it does not levitate), and the summed pull
+   * on one ball is capped below the ball's weight so gravity always wins.
+   */
+  private applyWells(g: number): void {
+    const wells: Array<{ x: number; y: number; s: number }> = [];
+    for (const [id, body] of this.balls) {
+      const meta = this.ballMeta.get(id);
+      if (meta && meta.well !== 0) {
+        const p = body.translation();
+        wells.push({ x: p.x, y: p.y, s: meta.well });
+      }
+    }
+    if (!wells.length) return;
+    for (const [id, body] of this.balls) {
+      const meta = this.ballMeta.get(id);
+      if (!meta || meta.well !== 0) continue;
+      const p = body.translation();
+      let fx = 0;
+      let fy = 0;
+      for (const w of wells) {
+        const dx = w.x - p.x;
+        const dy = w.y - p.y;
+        const d = Math.hypot(dx, dy);
+        if (d < 0.05 || d > WELL_RADIUS) continue;
+        const f = w.s * (1 - d / WELL_RADIUS);
+        fx += (dx / d) * f;
+        fy += Math.min(0, (dy / d) * f); // never upward
+      }
+      const mag = Math.hypot(fx, fy);
+      if (mag === 0) continue;
+      const cap = WELL_MAX_PULL;
+      const k = mag > cap ? cap / mag : 1;
+      const wgt = body.mass() * g;
+      body.addForce({ x: fx * k * wgt, y: fy * k * wgt }, true);
     }
   }
 
@@ -377,17 +447,22 @@ export class Sim {
     const stillTicks = 60;
     const staleTicks = 480;
     const maxAgeTicks = 40 * 120; // a ball gets 40 s, then it is pocketed where it is
+    const half = this.config.width / 2;
     for (const [id, body] of this.balls) {
       const meta = this.ballMeta.get(id);
       if (!meta) continue;
       const v = body.linvel();
-      const y = body.translation().y;
+      const { x, y } = body.translation();
       // Progress means a clearly new low point, not a few centimetres of jitter.
       if (y < meta.minY - 0.15) {
         meta.minY = y;
         meta.stale = 0;
       } else meta.stale += 6;
-      if (v.x * v.x + v.y * v.y < 0.0025) meta.still += 6;
+      // A ball squeezed against a wall vibrates instead of resting: count it as
+      // still at a much looser speed threshold there.
+      const nearWall = Math.abs(x) > half - meta.radius - 0.1;
+      const stillThreshold = nearWall ? 0.09 : 0.0025;
+      if (v.x * v.x + v.y * v.y < stillThreshold) meta.still += 6;
       else meta.still = 0;
       if (this.tick - meta.born > maxAgeTicks) {
         forced.push([id, this.bucketAt(body.translation().x)]);
@@ -403,7 +478,9 @@ export class Sim {
       meta.nudges++;
       // Give the nudge a chance to work before any pull drags the ball back.
       meta.pullSuspend = 90;
-      const dir = this.streams.fx.next() < 0.5 ? -1 : 1;
+      // Against a wall the only useful direction is inward; elsewhere it is a coin flip.
+      const roll = this.streams.fx.next();
+      const dir = nearWall ? (x > 0 ? -1 : 1) : roll < 0.5 ? -1 : 1;
       body.applyImpulse({ x: dir * 0.6 * body.mass(), y: 1.5 * body.mass() }, true);
     }
     return forced;

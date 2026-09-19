@@ -21,6 +21,8 @@ export interface BallScoreState {
   freshHits: number;
   /** How many times Phoenix-style revives have fired for this ball. */
   revives: number;
+  /** Zap reactions this ball has triggered (Ball Lightning). */
+  zaps: number;
 }
 
 export interface CharmCtx {
@@ -37,13 +39,14 @@ export interface CharmCtx {
   mulMult(f: number, label?: string): void;
   /** Light a peg; pass `fromPeg` to draw a lightning arc between them. */
   lightPeg(peg: number, fromPeg?: number): boolean;
-  spawnBall(spawn: BallSpawn & { type: BallTypeId }): void;
+  /** `carry` copies chips/mult/revives from an existing ball onto the new one (relaunches). */
+  spawnBall(spawn: BallSpawn & { type: BallTypeId; carry?: BallScoreState }): void;
   addToBag(type: BallTypeId, count?: number): void;
   /** Purely presentational burst at a board position. */
   fx(kind: FxKind, x: number, y: number, strength?: number): void;
 }
 
-export type FxKind = "split" | "revive" | "overflow" | "zap" | "metal" | "bomb" | "bullseye" | "insurance" | "prism" | "finale";
+export type FxKind = "split" | "revive" | "overflow" | "zap" | "metal" | "bomb" | "bullseye" | "insurance" | "prism" | "finale" | "boomerang" | "collapse";
 
 export interface Charm {
   id: CharmId;
@@ -113,6 +116,20 @@ export interface Charm {
   elementBoost?: number;
   /** Burning pegs also spread when hit again (not only on ignite). */
   spreadOnRepeat?: boolean;
+  /** Extra stacks on every peg that freezes (thicker ice, bigger shatters). */
+  frostStacks?: number;
+  /** Mult added on every burn / flare reaction. */
+  burnMult?: number;
+  /** Charged pegs never lose their charge when zapped. */
+  permanentCharge?: boolean;
+  /** Every ball from the bag gets a random element. */
+  randomElement?: boolean;
+  /** An ignition also lights this many nearest bare pegs on fire. */
+  igniteSpread?: number;
+  /** Steam also freezes this many nearest bare pegs (the melt/refreeze loop). */
+  steamFreeze?: number;
+  /** Every Nth zap a ball triggers gives it +1 mult. */
+  zapMultEvery?: number;
 
   // --- board motion ---------------------------------------------------------
   /** Pegs drift sideways: amplitude in board units, period in seconds. */
@@ -175,11 +192,19 @@ export type CharmId =
   | "melting_point"
   | "tinder"
   | "elemental_surge"
+  | "permafrost"
+  | "backdraft"
+  | "lightning_rod"
+  | "flashpoint"
+  | "thermal_shock"
+  | "ball_lightning"
   // temporary elemental actives (N rounds, then gone)
   | "firestorm"
   | "deep_freeze"
   | "thunderhead"
   | "solstice"
+  | "aurora"
+  | "cold_snap"
   // board motion
   | "drift"
   | "restless_board"
@@ -337,7 +362,7 @@ export const CHARMS: Record<CharmId, Charm> = {
         type: ctx.ball.type,
         x: bucket === 0 ? -2 : 2,
         vx: bucket === 0 ? 1.5 : -1.5,
-        tag: `revive:${ctx.ball.id}`,
+        carry: ctx.ball,
       });
       return false;
     },
@@ -382,12 +407,20 @@ export const CHARMS: Record<CharmId, Charm> = {
   melting_point: { id: "melting_point", name: "Melting Point", desc: "Steam (fire on ice) gives +2 extra mult.", rarity: "rare", steamMult: 2 },
   tinder: { id: "tinder", name: "Tinder", desc: "Burning pegs spread fire every time they are hit.", rarity: "common", spreadOnRepeat: true },
   elemental_surge: { id: "elemental_surge", name: "Elemental Surge", desc: "All elemental chip payouts ×2.", rarity: "rare", elementBoost: 2 },
+  permafrost: { id: "permafrost", name: "Permafrost", desc: "Pegs freeze one stack thicker: every shatter pays double.", rarity: "uncommon", frostStacks: 1 },
+  backdraft: { id: "backdraft", name: "Backdraft", desc: "Every burn or flare reaction gives the ball +0.2 mult.", rarity: "uncommon", burnMult: 0.2 },
+  lightning_rod: { id: "lightning_rod", name: "Lightning Rod", desc: "Charged pegs never discharge.", rarity: "rare", permanentCharge: true },
+  flashpoint: { id: "flashpoint", name: "Flashpoint", desc: "An ignition also sets the 2 nearest bare pegs on fire.", rarity: "uncommon", igniteSpread: 2 },
+  thermal_shock: { id: "thermal_shock", name: "Thermal Shock", desc: "Steam refreezes the 3 nearest bare pegs. Fire on ice, forever.", rarity: "rare", steamFreeze: 3 },
+  ball_lightning: { id: "ball_lightning", name: "Ball Lightning", desc: "Every 3rd zap a ball triggers gives it +1 mult.", rarity: "uncommon", zapMultEvery: 3 },
 
   // --- temporary elemental actives -----------------------------------------
   firestorm: { id: "firestorm", name: "Firestorm", desc: "For 3 rounds every ball is Fire.", rarity: "uncommon", duration: 3, element: "fire" },
   deep_freeze: { id: "deep_freeze", name: "Deep Freeze", desc: "For 2 rounds every ball is Ice and 10 pegs start frozen.", rarity: "uncommon", duration: 2, element: "ice", frozenAtStart: 10 },
   thunderhead: { id: "thunderhead", name: "Thunderhead", desc: "For 3 rounds every ball is Storm.", rarity: "uncommon", duration: 3, element: "storm" },
   solstice: { id: "solstice", name: "Solstice", desc: "For 1 round: fire everywhere, 8 frozen pegs, arcs pay +10. Chaos.", rarity: "rare", duration: 1, element: "fire", frozenAtStart: 8, arcChips: 10, igniteChance: 0.5 },
+  aurora: { id: "aurora", name: "Aurora", desc: "For 3 rounds every ball gets a random element.", rarity: "rare", duration: 3, randomElement: true },
+  cold_snap: { id: "cold_snap", name: "Cold Snap", desc: "For 2 rounds 5 pegs start frozen, one stack thicker.", rarity: "common", duration: 2, frozenAtStart: 5, frostStacks: 1 },
 
   // --- board motion --------------------------------------------------------
   drift: { id: "drift", name: "Drift", desc: "For 1 round the pegs slide sideways, alternating rows in opposite directions.", rarity: "uncommon", duration: 1, pegDrift: { amplitude: 0.45, period: 3.2 } },

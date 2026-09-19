@@ -51,8 +51,15 @@ const devCharms = (params.get("charms") ?? "").split(",").filter(Boolean) as Cha
 // Dev aids change the run without going through the input log, so such a run
 // can never verify: submit it without a log rather than fail at the end.
 let tainted = devCharms.length > 0 || Number(params.get("pre") ?? 0) > 0;
-if (devCharms.length) {
+// ?bag=rainbow,abyss,heavy — dev aid: the bag holds only these types.
+const devBag = (params.get("bag") ?? "").split(",").filter((b): b is BallTypeId => b in BALL_TYPES);
+// ?end=1 — dev aid: the first step ends round 1 unpassed, straight to the end screen.
+const devEnd = params.get("end") === "1";
+tainted ||= devBag.length > 0 || devEnd;
+if (devEnd) run.ballsLeft = 0;
+if (devCharms.length || devBag.length) {
   run.charms.push(...devCharms);
+  if (devBag.length) run.ownedBalls.splice(0, run.ownedBalls.length, ...devBag, ...devBag, ...devBag);
   (run as unknown as { startRound(): void }).startRound();
 }
 
@@ -167,6 +174,13 @@ addEventListener("pointermove", (e) => {
 });
 canvas.addEventListener("pointerdown", drop);
 addEventListener("keydown", (e) => {
+  // On the end screen, space/enter start the next run; the input field keeps its keys.
+  const again = document.querySelector<HTMLButtonElement>("#modal:not([hidden]) #again");
+  if (again && (e.code === "Space" || e.code === "Enter") && !(e.target instanceof HTMLInputElement)) {
+    e.preventDefault();
+    again.click();
+    return;
+  }
   if (e.code === "Space") { e.preventDefault(); drop(); }
   if (e.code === "KeyA") auto = !auto;
   if (e.code === "KeyC") ui.toggleCollection(meta);
@@ -225,6 +239,18 @@ function simStep(): void {
           view.fx.burst(e.x, e.y, 0xff8f2d, 80, 6, 0.22, 0.9, -3);
           view.fx.ring(e.x, e.y, 0xff8f2d, 2.2, 0.6);
           view.kickBloom(0.8);
+        } else if (e.kind === "boomerang") {
+          view.fx.burst(e.x, e.y, 0xffc46b, 50, 5, 0.18, 0.8, 6); // rises with the ball
+          view.fx.ring(e.x, e.y, 0xffc46b, 1.6, 0.5);
+          view.kickBloom(0.5);
+          ui.notice("BOOMERANG — coming back");
+        } else if (e.kind === "collapse") {
+          view.shock(e.x, e.y, 0.5 + e.strength * 0.5);
+          view.fx.burst(e.x, e.y, 0x7a3cff, 90, 7, 0.2, 0.9, 4);
+          view.fx.ring(e.x, e.y, 0x7a3cff, 3.5, 0.8);
+          view.kickBloom(1.2);
+          view.addShake(0.6);
+          ui.flash("#3a1a6a", 0.45);
         } else if (e.kind === "overflow") {
           view.fx.ring(e.x, e.y, NEON_MAGENTA, 4.5, 0.8);
           view.kickBloom(1.2);
@@ -315,6 +341,12 @@ function simStep(): void {
         view.portal(e.from, e.to);
         view.shock(e.from.x, e.from.y, 0.5);
         break;
+      case "blink":
+        view.portal(e.from, e.to);
+        view.fx.burst(e.from.x, e.from.y, 0xd6a8ff, 30, 4, 0.12, 0.4, 0);
+        view.shock(e.to.x, e.to.y, 0.35);
+        ui.flash("#d6a8ff", 0.12);
+        break;
       case "pockets":
         ui.updatePocketMults(e.mults, e.lottery);
         view.setPocketMults(e.mults, e.lottery);
@@ -335,6 +367,16 @@ function simStep(): void {
             break;
           case "charge":
             view.fx.burst(e.x, e.y, c, 10, 4, 0.1, 0.25, 0);
+            break;
+          case "thicken":
+            view.fx.ring(e.x, e.y, 0x9fe8ff, 0.4 + e.count * 0.15, 0.3);
+            view.fx.burst(e.x, e.y, 0xffffff, 8 + e.count * 3, 1.5, 0.1, 0.4, 0);
+            break;
+          case "flare":
+            view.shock(e.x, e.y, 0.35);
+            view.fx.burst(e.x, e.y, 0xffd34d, 20 + e.count * 8, 4.5, 0.2, 0.6, -3);
+            view.fx.ring(e.x, e.y, 0xff6a00, 1.0, 0.35);
+            view.kickBloom(0.5);
             break;
           case "burn":
             view.fx.burst(e.x, e.y, c, 8 + e.count * 6, 3, 0.18, 0.55, -3);
@@ -454,7 +496,8 @@ function loop(now: number): void {
   view.setAim(run.phase === "drop" ? aimX : null);
   view.render(prev, curr, alpha, dtSec);
   ui.tickPopups(now);
-  if (++frame % 6 === 0) ui.updateHud(run, seed, auto);
+  // First frame too: on a slow GPU the sixth frame can be a second away.
+  if (++frame === 1 || frame % 6 === 0) ui.updateHud(run, seed, auto);
   requestAnimationFrame(loop);
 }
 ui.updateCharms(run);

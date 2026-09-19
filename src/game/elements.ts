@@ -30,10 +30,14 @@ export type Reaction =
   | { kind: "zap"; arcs: number }            // any ball on a charged peg: lightning to nearest pegs
   | { kind: "wildfire"; spread: number }     // storm on burning: fire jumps to many pegs
   | { kind: "shatter_chain"; chips: number } // storm on frozen: every connected frozen peg shatters
+  | { kind: "thicken"; stacks: number }      // ice on frozen: the ice grows (bigger shatter later)
+  | { kind: "flare"; chipMult: number; spread: number } // fire on burning: hotter burn, wider spread
   | { kind: "none" };
 
 export const ICE_STACK_CHIPS = 12;
 export const STEAM_CHIPS = 40;
+/** Ice this thick shatters even under an ice ball. */
+export const MAX_ICE_STACKS = 4;
 
 export function react(ball: Element | null, peg: PegElementState | null): Reaction {
   if (!peg) {
@@ -45,10 +49,12 @@ export function react(ball: Element | null, peg: PegElementState | null): Reacti
   switch (peg.el) {
     case "fire":
       if (ball === "storm") return { kind: "wildfire", spread: 3 + peg.stacks };
+      if (ball === "fire") return { kind: "flare", chipMult: 2.5, spread: 2 };
       return { kind: "burn", chipMult: 1.5 };
     case "ice":
       if (ball === "fire") return { kind: "steam", chips: STEAM_CHIPS * peg.stacks, mult: 1 };
       if (ball === "storm") return { kind: "shatter_chain", chips: ICE_STACK_CHIPS * peg.stacks };
+      if (ball === "ice" && peg.stacks < MAX_ICE_STACKS) return { kind: "thicken", stacks: peg.stacks + 1 };
       return { kind: "shatter", chips: ICE_STACK_CHIPS * peg.stacks };
     case "storm":
       return { kind: "zap", arcs: 2 + (ball === "storm" ? 2 : 0) };

@@ -81,7 +81,8 @@ describe("combo events", () => {
       r.charms.push("firestorm", "static_field", "low_gravity");
       (r as unknown as { startRound(): void }).startRound();
       const kinds: string[] = [];
-      for (let t = 0; t < 3000; t++) {
+      for (let t = 0; t < 4000; t++) {
+        if (r.phase === "shop") r.pick(0);
         if (t % 30 === 0 && r.ballsLeft > 0) r.drop(Math.sin(t / 37) * 2.2);
         for (const e of r.step()) if (e.type === "comboEvent") kinds.push(e.kind);
       }

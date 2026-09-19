@@ -46,6 +46,8 @@ export interface BallSpawn {
   gravityScale?: number;
   /** Constant horizontal force toward x = 0, as a multiple of the ball's weight. */
   pull?: number;
+  /** Gravity well: other balls within `WELL_RADIUS` are pulled toward this ball, this × their weight. */
+  well?: number;
   /** Opaque label for the game layer, e.g. the ball type id. */
   tag?: string;
 }

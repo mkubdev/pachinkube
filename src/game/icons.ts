@@ -42,6 +42,8 @@ const CHARM_GLYPH: Record<CharmId, keyof typeof G> = {
   low_gravity: "arrow", ember_core: "flame", frost_bite: "snow", static_field: "bolt", conductor: "bolt",
   melting_point: "sun", tinder: "flame", elemental_surge: "sun", firestorm: "flame", deep_freeze: "snow",
   thunderhead: "bolt", solstice: "sun", drift: "wave", restless_board: "gear",
+  permafrost: "snow", backdraft: "flame", lightning_rod: "bolt", flashpoint: "flame", thermal_shock: "sun", ball_lightning: "bolt",
+  aurora: "star", cold_snap: "snow",
   roulette: "dice", hot_pocket: "flame", groove: "arrow", jackpot_growth: "coin", pocket_lottery: "star", inversion: "split",
   echo_chamber: "wave", second_wind: "heart", overclock: "clock",
 };
@@ -51,11 +53,15 @@ const FEAT_GLYPH: Record<string, keyof typeof G> = {
   jackpot_streak: "eye", first_steam: "sun", first_wildfire: "flame", first_shatter_chain: "snow", big_shatter: "snow",
   first_laser: "bolt", first_portal: "eye", first_quake: "wave", first_rain: "ball", first_gravity_flip: "arrow",
   first_magnet_storm: "magnet", first_slowmo: "clock", full_hand: "dice", five_in_flight: "ball",
+  first_thicken: "snow", first_flare: "flame", first_blink: "eye", first_boomerang: "arrow", first_collapse: "skull",
+  trinity: "sun", inferno: "flame", glacier: "snow", power_grid: "bolt", hat_trick: "trophy", grand_tour: "star",
+  overkill: "skull", clutch: "heart", hoarder: "ball",
 };
 /** Threshold feats share a glyph per family via their id prefix. */
 const FAMILY_GLYPH: Record<string, keyof typeof G> = {
   combo: "star", run: "trophy", ball: "coin", round: "trophy", runs: "clock", wins: "trophy", drops: "ball",
   pegs: "gear", jackpots: "eye", reactions: "sun", events: "bolt", portals: "eye",
+  steams: "sun", cleared: "trophy", total: "coin", losses: "skull",
 };
 
 interface Palette { primary: string; secondary: string; highlight: string }
@@ -100,9 +106,15 @@ export function charmIcon(id: CharmId, locked = false): string {
   return pixelSvg(G[CHARM_GLYPH[id]]!, pal);
 }
 
+/** Balls whose single colour would lie: Rainbow gets the wheel, Abyss a purple rim on black. */
+const SPECIAL_BALL: Partial<Record<BallTypeId, Palette>> = {
+  rainbow: { primary: "#ff2d95", secondary: "#2de2ff", highlight: "#ffd34d" },
+  abyss: { primary: "#0a0612", secondary: "#5a2d9e", highlight: "#b46cff" },
+};
+
 export function ballIcon(id: BallTypeId, locked = false): string {
   const color = BALL_TYPES[id].color;
-  const pal = locked ? RARITY.locked! : { primary: shade(color, 0.85), secondary: shade(color, 0.55), highlight: "#ffffff" };
+  const pal = locked ? RARITY.locked! : SPECIAL_BALL[id] ?? { primary: shade(color, 0.85), secondary: shade(color, 0.55), highlight: "#ffffff" };
   return pixelSvg(G.ball!, pal);
 }
 

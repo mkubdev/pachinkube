@@ -1,9 +1,13 @@
 import type { BallSpawn } from "../sim/types.js";
+import type { Element } from "./elements.js";
 
 export type BallTypeId =
   | "steel" | "rubber" | "heavy" | "spark"
   | "gold" | "feather" | "cannon" | "magnet" | "twin" | "prism" | "bomb"
-  | "mirror" | "comet" | "glass";
+  | "mirror" | "comet" | "glass"
+  // second wave
+  | "orbit" | "ember" | "frost" | "volt" | "cluster" | "anchor" | "pearl"
+  | "rainbow" | "boomerang" | "quantum" | "abyss";
 
 /** Mechanical quirks the run reads; physics quirks go through `physics`. */
 export interface BallTraits {
@@ -25,6 +29,19 @@ export interface BallTraits {
   /** On this hit the ball shatters: chips ×2 and `shatterShards` shards spawn. */
   shatterAt?: number;
   shatterShards?: number;
+  /** The ball is always imbued with this element (ignores active charms). */
+  element?: Element;
+  /** Rainbow: the element rotates fire → ice → storm on every hit. */
+  cycleElement?: boolean;
+  /** Every Nth hit: +`multEveryAmount` mult. */
+  multEvery?: number;
+  multEveryAmount?: number;
+  /** When it lands it is relaunched from the top this many times, keeping chips and mult. */
+  relaunch?: number;
+  /** On this hit the ball blinks to a random spot in the upper field. */
+  blinkAt?: number;
+  /** On landing: +1 mult per other ball still in flight (they were being dragged along). */
+  collapse?: boolean;
 }
 
 export interface BallType {
@@ -33,7 +50,7 @@ export interface BallType {
   desc: string;
   /** 0xRRGGBB for the renderer. */
   color: number;
-  physics: Pick<BallSpawn, "radius" | "restitution" | "density" | "gravityScale" | "pull" | "vy">;
+  physics: Pick<BallSpawn, "radius" | "restitution" | "density" | "gravityScale" | "pull" | "vy" | "well">;
   /** Multiplier on chips earned per peg hit. */
   chipFactor: number;
   traits?: BallTraits;
@@ -97,6 +114,52 @@ export const BALL_TYPES: Record<BallTypeId, BallType> = {
   glass: {
     id: "glass", name: "Glass", desc: "×2 chips. Shatters on its 6th hit into three shards.",
     color: 0xe0ffff, physics: { radius: 0.14, density: 3, restitution: 0.75 }, chipFactor: 2, traits: { shatterAt: 6, shatterShards: 3 }, shopWeight: 4,
+  },
+
+  // --- second wave -----------------------------------------------------------
+  orbit: {
+    id: "orbit", name: "Orbit", desc: "Pushed toward the edges. ×1.3 chips; loves edge pockets.",
+    color: 0x9ad0ff, physics: { radius: 0.13, pull: -0.5 }, chipFactor: 1.3, shopWeight: 6,
+  },
+  ember: {
+    id: "ember", name: "Ember", desc: "Always Fire. Ignites bare pegs, flares on burning ones.",
+    color: 0xff6a00, physics: { radius: 0.13, density: 6 }, chipFactor: 1, traits: { element: "fire" }, shopWeight: 6,
+  },
+  frost: {
+    id: "frost", name: "Frost", desc: "Always Ice. Freezes bare pegs and thickens frozen ones.",
+    color: 0x9fe8ff, physics: { radius: 0.13, density: 6, restitution: 0.7 }, chipFactor: 1, traits: { element: "ice" }, shopWeight: 6,
+  },
+  volt: {
+    id: "volt", name: "Volt", desc: "Always Storm. Charges pegs and zaps charged ones.",
+    color: 0x7df9ff, physics: { radius: 0.12, density: 5 }, chipFactor: 1, traits: { element: "storm" }, shopWeight: 6,
+  },
+  cluster: {
+    id: "cluster", name: "Cluster", desc: "Three tiny balls from one slot. ×0.6 chips each.",
+    color: 0xc6ff5e, physics: { radius: 0.085, density: 4 }, chipFactor: 0.6, traits: { count: 3 }, shopWeight: 5,
+  },
+  anchor: {
+    id: "anchor", name: "Anchor", desc: "Falls almost twice as fast. Chips scale with impact speed.",
+    color: 0x5e6b7a, physics: { radius: 0.15, density: 14, gravityScale: 1.8 }, chipFactor: 1.4, traits: { speedChips: 0.6 }, shopWeight: 5,
+  },
+  pearl: {
+    id: "pearl", name: "Pearl", desc: "×0.7 chips, but +0.5 mult on every 4th peg hit.",
+    color: 0xfff0f5, physics: { radius: 0.13, density: 5, restitution: 0.65 }, chipFactor: 0.7, traits: { multEvery: 4, multEveryAmount: 0.5 }, shopWeight: 4,
+  },
+  rainbow: {
+    id: "rainbow", name: "Rainbow", desc: "Cycles Fire → Ice → Storm on every hit. Every reaction, eventually.",
+    color: 0xff2d95, physics: { radius: 0.13, density: 6 }, chipFactor: 1, traits: { cycleElement: true, element: "fire" }, shopWeight: 3,
+  },
+  boomerang: {
+    id: "boomerang", name: "Boomerang", desc: "Comes back: relaunched once from the top after it lands, keeping chips and mult.",
+    color: 0xffc46b, physics: { radius: 0.13, density: 6 }, chipFactor: 0.9, traits: { relaunch: 1 }, shopWeight: 3,
+  },
+  quantum: {
+    id: "quantum", name: "Quantum", desc: "On its 6th hit it blinks back into the upper field.",
+    color: 0xd6a8ff, physics: { radius: 0.12, density: 5 }, chipFactor: 1.1, traits: { blinkAt: 6 }, shopWeight: 3,
+  },
+  abyss: {
+    id: "abyss", name: "Abyss", desc: "A black hole. Drags every nearby ball toward it; lands with +1 mult per ball still in flight. ×0.6 chips.",
+    color: 0x14091f, physics: { radius: 0.15, density: 22, well: 0.55 }, chipFactor: 0.6, traits: { collapse: true }, shopWeight: 2,
   },
 };
 

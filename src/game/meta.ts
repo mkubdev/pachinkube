@@ -14,7 +14,7 @@ import { BALL_IDS, BALL_TYPES, type BallTypeId } from "./balls.js";
 import { CHARMS, CHARM_IDS, type CharmId } from "./charms.js";
 import type { GameEvent, Offer, Run } from "./run.js";
 
-export const META_VERSION = 2; // 2: progression reset, ball ladder on peg hits
+export const META_VERSION = 3; // 3: second-wave reset — 24-ball ladder, gated charm tiers
 
 export interface MetaStats {
   runs: number;
@@ -79,11 +79,21 @@ export const UNLOCK_RULES: UnlockRule[] = [
   ...(
     [
       ["rubber", 400], ["heavy", 1_000], ["spark", 2_000], ["gold", 3_500], ["feather", 5_000],
-      ["cannon", 7_500], ["magnet", 10_000], ["twin", 14_000], ["prism", 18_000], ["bomb", 25_000],
-      ["mirror", 35_000], ["comet", 45_000], ["glass", 60_000],
+      ["cannon", 7_500], ["magnet", 10_000], ["orbit", 13_000], ["twin", 16_000], ["ember", 20_000],
+      ["prism", 24_000], ["frost", 28_000], ["bomb", 33_000], ["volt", 38_000], ["mirror", 44_000],
+      ["cluster", 50_000], ["comet", 57_000], ["anchor", 65_000], ["glass", 75_000], ["pearl", 85_000],
+      ["rainbow", 100_000], ["boomerang", 115_000], ["quantum", 130_000], ["abyss", 150_000],
     ] as Array<[BallTypeId, number]>
   ).map(([id, value]) => ({ kind: "ball" as const, id, stat: "pegHits" as const, value, hint: `Hit ${value.toLocaleString("en-US")} pegs (lifetime)` })),
-  // charms
+  // charms: the first runs unlock something every time, then it slows down
+  { kind: "charm", id: "wide_net", stat: "runs", value: 2, hint: "Play a 2nd run" },
+  { kind: "charm", id: "duplicator", stat: "runs", value: 3, hint: "Play a 3rd run" },
+  { kind: "charm", id: "long_fuse", stat: "bestCombo", value: 20, hint: "Reach a 20 combo" },
+  { kind: "charm", id: "milestone_maker", stat: "bestCombo", value: 30, hint: "Reach a 30 combo" },
+  { kind: "charm", id: "low_gravity", stat: "ballsDropped", value: 150, hint: "Drop 150 balls" },
+  { kind: "charm", id: "hot_pocket", stat: "roundsCleared", value: 3, hint: "Clear 3 rounds (lifetime)" },
+  { kind: "charm", id: "pocket_lottery", stat: "jackpots", value: 6, hint: "Land 6 balls in the centre pocket" },
+  { kind: "charm", id: "groove", stat: "roundsCleared", value: 8, hint: "Clear 8 rounds (lifetime)" },
   { kind: "charm", id: "split_shot", stat: "bestCombo", value: 40, hint: "Reach a 40 combo" },
   { kind: "charm", id: "chain_lightning", stat: "roundsCleared", value: 5, hint: "Clear 5 rounds (lifetime)" },
   { kind: "charm", id: "sharpshooter", stat: "jackpots", value: 12, hint: "Land 12 balls in the centre pocket" },
@@ -94,7 +104,19 @@ export const UNLOCK_RULES: UnlockRule[] = [
   { kind: "charm", id: "overflow", stat: "bestBallScore", value: 25_000, hint: "Score 25,000 with a single ball" },
   { kind: "charm", id: "phoenix", stat: "losses", value: 3, hint: "Lose 3 runs" },
   { kind: "charm", id: "insurance", stat: "bestRound", value: 6, hint: "Reach round 6" },
-  // elemental: the basics are open, the reactions-heavy ones are earned
+  // elemental: the three basics are open, everything else is earned with reactions
+  { kind: "charm", id: "conductor", stat: "reactions", value: 40, hint: "Trigger 40 elemental reactions" },
+  { kind: "charm", id: "firestorm", stat: "reactions", value: 60, hint: "Trigger 60 elemental reactions" },
+  { kind: "charm", id: "tinder", stat: "reactions", value: 80, hint: "Trigger 80 elemental reactions" },
+  { kind: "charm", id: "flashpoint", stat: "reactions", value: 100, hint: "Trigger 100 elemental reactions" },
+  { kind: "charm", id: "deep_freeze", stat: "reactions", value: 120, hint: "Trigger 120 elemental reactions" },
+  { kind: "charm", id: "backdraft", stat: "reactions", value: 150, hint: "Trigger 150 elemental reactions" },
+  { kind: "charm", id: "lightning_rod", stat: "reactions", value: 300, hint: "Trigger 300 elemental reactions" },
+  { kind: "charm", id: "aurora", stat: "reactions", value: 500, hint: "Trigger 500 elemental reactions" },
+  { kind: "charm", id: "permafrost", stat: "steams", value: 10, hint: "Trigger 10 steam reactions" },
+  { kind: "charm", id: "thermal_shock", stat: "steams", value: 60, hint: "Trigger 60 steam reactions" },
+  { kind: "charm", id: "cold_snap", stat: "roundsCleared", value: 12, hint: "Clear 12 rounds (lifetime)" },
+  { kind: "charm", id: "ball_lightning", stat: "bestCombo", value: 60, hint: "Reach a 60 combo" },
   { kind: "charm", id: "melting_point", stat: "steams", value: 30, hint: "Trigger 30 steam reactions" },
   { kind: "charm", id: "elemental_surge", stat: "reactions", value: 800, hint: "Trigger 800 elemental reactions" },
   { kind: "charm", id: "solstice", stat: "bestRound", value: 7, hint: "Reach round 7" },
@@ -167,6 +189,10 @@ export const THRESHOLD_FEATS: ThresholdFeat[] = [
   ...tier("reactions", "reactions", ["Chemist", "Alchemist", "Elementalist"], [250, 1_000, 5_000], (v) => `Trigger ${v.toLocaleString("en-US")} elemental reactions.`),
   ...tier("comboEvents", "events", ["Trigger Happy", "Chaos Agent", "Storm Chaser"], [5, 25, 100], (v) => `Fire ${v} combo events.`),
   ...tier("portals", "portals", ["Round Trip", "Frequent Flyer"], [5, 25], (v) => `Ride the portal ${v} times.`),
+  ...tier("steams", "steams", ["Kettle", "Boiler", "Geyser"], [10, 100, 500], (v) => `Trigger ${v} steam reactions.`),
+  ...tier("roundsCleared", "cleared", ["Journeyman", "Veteran", "Machine Spirit"], [25, 100, 400], (v) => `Clear ${v} rounds (lifetime).`),
+  ...tier("totalScore", "total", ["Millionaire", "Multimillionaire", "Billionaire"], [1_000_000, 10_000_000, 1_000_000_000], (v) => `Score ${v.toLocaleString("en-US")} across all runs.`),
+  ...tier("losses", "losses", ["Bruised", "Stubborn", "Unbreakable"], [5, 25, 100], (v) => `Lose ${v} runs and come back.`),
 ];
 
 const MOMENT_FEATS = {
@@ -189,6 +215,21 @@ const MOMENT_FEATS = {
   first_slowmo: { name: "Bullet Time", desc: "Bend time." },
   full_hand: { name: "Full Hand", desc: "Hold 10 charms at once." },
   five_in_flight: { name: "Juggler", desc: "Have 8 balls in play at the same time." },
+  // second wave
+  first_thicken: { name: "Thick Ice", desc: "Thicken a frozen peg with Ice." },
+  first_flare: { name: "Flare-Up", desc: "Hit a burning peg with Fire." },
+  first_blink: { name: "Blink", desc: "Watch a Quantum ball teleport." },
+  first_boomerang: { name: "Comeback", desc: "A Boomerang returns to the top." },
+  first_collapse: { name: "Event Horizon", desc: "An Abyss ball lands while others are still in flight." },
+  trinity: { name: "Trinity", desc: "Fire, ice and storm on the board at the same time." },
+  inferno: { name: "Inferno", desc: "15 pegs burning at once." },
+  glacier: { name: "Glacier", desc: "15 pegs frozen at once." },
+  power_grid: { name: "Power Grid", desc: "10 pegs charged at once." },
+  hat_trick: { name: "Hat Trick", desc: "Fire 3 combo events in one round." },
+  grand_tour: { name: "Grand Tour", desc: "Land in every pocket during one round." },
+  overkill: { name: "Overkill", desc: "Score 10× the target in a single round." },
+  clutch: { name: "Clutch", desc: "Pass a round only thanks to its very last ball." },
+  hoarder: { name: "Hoarder", desc: "Own 20 balls." },
 } as const;
 
 export type FeatId = keyof typeof MOMENT_FEATS | (typeof THRESHOLD_FEATS)[number]["id"];
@@ -245,10 +286,14 @@ export function settleAnnouncements(meta: MetaState): void {
 
 export interface RunTracker {
   jackpotStreak: number;
+  /** Per-round bookkeeping for Grand Tour, Hat Trick and Clutch; reset on roundEnd. */
+  pocketsThisRound: number[];
+  eventsThisRound: number;
+  lastBallScore: number;
 }
 
 export function newTracker(): RunTracker {
-  return { jackpotStreak: 0 };
+  return { jackpotStreak: 0, pocketsThisRound: [], eventsThisRound: 0, lastBallScore: 0 };
 }
 
 export function recordRunStart(meta: MetaState): void {
@@ -265,6 +310,7 @@ export function recordEvents(
 ): MetaNotice[] {
   const out: MetaNotice[] = [];
   const s = meta.stats;
+  let boardFeats = false;
   for (const e of events) {
     switch (e.type) {
       case "pegHit":
@@ -277,9 +323,13 @@ export function recordEvents(
       case "comboEvent":
         s.comboEvents++;
         feat(meta, `first_${e.kind}`, out, now);
+        if (++tracker.eventsThisRound >= 3) feat(meta, "hat_trick", out, now);
         break;
       case "portal":
         s.portals++;
+        break;
+      case "blink":
+        feat(meta, "first_blink", out, now);
         break;
       case "ballScored": {
         const centre = (run.sim.config.buckets - 1) / 2;
@@ -289,6 +339,9 @@ export function recordEvents(
           if (tracker.jackpotStreak >= 3) feat(meta, "jackpot_streak", out, now);
         } else tracker.jackpotStreak = 0;
         if (e.score > s.bestBallScore) s.bestBallScore = e.score;
+        tracker.lastBallScore = e.score;
+        if (e.bucket >= 0 && !tracker.pocketsThisRound.includes(e.bucket)) tracker.pocketsThisRound.push(e.bucket);
+        if (tracker.pocketsThisRound.length >= run.sim.config.buckets) feat(meta, "grand_tour", out, now);
         break;
       }
       case "element":
@@ -301,18 +354,28 @@ export function recordEvents(
           feat(meta, "first_shatter_chain", out, now);
           if (e.count >= 8) feat(meta, "big_shatter", out, now);
         } else if (e.kind === "shatter" && e.count >= 8) feat(meta, "big_shatter", out, now);
+        else if (e.kind === "thicken") feat(meta, "first_thicken", out, now);
+        else if (e.kind === "flare") feat(meta, "first_flare", out, now);
+        boardFeats = true;
         break;
       case "fx":
         if (e.kind === "bomb") feat(meta, "first_bomb", out, now);
         else if (e.kind === "split") feat(meta, "first_split", out, now);
         else if (e.kind === "revive") feat(meta, "first_revive", out, now);
         else if (e.kind === "bullseye") feat(meta, "first_bullseye", out, now);
+        else if (e.kind === "boomerang") feat(meta, "first_boomerang", out, now);
+        else if (e.kind === "collapse") feat(meta, "first_collapse", out, now);
         break;
       case "roundEnd":
         if (e.passed) {
           s.roundsCleared++;
           if (e.round + 1 > s.bestRound) s.bestRound = e.round + 1;
+          if (e.roundScore >= e.target * 10) feat(meta, "overkill", out, now);
+          if (tracker.lastBallScore > 0 && e.roundScore - tracker.lastBallScore < e.target) feat(meta, "clutch", out, now);
         }
+        tracker.pocketsThisRound = [];
+        tracker.eventsThisRound = 0;
+        tracker.lastBallScore = 0;
         break;
       case "cleared":
         // Endless runs: "winning" means clearing round 8; the run continues.
@@ -333,6 +396,21 @@ export function recordEvents(
   if (run.totalScore > s.bestScore) s.bestScore = run.totalScore;
   if (run.charms.length >= 10) feat(meta, "full_hand", out, now);
   if (run.inFlight >= 8) feat(meta, "five_in_flight", out, now);
+  if ((run.ownedBalls?.length ?? 0) >= 20) feat(meta, "hoarder", out, now);
+  // Board-state feats only when an element changed this step (cheap, and the
+  // fakes in tests may not carry a peg map at all).
+  if (boardFeats && run.pegElements instanceof Map) {
+    let fire = 0, ice = 0, storm = 0;
+    for (const st of run.pegElements.values()) {
+      if (st.el === "fire") fire++;
+      else if (st.el === "ice") ice++;
+      else storm++;
+    }
+    if (fire && ice && storm) feat(meta, "trinity", out, now);
+    if (fire >= 15) feat(meta, "inferno", out, now);
+    if (ice >= 15) feat(meta, "glacier", out, now);
+    if (storm >= 10) feat(meta, "power_grid", out, now);
+  }
   checkThresholdFeats(meta, out, now);
   checkUnlocks(meta, out);
   return out;

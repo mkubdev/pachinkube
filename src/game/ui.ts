@@ -31,6 +31,9 @@ export class GameUI {
   private readonly popups: HTMLElement[] = [];
   private popupIdx = 0;
   private lastHash = "--------";
+  private readonly flightEl: HTMLElement;
+  /** Name used on the last manual submission, to highlight the row on the board. */
+  private submittedName: string | null = null;
   private live: Array<{ el: HTMLElement; x: number; y: number; born: number }> = [];
   onPick: ((index: number) => void) | null = null;
   onNewRun: (() => void) | null = null;
@@ -50,7 +53,7 @@ export class GameUI {
   constructor(private readonly project: Projector) {
     this.root = document.getElementById("ui")!;
     this.root.innerHTML = `
-      <div id="hud"></div>
+      <div id="left"><div id="hud"></div><div id="flight" hidden></div></div>
       <div id="charms"></div>
       <div id="labels"></div>
       <div id="popups"></div>
@@ -70,6 +73,7 @@ export class GameUI {
       </div>
       <div id="hint">move: aim · click / space: drop · A: auto · C: collection · L: scores · M: music</div>`;
     this.hud = this.root.querySelector("#hud")!;
+    this.flightEl = this.root.querySelector("#flight")!;
     this.charmsEl = this.root.querySelector("#charms")!;
     this.modal = this.root.querySelector("#modal")!;
     this.comboEl = this.root.querySelector("#combo")!;
@@ -154,6 +158,28 @@ export class GameUI {
         .map((b) => `<span style="color:#${BALL_TYPES[b.type].color.toString(16).padStart(6, "0")}">${BALL_TYPES[b.type].name}${b.count > 1 ? ` ×${b.count}` : ""}</span>`)
         .join("")}</div>
       <div class="row dim"><span>seed <code>${seed}</code></span><span>hash <code>${this.lastHash}</code></span></div>`;
+    this.updateFlight(run);
+  }
+
+  /**
+   * Live score of every ball in play: chips × mult, before the pocket
+   * multiplier it will land in. Drop order, so a ball keeps its row.
+   */
+  private updateFlight(run: Run): void {
+    const balls = [...run.balls.values()].sort((a, b) => a.id - b.id).slice(0, 10);
+    if (!balls.length) {
+      this.flightEl.hidden = true;
+      return;
+    }
+    this.flightEl.hidden = false;
+    const rows = balls.map((b) => {
+      const type = BALL_TYPES[b.type];
+      const el = run.ballElements.get(b.id);
+      const color = `#${type.color.toString(16).padStart(6, "0")}`;
+      const proj = Math.round(b.chips * b.mult);
+      return `<div class="fb${el ? ` el-${el}` : ""}${b.type === "rainbow" ? " rainbow" : ""}"><i style="background:${color}"></i><span class="nm">${type.name}</span><span class="ch">${b.chips.toLocaleString("en-US")}</span><span class="op">×</span><span class="mu">${Number.isInteger(b.mult) ? b.mult : b.mult.toFixed(1)}</span><span class="eq">${formatScore(proj)}</span></div>`;
+    });
+    this.flightEl.innerHTML = `<div class="fh"><span>IN PLAY</span><span>chips × mult</span></div>${rows.join("")}${run.balls.size > 10 ? `<div class="fb more">+${run.balls.size - 10} more</div>` : ""}`;
   }
 
   /** Close overlays and clear per-run presentation state. */
@@ -294,8 +320,9 @@ export class GameUI {
     const box = this.modal.querySelector("#run-discoveries");
     if (!box) return;
     const items = this.runDiscoveries;
+    const icon = (n: MetaNotice) => (n.kind === "feat" ? featIcon(n.id, true) : n.what === "charm" ? charmIcon(n.id as CharmId) : ballIcon(n.id as BallTypeId));
     box.innerHTML = items.length
-      ? `<h3>this run</h3><ul>${items.map((n) => `<li><span class="tag ${n.kind}">${n.kind}</span> ${escapeHtml(n.label)}</li>`).join("")}</ul>`
+      ? `<h3>THIS RUN</h3><ul>${items.map((n) => `<li class="${n.kind}">${icon(n)}<span><span class="tag ${n.kind}">${n.kind === "feat" ? "discovery" : n.kind}</span>${escapeHtml(n.label)}</span></li>`).join("")}</ul>`
       : "";
   }
 
@@ -433,21 +460,30 @@ export class GameUI {
 
   private showEnd(run: Run, phase: "won" | "lost"): void {
     this.modal.hidden = false;
+    this.flightEl.hidden = true;
+    const verdict = phase === "won" ? "MACHINE CLEARED" : run.cleared ? "DEEP RUN OVER" : "RUN OVER";
+    const sub = phase === "won"
+      ? "Every round beaten."
+      : `Fell at round ${run.round} · ${formatScore(run.roundScore)} of ${formatScore(run.target)} needed${run.cleared ? " · machine cleared on the way" : ""}`;
+    const drops = run.log.filter((l) => l.action.type === "drop").length;
+    const stat = (v: string | number, label: string) => `<div><b>${v}</b><small>${label}</small></div>`;
     this.modal.innerHTML = `
-      <div class="panel">
-        <h2>${phase === "won" ? "Machine cleared" : run.cleared ? "Deep run over" : "Run over"}</h2>
-        <p class="score display">${formatScore(run.totalScore)}</p>
-        <p class="dim">${phase === "won" ? "Every round beaten." : `Fell at round ${run.round} — ${formatScore(run.roundScore)} of ${formatScore(run.target)}.${run.cleared ? " Machine cleared on the way." : ""}`}</p>
+      <div class="panel end ${phase === "won" || run.cleared ? "gold" : ""}">
+        <div class="verdict">${verdict}</div>
+        <div class="score display">${formatScore(run.totalScore)}</div>
+        <p class="sub">${sub}</p>
+        <div class="stats">${stat(run.round, "round")}${stat(run.bestCombo, "best combo")}${stat(drops, "balls dropped")}${stat(run.charms.length, "charms")}</div>
         ${
           this.accountName
             ? `<p id="submit-msg" class="auto">saving as <b>${escapeHtml(this.accountName)}</b>…</p>`
-            : `<form id="submit"><input name="name" maxlength="24" placeholder="your name" required /><button type="submit">submit score</button></form>
+            : `<form id="submit"><input name="name" maxlength="24" placeholder="your name" required autocomplete="off" /><button type="submit">SUBMIT SCORE</button></form>
                <p id="submit-msg" class="dim"></p>
                ${this.authAvailable ? `<a class="discord-cta" href="${this.signInUrl}"><span class="dc-logo">⌁</span><span><b>Sign in with Discord</b><small>saves your collection and posts your best scores automatically</small></span></a>` : ""}`
         }
-        <div id="run-discoveries" class="dim"></div>
+        <div id="run-discoveries"></div>
         <div id="board" class="dim">loading leaderboard…</div>
-        <button id="again" class="primary">new run</button>
+        <button id="again" class="primary big">▶ &nbsp;NEW RUN</button>
+        <small class="keys">space / enter · new run</small>
       </div>`;
     this.modal.querySelector("#again")!.addEventListener("click", () => this.onNewRun?.());
     const form = this.modal.querySelector<HTMLFormElement>("#submit");
@@ -456,6 +492,7 @@ export class GameUI {
       const name = ((new FormData(form).get("name") as string) ?? "").trim();
       const msg = this.modal.querySelector("#submit-msg")!;
       msg.textContent = "…";
+      this.submittedName = name;
       msg.textContent = (await this.onSubmit?.(name)) ?? "";
       void this.loadBoard();
     });
@@ -502,13 +539,14 @@ export class GameUI {
         top: Array<{ name: string; score: number; verified?: boolean; discord?: boolean }>;
         storage: string;
       };
+      const me = (this.accountName ?? this.submittedName ?? "").toLowerCase();
       box.innerHTML =
-        `<h3>best runs <small>(${data.storage})</small></h3>` +
+        `<h3>BEST RUNS <small>(${data.storage})</small></h3>` +
         (data.top.length
           ? `<ol>${data.top
               .map(
-                (r) =>
-                  `<li><span>${r.discord ? '<i class="dc" title="Discord account">⌁</i> ' : ""}${escapeHtml(r.name)}${r.verified ? ' <i class="ok" title="replay verified">✓</i>' : ""}</span><span>${formatScore(r.score)}</span></li>`,
+                (r, i) =>
+                  `<li class="${me && r.name.toLowerCase() === me ? "me" : ""}${i === 0 ? " first" : ""}"><span class="rank">${i + 1}</span><span class="who">${r.discord ? '<i class="dc" title="Discord account">⌁</i> ' : ""}${escapeHtml(r.name)}${r.verified ? ' <i class="ok" title="replay verified">✓</i>' : ""}</span><span class="pts">${formatScore(r.score)}</span></li>`,
               )
               .join("")}</ol>`
           : `<p>nobody yet</p>`);

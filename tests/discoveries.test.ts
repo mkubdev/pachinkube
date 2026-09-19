@@ -61,7 +61,7 @@ describe("new unlockables", () => {
     return run;
   }
   function ball(run: Run, type: string, hits = 0): BallScoreState {
-    const b: BallScoreState = { id: 700 + Math.floor(Math.random() * 1e6), type: type as never, chips: 10, mult: 1, hits, freshHits: hits, revives: 0 };
+    const b: BallScoreState = { id: 700 + Math.floor(Math.random() * 1e6), type: type as never, chips: 10, mult: 1, hits, freshHits: hits, revives: 0, zaps: 0 };
     run.balls.set(b.id, b);
     return b;
   }

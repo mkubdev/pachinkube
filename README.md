@@ -6,7 +6,7 @@ rounds, ~20–30 minutes. Hosted on Vercel for a friend group, with a shared,
 **replay-verified** leaderboard.
 
 **Status: first playable.** Full loop — aim → drop → score → shop → next round →
-endless → submit — with 47 charms (incl. 6 temporary), 14 ball types, 7 combo
+endless → submit — with 55 charms (incl. 8 temporary), 25 ball types, 7 combo
 events, three
 elements with reactions, combos, meta-progression, effects, audio, lofi radio,
 a Blender cabinet, and server-side score verification. Balance is probe-tuned.
@@ -37,11 +37,22 @@ a Blender cabinet, and server-side score verification. Balance is probe-tuned.
 | Mirror | lands in two pockets: its own and the one mirrored across the centre |
 | Comet | every 3rd peg it touches catches fire |
 | Glass | ×2 chips; shatters into three shards on its 6th hit |
+| Orbit | pushed toward the edges (negative pull), ×1.3 chips |
+| Ember / Frost / Volt | permanently Fire / Ice / Storm, whatever charms you hold |
+| Cluster | three tiny balls from one slot, ×0.6 chips each |
+| Anchor | falls 1.8× faster; chips scale with impact speed |
+| Pearl | ×0.7 chips, +0.5 mult every 4th hit |
+| Rainbow | cycles Fire → Ice → Storm on every hit; hue-wheel aura and trail |
+| Boomerang | relaunched once from the top after landing, chips and mult intact |
+| Quantum | on its 6th hit blinks back into the upper field (+1 mult) |
+| Abyss | a black hole: a gravity well drags nearby balls toward it (`BallSpawn.well`, `WELL_RADIUS`); lands with +1 mult per ball still in flight; ×0.6 chips; light-swallowing aura |
 
-Every ball except Steel sits on one **peg-hit ladder** (lifetime): Rubber 400 →
-Heavy 1,000 → Spark 2,000 → Gold 3,500 → Feather 5,000 → Cannon 7,500 → Magnet
-10,000 → Twin 14,000 → Prism 18,000 → Bomb 25,000 → Mirror 35,000 → Comet
-45,000 → Glass 60,000.
+Every ball except Steel sits on one **peg-hit ladder** (lifetime, 24 rungs):
+Rubber 400 → Heavy 1,000 → Spark 2,000 → Gold 3,500 → Feather 5,000 → Cannon
+7,500 → Magnet 10,000 → Orbit 13,000 → Twin 16,000 → Ember 20,000 → Prism
+24,000 → Frost 28,000 → Bomb 33,000 → Volt 38,000 → Mirror 44,000 → Cluster
+50,000 → Comet 57,000 → Anchor 65,000 → Glass 75,000 → Pearl 85,000 → Rainbow
+100,000 → Boomerang 115,000 → Quantum 130,000 → Abyss 150,000.
 
 **Charms** (`src/game/charms.ts`) are trigger→effect data. Active: Magnet Coil,
 Neon Sign, Split Shot, Jackpot Lens, Rubber Soul, Heavy Metal, Chain Lightning,
@@ -78,7 +89,7 @@ twice (×1.5, ×2, …), *Jackpot Growth* adds +1 to the centre per round cleare
 (1 round) makes the edges the jackpots. Labels bump and strips brighten as the
 multipliers move.
 
-**Combos.** Peg hits closer than **0.3 s** apart — across every ball in flight —
+**Combos.** Peg hits closer than **0.35 s** apart — across every ball in flight —
 chain into one combo (it was 0.6 s; with six balls in play that never lapsed
 and every combo-gated unlock fell in one run). Every 10th hit is a milestone:
 **+1 mult to all balls in play**, so multiball is worth engineering. The
@@ -95,10 +106,16 @@ are pure functions of run state and end on a tick, so they verify too. The board
 has a ceiling now: flipped gravity cannot throw a ball out.
 
 **Progression** (`src/game/meta.ts`). A profile persists across runs: lifetime
-stats, discoveries (first time you see a charm/ball), **60+ feats** (combo tiers
+stats, discoveries (first time you see a charm/ball), **90+ feats** (combo tiers
 40→500, run score 250K→100M, single-ball 5K→50M, rounds 5→30, lifetime counters,
 and a "first time" feat per combo event — threshold feats are generated from a
-table), and 30+ unlock rules that gate content behind stats. The collection
+table, plus round-shaped moments: Hat Trick, Grand Tour, Clutch, Overkill, and
+board states like Trinity / Inferno / Glacier), and 60+ unlock rules that gate
+content behind stats. A fresh profile opens with 14 charms and Steel; the first
+runs unlock something every time (2nd run, 3rd run, 20 combo, 150 drops, 3
+rounds cleared…), then the elemental tiers open with lifetime reactions and
+steam counts (40 → 500 reactions), and the ball ladder stretches to 150K peg
+hits. The collection
 shows every unlocked item in full, with a *new* tag until it appears in a run. The shop rolls only from your
 unlocked pool. Signed in with Discord, the profile also lives on the server keyed
 by your Discord id and merges across devices (`api/meta.ts`, `SyncedMetaStore`).
@@ -163,8 +180,8 @@ in Node. That single constraint pays for:
 - **Balance probe** — `BALANCE=1 npx vitest run tests/balance.probe.test.ts`
   plays 40 seeded runs with a dumb policy and writes per-round pass rates to
   `.cache/balance.txt`. The policy keeps up to four balls in flight (how the game
-  is actually played). Targets in `scoring.ts` start at 800 and grow `1.62×`
-  through round 8, then `1.42×` (r10 ≈ 47K, r12 ≈ 95K, r15 ≈ 272K): currently
+  is actually played). Targets in `scoring.ts` start at 800 and grow `1.58×`
+  through round 8, then `1.38×` (r10 ≈ 38K, r12 ≈ 72K, r15 ≈ 189K): currently
   100/100/100/88/69/67/56/44 % pass by round, 4 wins in 40.
 
 Supporting rules: **fixed 120 Hz timestep** (`sim/loop.ts`, renderer
@@ -210,7 +227,7 @@ src/sim/         deterministic physics — pure TS + Rapier, runs in Node
   world.ts         board, pockets, balls, stuck-ball recovery → SimEvent[]
 src/game/        roguelite layer — also pure TS, runs in Node
   run.ts           rounds, bag, shop, scoring dispatch → GameEvent[]
-  charms.ts        12 charms as data     balls.ts  4 ball types
+  charms.ts        55 charms as data     balls.ts  25 ball types
   scoring.ts       chips × mult × pocket, round targets
   replay.ts        headless replay for verification
   ui.ts            DOM overlay (HUD, popups, shop, end screen, leaderboard)
@@ -284,8 +301,12 @@ NAT cannot reach the add-on's `localhost:9876`.
   base64. Switch to `@dimforge/rapier2d` + `vite-plugin-wasm`.
 - **HDRI weight**: 1.6 MB `.hdr`; downsample or pre-filter to KTX2.
 - **Leaderboard identity**: key on `discordId` once auth is configured.
-- **Balance**: only probed with a dumb policy; targets will need a pass once
-  real players report. Tune in `scoring.ts` and re-run the probe.
+- **Balance**: probed with a dumb policy (pass rates 100/100/98/82/81/77/55/36
+  over rounds 1–8 before the 2026-09-19 easing); real runs stalled around
+  round 10, so the curve was softened to 1.58×/1.38×. Tune in `scoring.ts` and
+  re-run the probe.
+- **Combo window** is 0.35 s (42 ticks): a lone ball falling one row from rest
+  takes ~0.4 s, so single-ball chains still break between rows by design.
 - **Rate limiting** on `POST /api/scores` (replay costs CPU).
 - **Cabinet body** still reads light under the studio HDRI; darken or re-export.
 - **Leaderboard identity**: `api/scores` still keys on the typed name; switch to
@@ -297,6 +318,16 @@ NAT cannot reach the add-on's `localhost:9876`.
   aberration and flash strengths deserve a pass on a real GPU at 60 fps.
 
 ## Gotchas already paid for
+
+- **Heavy wedged between wall and edge peg.** The edge pegs sat 0.37 units from
+  the wall and Heavy is 0.40 wide, so it parked there until the 40 s cap. Edge
+  pegs now keep `EDGE_GAP` (0.5) clear of the walls, the drift clamp honours the
+  same gap, and a ball squeezed against a wall counts as still at a looser speed
+  and is always nudged inward (`tests/wave2.test.ts`).
+- **Combo counter frozen over the shop.** When the last ball pocketed inside the
+  combo window the round ended before `comboEnd` fired, so the counter and the
+  heat stayed up through the shop. `Run.step` now closes the combo before
+  `endRound`.
 
 - `InstancedMesh` computes its bounding sphere on first draw; with `count = 0`
   it is empty forever → **set `frustumCulled = false`** on dynamic instanced meshes.

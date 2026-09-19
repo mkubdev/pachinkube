@@ -87,6 +87,10 @@ const pegFrag = /* glsl */ `
   }`;
 
 const ELEMENT_ID: Record<Element, number> = { fire: 1, ice: 2, storm: 3 };
+/** Aura modes beyond the elements: Rainbow's hue wheel and Abyss's black hole. */
+const AURA_RAINBOW = 4;
+const AURA_ABYSS = 5;
+const ABYSS_TRAIL = 0x7a3cff;
 
 /** Additive billboard discs around imbued balls: corona / crystal shards / arcs. */
 const auraVert = /* glsl */ `
@@ -110,12 +114,33 @@ const auraFrag = /* glsl */ `
   varying float vElement;
   varying float vSeed;
   float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+  vec3 hsv(float h) { vec3 p = abs(fract(vec3(h) + vec3(0.0, 2.0 / 3.0, 1.0 / 3.0)) * 6.0 - 3.0); return clamp(p - 1.0, 0.0, 1.0); }
+  // Output is premultiplied: rgb adds to the frame, alpha darkens it. Elements
+  // are pure additive glow (alpha 0); the Abyss core is the one thing that
+  // swallows light.
   void main() {
     float r = length(vUv);
     if (r > 1.0) discard;
     float a = atan(vUv.y, vUv.x);
     float t = uTime + vSeed * 10.0;
     vec3 c; float alpha;
+    if (vElement > 4.5) {
+      // abyss: black core, wobbling violet accretion ring, sparks spiralling in
+      float core = smoothstep(0.40, 0.30, r);
+      float ring = smoothstep(0.14, 0.0, abs(r - 0.48 - 0.05 * sin(t * 3.0 + a * 2.0)));
+      float spiral = step(0.94, hash(floor(vec2(a * 4.0 + r * 14.0 - t * 5.0, r * 12.0))));
+      vec3 acc = mix(vec3(0.30, 0.04, 0.55), vec3(0.75, 0.40, 1.0), ring) * 1.7 * ring;
+      vec3 sparks = vec3(0.6, 0.3, 1.0) * spiral * smoothstep(1.0, 0.45, r) * (1.0 - core);
+      gl_FragColor = vec4(acc + sparks, core);
+      return;
+    }
+    if (vElement > 3.5) {
+      // rainbow: a spinning hue wheel with a shimmer
+      float band = smoothstep(1.0, 0.5, r) * smoothstep(0.3, 0.55, r);
+      float shimmer = 0.7 + 0.3 * sin(t * 9.0 + r * 24.0 - a * 3.0);
+      gl_FragColor = vec4(hsv(fract(a / 6.2831 + t * 0.6)) * 2.2 * band * shimmer, 0.0);
+      return;
+    }
     if (vElement > 2.5) {
       // storm: three rotating arcs
       float arc = smoothstep(0.35, 0.0, abs(fract((a / 6.2831 + t * 0.9) * 3.0) - 0.5) - 0.28) * smoothstep(1.0, 0.55, r) * smoothstep(0.35, 0.6, r);
@@ -132,7 +157,7 @@ const auraFrag = /* glsl */ `
       float corona = smoothstep(1.0, 0.35, r) * flick;
       c = mix(vec3(1.0, 0.25, 0.0), vec3(1.0, 0.75, 0.2), corona) * 1.9; alpha = corona * 0.85;
     }
-    gl_FragColor = vec4(c * alpha, alpha);
+    gl_FragColor = vec4(c * alpha, 0.0);
   }`;
 
 import type { Peg, Snapshot } from "../sim/types.js";
@@ -254,7 +279,13 @@ export class BoardRenderer {
       uniforms: { uTime: { value: 0 } },
       transparent: true,
       depthWrite: false,
-      blending: THREE.AdditiveBlending,
+      // Premultiplied "over": src.rgb + dst × (1 − src.a). Alpha 0 is additive glow.
+      blending: THREE.CustomBlending,
+      blendEquation: THREE.AddEquation,
+      blendSrc: THREE.OneFactor,
+      blendDst: THREE.OneMinusSrcAlphaFactor,
+      blendSrcAlpha: THREE.OneFactor,
+      blendDstAlpha: THREE.OneMinusSrcAlphaFactor,
     });
     this.auras = new THREE.InstancedMesh(auraGeo, this.auraMat, MAX_BALLS);
     this.auras.count = 0;
@@ -589,10 +620,15 @@ export class BoardRenderer {
       this.balls.setMatrixAt(i, this.dummy.matrix);
       const tag = b.tag ?? "steel";
       const type = BALL_TYPES[tag as BallTypeId];
-      this.color.set(type ? type.color : SHARD_COLOR);
-      const el = this.elementOf(b.id);
-      // Imbued balls glow their element: pushed past 1.0 so bloom picks them up.
-      if (el) this.color.lerp(this.tmpElColor.setHex(ELEMENTS[el].color), 0.7).multiplyScalar(1.8);
+      if (tag === "rainbow") {
+        // The hue wheel drives the ball itself too; bright enough for bloom.
+        this.color.setHSL((this.time * 0.5 + b.id * 0.13) % 1, 1, 0.6).multiplyScalar(1.7);
+      } else {
+        this.color.set(type ? type.color : SHARD_COLOR);
+        const el = tag === "abyss" ? null : this.elementOf(b.id);
+        // Imbued balls glow their element: pushed past 1.0 so bloom picks them up.
+        if (el) this.color.lerp(this.tmpElColor.setHex(ELEMENTS[el].color), 0.7).multiplyScalar(1.8);
+      }
       this.balls.setColorAt(i, this.color);
     }
     for (let i = n; i < this.balls.count; i++) this.balls.setMatrixAt(i, this.hidden);
@@ -609,7 +645,9 @@ export class BoardRenderer {
       // Element auras trail even when slow; plain balls only when fast.
       if (speed < TRAIL_SPEED && !el) continue;
       const type = BALL_TYPES[(b.tag ?? "steel") as BallTypeId];
-      this.fx.trail(b.x, b.y, el ? ELEMENTS[el].color : type ? type.color : SHARD_COLOR, b.radius * (el ? 2.4 : 1.6));
+      if (b.tag === "rainbow") this.fx.trail(b.x, b.y, this.tmpElColor.setHSL((this.time * 0.5 + b.id * 0.13) % 1, 1, 0.6), b.radius * 2.4);
+      else if (b.tag === "abyss") this.fx.trail(b.x, b.y, ABYSS_TRAIL, b.radius * 2.2);
+      else this.fx.trail(b.x, b.y, el ? ELEMENTS[el].color : type ? type.color : SHARD_COLOR, b.radius * (el ? 2.4 : 1.6));
       budget--;
     }
 
@@ -643,13 +681,14 @@ export class BoardRenderer {
     for (let i = 0; i < n; i++) {
       const b = curr.balls[i]!;
       const el = this.elementOf(b.id);
-      if (!el) continue;
+      const mode = b.tag === "rainbow" ? AURA_RAINBOW : b.tag === "abyss" ? AURA_ABYSS : el ? ELEMENT_ID[el] : 0;
+      if (!mode) continue;
       const p = prevById.get(b.id) ?? b;
       this.dummy.position.set(p.x + (b.x - p.x) * alpha, p.y + (b.y - p.y) * alpha, 0.05);
-      this.dummy.scale.setScalar(b.radius * 2.6);
+      this.dummy.scale.setScalar(b.radius * (mode === AURA_ABYSS ? 3.4 : 2.6));
       this.dummy.updateMatrix();
       this.auras.setMatrixAt(na, this.dummy.matrix);
-      this.auraElement.setX(na, ELEMENT_ID[el]);
+      this.auraElement.setX(na, mode);
       this.auraSeed.setX(na, (b.id % 97) / 97);
       na++;
     }

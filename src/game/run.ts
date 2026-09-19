@@ -35,7 +35,7 @@ export type Phase = "drop" | "shop" | "won" | "lost";
 export type Offer = { kind: "charm"; id: CharmId } | { kind: "ball"; id: BallTypeId; count: number };
 
 /** Peg hits closer together than this (in ticks) chain into one combo. */
-export const COMBO_WINDOW_TICKS = 36; // 0.3 s at 120 Hz: multiball must actually be dense
+export const COMBO_WINDOW_TICKS = 42; // 0.3 s at 120 Hz: multiball must actually be dense
 export const COMBO_MILESTONE = 10;
 
 export type GameEvent =
@@ -65,6 +65,8 @@ export type GameEvent =
   | { type: "comboEventEnd"; kind: ComboEventKind }
   /** A portal sent a ball back to the top. */
   | { type: "portal"; ball: number; from: { x: number; y: number }; to: { x: number; y: number } }
+  /** Quantum ball teleported. */
+  | { type: "blink"; ball: number; from: { x: number; y: number }; to: { x: number; y: number } }
   | { type: "pegsReset" }
   | { type: "ballScored"; ball: number; score: number; bucket: number; chips: number; mult: number }
   | { type: "roundEnd"; round: number; passed: boolean; roundScore: number; target: number }
@@ -281,7 +283,15 @@ export class Run {
       }
       this.combo = 0;
     }
-    if (this.ballsLeft === 0 && this.sim.ballCount === 0) this.endRound(out);
+    if (this.ballsLeft === 0 && this.sim.ballCount === 0) {
+      // The last ball often pockets inside the combo window: close the combo
+      // here or the counter and heat would hang over the shop.
+      if (this.combo > 0) {
+        out.push({ type: "comboEnd", count: this.combo });
+        this.combo = 0;
+      }
+      this.endRound(out);
+    }
     return out;
   }
 
@@ -316,11 +326,20 @@ export class Run {
 
   /** Element every bag ball carries this round, from temporary/permanent charms. */
   activeElement(): Element | null {
+    if (this.charms.some((id) => CHARMS[id].randomElement)) {
+      const pick = ["fire", "ice", "storm"] as const;
+      return pick[Math.floor(this.sim.streams.fx.next() * 3)] ?? "fire";
+    }
     for (let i = this.charms.length - 1; i >= 0; i--) {
       const el = CHARMS[this.charms[i]!].element;
       if (el) return el;
     }
     return null;
+  }
+
+  /** Freeze a peg; Permafrost & co. make the ice thicker. */
+  private freezePeg(peg: number, out: GameEvent[]): void {
+    this.setPegElement(peg, { el: "ice", stacks: 1 + this.sumCharm((c) => c.frostStacks ?? 0) }, out);
   }
 
   /** Board motion from charms: the largest drift among held charms wins. */
@@ -422,7 +441,7 @@ export class Run {
     const frozen = this.sumCharm((c) => c.frozenAtStart ?? 0);
     if (frozen > 0) {
       const ids = shuffle(this.sim.pegs.map((p) => p.id), this.sim.streams.layout).slice(0, frozen);
-      for (const peg of ids) this.setPegElement(peg, { el: "ice", stacks: 1 }, pending);
+      for (const peg of ids) this.freezePeg(peg, pending);
     }
     this.pendingRoundEvents = pending;
     this.combo = 0;
@@ -505,25 +524,28 @@ export class Run {
     return offers;
   }
 
-  private spawn(req: BallSpawn & { type: BallTypeId; element?: Element | null }, fromBag: boolean): number {
+  private spawn(req: BallSpawn & { type: BallTypeId; element?: Element | null; carry?: BallScoreState }, fromBag: boolean): number {
     const type = BALL_TYPES[req.type];
-    let spawn: BallSpawn = { ...type.physics, ...req, tag: req.tag ?? req.type };
+    const { carry, element, ...rest } = req;
+    let spawn: BallSpawn = { ...type.physics, ...rest, tag: req.tag ?? req.type };
     for (const id of this.charms) {
       const c = CHARMS[id];
       if (c.onSpawn) spawn = c.onSpawn(spawn, { round: this.round, type: req.type });
     }
     const ballId = this.sim.spawnBall(spawn);
-    const el = req.element !== undefined ? req.element : fromBag ? this.activeElement() : null;
+    // Inherent element (Ember/Frost/Volt/Rainbow) beats the charm element.
+    const el = type.traits?.element ?? (element !== undefined ? element : fromBag || carry ? this.activeElement() : null);
     if (el) this.ballElements.set(ballId, el);
     this.balls.set(ballId, {
       id: ballId,
       type: req.type,
       // Passives that shape a ball before it touches anything.
-      chips: fromBag ? this.sumCharm((c) => c.startChips ?? 0) : 0,
-      mult: 1 + (fromBag ? this.sumCharm((c) => c.momentum ?? 0) * this.landedThisRound : 0),
-      hits: 0,
-      freshHits: 0,
-      revives: 0,
+      chips: carry ? carry.chips : fromBag ? this.sumCharm((c) => c.startChips ?? 0) : 0,
+      mult: carry ? carry.mult : 1 + (fromBag ? this.sumCharm((c) => c.momentum ?? 0) * this.landedThisRound : 0),
+      hits: carry ? carry.hits : 0,
+      freshHits: carry ? carry.freshHits : 0,
+      revives: carry ? carry.revives : 0,
+      zaps: carry ? carry.zaps : 0,
     });
     return ballId;
   }
@@ -573,11 +595,29 @@ export class Run {
 
       if (ball.type === "spark" && this.sim.streams.fx.next() < 0.25) ctx.addMult(1, "spark");
 
+      // Ball traits that react to hits.
+      const t = type.traits;
+      // Rainbow: rotate the element before the reaction resolves.
+      if (t?.cycleElement) {
+        const cycle: Element[] = ["fire", "ice", "storm"];
+        const cur = this.ballElements.get(ball.id) ?? "storm";
+        this.ballElements.set(ball.id, cycle[(cycle.indexOf(cur) + 1) % 3]!);
+      }
+
       // Elements: ball element × peg state → reaction.
       this.resolveElement(ball, ev.peg, peg, fresh, ctx, out);
 
-      // Ball traits that react to hits.
-      const t = type.traits;
+      if (t?.multEvery && ball.hits % t.multEvery === 0) ctx.addMult(t.multEveryAmount ?? 1, "pearl");
+      if (t?.blinkAt && ball.hits === t.blinkAt) {
+        // Blink into the upper field, never straight onto a peg: aim between two top-row pegs.
+        const H = this.sim.config.height;
+        const tx = this.sim.streams.fx.range(-this.sim.config.width / 2 + 0.6, this.sim.config.width / 2 - 0.6);
+        const ty = H * 0.86 + 0.45;
+        if (this.sim.teleportBall(ball.id, tx, ty)) {
+          out.push({ type: "blink", ball: ball.id, from: { x: peg.x, y: peg.y }, to: { x: tx, y: ty } });
+          ctx.addMult(1, "blink");
+        }
+      }
       if (t?.lightNeighbor && fresh) {
         for (const p of this.nearestUnlit(peg.x, peg.y, t.lightNeighbor, ev.peg)) {
           if (ctx.lightPeg(p.id, ev.peg)) ctx.addChips(5, "prism");
@@ -652,7 +692,21 @@ export class Run {
     const cxLand = this.sim.bucketCenters[ev.bucket] ?? 0;
 
     const landTraits = BALL_TYPES[ball.type].traits;
+    // Boomerang: back to the top above its pocket, state intact, scored on the next landing.
+    if (landTraits?.relaunch && ball.revives < landTraits.relaunch && ev.bucket >= 0) {
+      ball.revives++;
+      ctx.fx("boomerang", cxLand, 0.8, 1);
+      this.spawn({ type: ball.type, x: cxLand, vx: cxLand > 0 ? -1 : 1, carry: ball }, false);
+      this.balls.delete(ev.ball);
+      this.ballExtra.delete(ev.ball);
+      this.ballElements.delete(ev.ball);
+      return;
+    }
     if (landTraits?.multOnLand) ctx.addMult(landTraits.multOnLand, "gold");
+    if (landTraits?.collapse && this.sim.ballCount > 0) {
+      ctx.addMult(this.sim.ballCount, "collapse");
+      ctx.fx("collapse", cxLand, 0.8, Math.min(1, 0.4 + this.sim.ballCount * 0.15));
+    }
     if (extra?.finale) {
       const f = this.charms.reduce((m, id) => m * (CHARMS[id].finaleMult ?? 1), 1);
       if (f !== 1) {
@@ -797,14 +851,40 @@ export class Run {
     switch (rx.kind) {
       case "none":
         return;
-      case "ignite":
+      case "ignite": {
         this.setPegElement(pegId, { el: "fire", stacks: 2 }, out);
-        emit("ignite", "fire", 1, 0);
+        let count = 1;
+        const spread = this.sumCharm((c) => c.igniteSpread ?? 0);
+        for (const p of this.nearestUnstated(peg.x, peg.y, spread, pegId)) {
+          this.setPegElement(p.id, { el: "fire", stacks: 1 }, out);
+          count++;
+        }
+        emit("ignite", "fire", count, 0);
         return;
+      }
       case "freeze":
-        this.setPegElement(pegId, { el: "ice", stacks: 1 }, out);
+        this.freezePeg(pegId, out);
         emit("freeze", "ice", 1, 0);
         return;
+      case "thicken": {
+        this.setPegElement(pegId, { el: "ice", stacks: rx.stacks }, out);
+        const chips = pay(4 * rx.stacks, "thicken");
+        emit("thicken", "ice", rx.stacks, chips);
+        return;
+      }
+      case "flare": {
+        const base = fresh ? BASE_CHIPS_FRESH : BASE_CHIPS_REPEAT;
+        const chips = pay(base * (rx.chipMult - 1) + 10, "flare");
+        const burnMult = this.sumCharm((c) => c.burnMult ?? 0);
+        if (burnMult > 0) ctx.addMult(burnMult, "backdraft");
+        let count = 1;
+        for (const p of this.nearestUnstated(peg.x, peg.y, rx.spread, pegId)) {
+          this.setPegElement(p.id, { el: "fire", stacks: 1 }, out);
+          count++;
+        }
+        emit("flare", "fire", count, chips);
+        return;
+      }
       case "charge":
         this.setPegElement(pegId, { el: "storm", stacks: 1 }, out);
         emit("charge", "storm", 1, 0);
@@ -812,6 +892,8 @@ export class Run {
       case "burn": {
         const base = fresh ? BASE_CHIPS_FRESH : BASE_CHIPS_REPEAT;
         const chips = pay(base * (rx.chipMult - 1) + 6, "burn");
+        const burnMult = this.sumCharm((c) => c.burnMult ?? 0);
+        if (burnMult > 0) ctx.addMult(burnMult, "backdraft");
         const st = state!;
         const spread = fresh || this.charms.some((id) => CHARMS[id].spreadOnRepeat);
         let count = 1;
@@ -831,7 +913,7 @@ export class Run {
         // Cold spreads: the nearest bare peg freezes.
         let count = 1;
         for (const p of this.nearestUnstated(peg.x, peg.y, 1, pegId)) {
-          this.setPegElement(p.id, { el: "ice", stacks: 1 }, out);
+          this.freezePeg(p.id, out);
           count++;
         }
         emit("shatter", "ice", count, chips);
@@ -841,7 +923,10 @@ export class Run {
         const chips = pay(rx.chips, "steam");
         ctx.addMult(rx.mult + this.sumCharm((c) => c.steamMult ?? 0), "steam");
         this.setPegElement(pegId, null, out);
-        emit("steam", "fire", 1, chips);
+        // Thermal Shock: the cloud refreezes the neighbourhood.
+        const refreeze = this.sumCharm((c) => c.steamFreeze ?? 0);
+        for (const p of this.nearestUnstated(peg.x, peg.y, refreeze, pegId)) this.freezePeg(p.id, out);
+        emit("steam", "fire", 1 + refreeze, chips);
         return;
       }
       case "zap": {
@@ -861,8 +946,13 @@ export class Run {
           }
         }
         const st = state!;
-        st.stacks--;
-        if (st.stacks <= 0) this.setPegElement(pegId, null, out);
+        if (!this.charms.some((id) => CHARMS[id].permanentCharge)) {
+          st.stacks--;
+          if (st.stacks <= 0) this.setPegElement(pegId, null, out);
+        }
+        ball.zaps++;
+        const every = this.charms.map((id) => CHARMS[id].zapMultEvery ?? 0).filter((n) => n > 0);
+        if (every.length && ball.zaps % Math.min(...every) === 0) ctx.addMult(1, "ball lightning");
         emit("zap", "storm", count, chips);
         return;
       }

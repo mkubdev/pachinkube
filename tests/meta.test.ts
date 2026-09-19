@@ -3,6 +3,7 @@ import { Run, type GameEvent } from "../src/game/run.js";
 import {
   type MetaState,
   FULL_POOL,
+  META_VERSION,
   LocalMetaStore,
   META_KEY,
   UNLOCK_RULES,
@@ -51,9 +52,9 @@ describe("meta progression", () => {
     const tracker = newTracker();
     const events: GameEvent[] = [{ type: "combo", count: 60, milestone: true }];
     const notices = recordEvents(meta, events, run, tracker, () => "2026-09-19T00:00:00Z");
-    // 60 combo: split_shot (40) unlocks plus the 40-combo feat; balls sit on the peg ladder.
+    // 60 combo: every bestCombo gate up to 60 opens plus the 40-combo feat; balls sit on the peg ladder.
     expect(notices.map((n) => `${n.kind}:${"id" in n ? n.id : ""}`).sort()).toEqual(
-      ["feat:combo_40", "unlock:split_shot"].sort(),
+      ["feat:combo_40", "unlock:long_fuse", "unlock:milestone_maker", "unlock:split_shot", "unlock:ball_lightning"].sort(),
     );
     expect(isUnlocked(meta, "charm", "split_shot")).toBe(true);
     expect(isUnlocked(meta, "charm", "second_wind")).toBe(false);
@@ -101,7 +102,7 @@ describe("meta progression", () => {
     kv.setItem(META_KEY, "{not json");
     expect(store.load().stats.bestCombo).toBe(0);
     kv.setItem(META_KEY, JSON.stringify({ version: 999 }));
-    expect(store.load().version).toBe(2);
+    expect(store.load().version).toBe(META_VERSION);
     expect(new LocalMetaStore(null).load().stats.runs).toBe(0);
   });
 
