@@ -138,6 +138,15 @@
       #run-discoveries ul { list-style: none; margin: 4px 0 10px; } #run-discoveries li { color: #c8d0d8; }
       #run-discoveries .tag { font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--cyan); }
       #run-discoveries .tag.unlock { color: var(--magenta); } #run-discoveries .tag.feat { color: var(--gold); }
+      .discord-cta { display: flex; align-items: center; gap: 12px; margin: 12px 0 4px; padding: 10px 14px; background: #5865f2; color: #fff; text-decoration: none; border-radius: 8px; box-shadow: 0 6px 24px rgba(88,101,242,.35); transition: transform .12s, box-shadow .12s; }
+      .discord-cta:hover { transform: translateY(-1px); box-shadow: 0 8px 28px rgba(88,101,242,.5); }
+      .discord-cta b { display: block; font-family: var(--display); letter-spacing: .04em; font-size: 13px; }
+      .discord-cta small { color: rgba(255,255,255,.82); }
+      .discord-cta .dc-logo { font-size: 22px; line-height: 1; }
+      .discord-cta.compact { margin: 0; padding: 8px 12px; }
+      #signin-callout { right: 12px; bottom: 52px; display: flex; align-items: center; gap: 6px; z-index: 2; animation: toastIn .4s ease-out both; }
+      #signin-callout .x { background: rgba(10,10,20,.78); padding: 6px 9px; }
+      #submit-msg.auto { color: #9aa4b0; margin: 8px 0; } #submit-msg.auto.ok { color: var(--cyan); }
       #board ol { margin: 6px 0 0 18px; } #board li { display: flex; justify-content: space-between; max-width: 360px; } #board h3 { color: #fff; margin-top: 8px; }
     </style>
   </head>

@@ -105,6 +105,7 @@ async function newRun(nextSeed: string): Promise<void> {
   old.dispose();
   runEnded = false;
   tainted = false; // a fresh in-place run has no dev modifications
+  bestBefore = meta.stats.bestScore;
   auto = false;
   Object.assign(tracker, newTracker());
   recordRunStart(meta);
@@ -121,7 +122,8 @@ async function newRun(nextSeed: string): Promise<void> {
   stepper.reset();
   ui.notice("NEW RUN");
 }
-ui.onSubmit = async (name) => {
+/** Submit the finished run; shared by the manual form and auto-submit. */
+async function submitRun(name: string): Promise<string> {
   const res = await fetch("/api/scores", {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -136,7 +138,11 @@ ui.onSubmit = async (name) => {
   if (!res.ok) return `error: ${data.error}`;
   const v = data.verified ? "verified · " : data.reason === "rules_version" ? "unverified (game updated mid-run) · " : tainted ? "unverified (dev run) · " : "unverified · ";
   return v + (data.improved ? "new personal best!" : "submitted (not your best)");
-};
+}
+ui.onSubmit = submitRun;
+
+/** Best score saved before this run started; auto-submit only beats it. */
+let bestBefore = meta.stats.bestScore;
 
 const stepper = new FixedStepper(run.sim.config.dt);
 // Presentation-only time dilation (slow-mo combo event): scales wall time
@@ -172,8 +178,12 @@ void getSession()
   .then((user) => {
     ui.accountName = user?.name ?? null;
     ui.setAccount(user ? { name: user.name ?? "player", signOut: signOutUrl } : { signIn: signInUrl });
+    ui.showSignInCallout();
   })
-  .catch(() => ui.setAccount(null));
+  .catch(() => {
+    ui.authAvailable = false; // no Discord configured on the server
+    ui.setAccount(null);
+  });
 ui.onBoard = () => void ui.toggleBoard();
 ui.onMusic = () => music.toggle();
 ui.onVolume = (v) => music.setVolume(v);
@@ -413,6 +423,13 @@ function simStep(): void {
       if (e.type === "phase" && e.phase === "shop") ui.toasts(recordOffers(meta, run.offers));
       if (e.type === "phase" && (e.phase === "won" || e.phase === "lost") && !runEnded) {
         runEnded = true;
+        // Signed in and above the saved best: the run posts itself.
+        if (ui.accountName && run.totalScore > bestBefore && run.totalScore > 0) {
+          bestBefore = run.totalScore;
+          setTimeout(() => void submitRun(ui.accountName!).then((msg) => ui.setAutoSubmit(`auto-saved · ${msg}`)).catch(() => ui.setAutoSubmit("could not save — try again from a new run", false)), 50);
+        } else if (ui.accountName) {
+          setTimeout(() => ui.setAutoSubmit(`not your best (${bestBefore.toLocaleString("en-US")}) — nothing to save`, false), 50);
+        }
         ui.toasts(recordRunEnd(meta, run));
         ui.showRunDiscoveries(meta, run);
       }
