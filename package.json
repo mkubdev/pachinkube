@@ -1,0 +1,31 @@
+{
+  "name": "pachinkube",
+  "private": true,
+  "type": "module",
+  "engines": { "node": "22.x" },
+  "scripts": {
+    "dev": "npm run assets:manifest && vite",
+    "build": "npm run assets:manifest && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "assets:draco": "node tools/copy_draco.mjs",
+    "assets:manifest": "python3 tools/build_manifest.py",
+    "postinstall": "node tools/copy_draco.mjs"
+  },
+  "dependencies": {
+    "@auth/core": "latest",
+    "@dimforge/rapier2d-compat": "latest",
+    "@upstash/redis": "latest",
+    "postprocessing": "latest",
+    "three": "latest"
+  },
+  "devDependencies": {
+    "@types/node": "^22",
+    "@types/three": "latest",
+    "typescript": "^5",
+    "vite": "^7",
+    "vitest": "latest"
+  }
+}

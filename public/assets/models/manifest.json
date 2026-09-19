@@ -1,0 +1,33 @@
+{
+  "models": [
+    {
+      "id": "barrel_01",
+      "url": "assets/models/barrel_01.glb",
+      "bytes": 56052,
+      "triangles": 1200,
+      "extensions": [
+        "KHR_draco_mesh_compression",
+        "EXT_texture_webp"
+      ],
+      "materials": [
+        "barrel_01_mat"
+      ]
+    },
+    {
+      "id": "cabinet",
+      "url": "assets/models/cabinet.glb",
+      "bytes": 21448,
+      "triangles": 1744,
+      "extensions": [
+        "KHR_draco_mesh_compression",
+        "KHR_materials_emissive_strength"
+      ],
+      "materials": [
+        "cabinet_body",
+        "cabinet_trim",
+        "cabinet_neon",
+        "cabinet_bolt"
+      ]
+    }
+  ]
+}

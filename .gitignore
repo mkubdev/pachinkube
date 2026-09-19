@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.cache/
+public/draco/
+renders/
+.env
+.env.local
+.vercel/
