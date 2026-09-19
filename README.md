@@ -200,7 +200,11 @@ per-instance memory; without Discord vars `/api/auth/*` returns 503 with a messa
    `AUTH_URL=https://pachinkube.vercel.app`. Redeploy.
 
 After that the dock shows **sign in**; signed-in players' collections sync via
-`/api/meta` and their leaderboard entries can be keyed by Discord id.
+`/api/meta` and their leaderboard entries are keyed by Discord id and named by
+their Discord username.
+
+**Leaderboard cleanup** (owner): set `ADMIN_TOKEN`, then
+`curl -X DELETE -H "authorization: Bearer $ADMIN_TOKEN" -H "content-type: application/json" -d '{"members":["name","d:<discordId>"]}' https://pachinkube.vercel.app/api/scores`.
 
 ## Asset pipeline
 
@@ -228,8 +232,6 @@ NAT cannot reach the add-on's `localhost:9876`.
   real players report. Tune in `scoring.ts` and re-run the probe.
 - **Rate limiting** on `POST /api/scores` (replay costs CPU).
 - **Cabinet body** still reads light under the studio HDRI; darken or re-export.
-- **Leaderboard admin**: no way to delete an entry except the Upstash console;
-  two `redis-check` test rows are still on the board.
 - **Leaderboard identity**: `api/scores` still keys on the typed name; switch to
   the session's `discordId` once auth is on.
 - **Replay test** `reproduces a live run's score from its log` is skipped: it

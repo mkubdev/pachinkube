@@ -58,6 +58,7 @@ interface Store {
   top(n: number): Promise<BoardRow[]>;
   submit(run: RunRecord): Promise<{ improved: boolean }>;
   detail(member: string): Promise<RunRecord | null>;
+  remove(member: string): Promise<boolean>;
 }
 
 function redisStore(): Store | null {
@@ -94,6 +95,11 @@ function redisStore(): Store | null {
     async detail(member) {
       return parseRecord(await redis.hget<string | RunRecord>(`${KEY}:runs`, member));
     },
+    async remove(member) {
+      const n = await redis.zrem(KEY, member);
+      await redis.hdel(`${KEY}:runs`, member);
+      return n > 0;
+    },
   };
 }
 
@@ -121,6 +127,9 @@ const memoryStore: Store = {
   },
   async detail(member) {
     return memory.get(member) ?? null;
+  },
+  async remove(member) {
+    return memory.delete(member);
   },
 };
 
@@ -156,6 +165,30 @@ export async function GET(req: Request): Promise<Response> {
     return run ? json(run) : json({ error: "not found" }, 404);
   }
   return json({ top: await store.top(TOP_N), storage: usingRedis ? "redis" : "memory" });
+}
+
+/**
+ * Owner maintenance: remove rows. `authorization: Bearer <ADMIN_TOKEN>`,
+ * body `{ members: string[] }` where a member is a typed name or `d:<discordId>`.
+ * 404 when no token is configured, so the route does not exist in effect.
+ */
+export async function DELETE(req: Request): Promise<Response> {
+  const token = process.env.ADMIN_TOKEN;
+  if (!token) return json({ error: "not found" }, 404);
+  if (req.headers.get("authorization") !== `Bearer ${token}`) return json({ error: "forbidden" }, 403);
+  let body: unknown;
+  try {
+    body = await req.json();
+  } catch {
+    return json({ error: "invalid JSON" }, 400);
+  }
+  const members = (body as { members?: unknown } | null)?.members;
+  if (!Array.isArray(members) || members.some((m) => typeof m !== "string") || members.length > 50) {
+    return json({ error: "members must be a list of up to 50 strings" }, 400);
+  }
+  const removed: string[] = [];
+  for (const m of members as string[]) if (await store.remove(m)) removed.push(m);
+  return json({ ok: true, removed });
 }
 
 export async function POST(req: Request): Promise<Response> {

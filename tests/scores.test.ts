@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { GET, POST, submitScore, usingRedis } from "../api/scores.js";
+import { DELETE, GET, POST, submitScore, usingRedis } from "../api/scores.js";
 
 const post = (body: unknown) =>
   POST(new Request("http://t/api/scores", { method: "POST", body: JSON.stringify(body), headers: { "content-type": "application/json" } }));
@@ -15,6 +15,18 @@ describe("scores api (memory fallback)", () => {
     expect((await post({ name: "ok", score: 1, seed: "", ticks: 1 })).status).toBe(400);
     expect((await post({ name: "ok", score: 1, seed: "s", ticks: 1.5 })).status).toBe(400);
     expect((await post({ name: "<script>", score: 1, seed: "s", ticks: 1 })).status).toBe(400);
+  });
+
+  it("DELETE needs the admin token and removes members", async () => {
+    const del = (auth: string | null, body: unknown) =>
+      DELETE(new Request("http://t/api/scores", { method: "DELETE", body: JSON.stringify(body), headers: auth ? { authorization: auth } : {} }));
+    expect((await del("Bearer x", { members: ["a"] })).status).toBe(404); // no token configured
+    process.env.ADMIN_TOKEN = "t0k";
+    expect((await del("Bearer wrong", { members: ["a"] })).status).toBe(403);
+    await post({ name: "zed", score: 5, seed: "s", ticks: 1 });
+    const ok = await del("Bearer t0k", { members: ["zed", "nobody"] });
+    expect(((await ok.json()) as { removed: string[] }).removed).toEqual(["zed"]);
+    delete process.env.ADMIN_TOKEN;
   });
 
   it("signed-in players are keyed by Discord id and named by Discord", async () => {
