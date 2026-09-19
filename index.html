@@ -4,17 +4,27 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>PACHINKUBE</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet" />
     <style>
+      /* Type: Orbitron for the arcade "display" voice — title, round, combo,
+         big scores, pocket multipliers. Space Grotesk for everything you read —
+         HUD rows, charm cards, shop, leaderboard. Mono stays for seed/hash. */
+      :root { --display: "Orbitron", "Space Grotesk", sans-serif; --text: "Space Grotesk", system-ui, sans-serif; --mono: ui-monospace, SFMono-Regular, Menlo, monospace; }
       :root { color-scheme: dark; --magenta: #ff2d95; --cyan: #2de2ff; --gold: #ffd34d; --bg: #07070c; }
       * { margin: 0; padding: 0; box-sizing: border-box; }
       html, body { height: 100%; background: var(--bg); overflow: hidden; }
-      body { font: 13px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; color: #c8d0d8; user-select: none; }
+      body { font: 14px/1.45 var(--text); color: #c8d0d8; user-select: none; }
+      code, .mono { font-family: var(--mono); font-size: 12px; }
+      .display, #hud .title, #combo .n, #combo .l, .panel h2, .panel .score, #labels .pocket { font-family: var(--display); }
       #game { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
       #ui > * { position: fixed; }
       #hud { top: 12px; left: 12px; width: min(340px, 30vw); min-width: 230px; padding: 10px 14px; background: rgba(10,10,20,.78); border: 1px solid #2a2440; border-radius: 6px; pointer-events: none; }
-      #hud .title { color: var(--magenta); letter-spacing: .14em; font-weight: 700; margin-bottom: 4px; }
+      #hud .title { color: var(--magenta); letter-spacing: .18em; font-weight: 900; font-size: 13px; margin-bottom: 4px; }
       #hud .row { display: flex; justify-content: space-between; gap: 8px; }
-      #hud .big { font-size: 18px; color: #fff; }
+      #hud .big { font-size: 17px; color: #fff; font-weight: 700; letter-spacing: .02em; }
+      #hud .cleared { color: var(--gold); font-family: var(--text); font-weight: 500; }
       #hud small { color: #6b7783; font-size: 11px; }
       #hud .dim { color: #6b7783; }
       #hud code { color: var(--cyan); }
@@ -24,9 +34,10 @@
       #charms { top: 12px; right: 12px; width: min(220px, 18vw); display: flex; flex-direction: column; gap: 4px; pointer-events: none; }
       .charm { padding: 5px 9px; border-radius: 4px; background: rgba(10,10,20,.78); border-left: 3px solid #556; }
       .charm.uncommon { border-left-color: var(--cyan); } .charm.rare { border-left-color: var(--gold); }
-      #labels .pocket { position: fixed; transform: translate(-50%, 0); color: var(--cyan); font-size: 12px; pointer-events: none; text-shadow: 0 0 8px rgba(45,226,255,.6); }
+      #labels .pocket { position: fixed; transform: translate(-50%, 0); color: var(--cyan); font-size: 11px; font-weight: 700; pointer-events: none; text-shadow: 0 0 8px rgba(45,226,255,.6); }
       #labels .pocket.jackpot { color: var(--magenta); font-weight: 700; text-shadow: 0 0 10px rgba(255,45,149,.8); }
-      .popup { position: fixed; left: 0; top: 0; pointer-events: none; font-weight: 700; white-space: nowrap; will-change: transform, opacity; }
+      .popup { position: fixed; left: 0; top: 0; pointer-events: none; font-weight: 700; white-space: nowrap; will-change: transform, opacity; font-family: var(--display); }
+      .popup.info { font-family: var(--text); }
       .popup.chips { color: #fff; font-size: 13px; }
       .popup.mult { color: var(--gold); font-size: 15px; text-shadow: 0 0 10px rgba(255,211,77,.8); }
       .popup.score { color: var(--magenta); font-size: 20px; text-shadow: 0 0 14px rgba(255,45,149,.9); }
@@ -35,7 +46,7 @@
       #combo { top: 6vh; left: 50%; transform: translateX(-50%); text-align: center; pointer-events: none; animation: comboPop .28s cubic-bezier(.2,1.6,.4,1) both; }
       #combo[hidden] { display: none; }
       #combo .n { font-size: 64px; font-weight: 900; line-height: 1; color: #fff; text-shadow: 0 0 18px rgba(255,255,255,.55); }
-      #combo .l { font-size: 12px; letter-spacing: .3em; color: #9aa4b0; margin-top: 2px; }
+      #combo .l { font-size: 11px; font-weight: 700; letter-spacing: .4em; color: #9aa4b0; margin-top: 4px; }
       #combo.t1 .n { color: var(--cyan); text-shadow: 0 0 22px rgba(45,226,255,.9); }
       #combo.t2 .n { color: var(--gold); text-shadow: 0 0 26px rgba(255,211,77,.95); font-size: 76px; }
       #combo.t3 .n { color: var(--magenta); text-shadow: 0 0 32px rgba(255,45,149,1), 0 0 60px rgba(255,45,149,.6); font-size: 92px; }
@@ -48,13 +59,13 @@
       #modal { inset: 0; display: grid; place-items: center; background: rgba(4,4,10,.72); backdrop-filter: blur(3px); }
       #modal[hidden] { display: none; }
       .panel { width: min(920px, 92vw); padding: 24px 28px; background: #0d0d18; border: 1px solid #2a2440; border-radius: 10px; box-shadow: 0 0 60px rgba(255,45,149,.15); }
-      .panel h2 { color: #fff; letter-spacing: .06em; margin-bottom: 4px; }
-      .panel .score { font-size: 40px; color: var(--magenta); text-shadow: 0 0 20px rgba(255,45,149,.7); margin: 6px 0; }
+      .panel h2 { color: #fff; letter-spacing: .1em; font-weight: 700; font-size: 18px; margin-bottom: 4px; }
+      .panel .score { font-size: 40px; font-weight: 900; color: var(--magenta); text-shadow: 0 0 20px rgba(255,45,149,.7); margin: 6px 0; }
       .panel .dim { color: #6b7783; margin-bottom: 14px; }
       .offers { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; }
       .offer { text-align: left; padding: 14px; background: #12121f; border: 1px solid #2a2440; border-radius: 8px; color: inherit; font: inherit; cursor: pointer; transition: transform .1s, border-color .1s; }
       .offer:hover { transform: translateY(-2px); border-color: var(--cyan); }
-      .offer .tag { display: inline-block; font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: #6b7783; margin-bottom: 6px; }
+      .offer .tag { display: inline-block; font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: #6b7783; margin-bottom: 6px; font-family: var(--display); }
       .offer.uncommon .tag { color: var(--cyan); } .offer.rare .tag { color: var(--gold); } .offer.ball .tag { color: var(--magenta); }
       .offer b { display: block; color: #fff; margin-bottom: 6px; }
       .offer p { color: #9aa4b0; }
@@ -63,6 +74,32 @@
       button { padding: 8px 14px; background: #1a1a2c; border: 1px solid #2a2440; border-radius: 6px; color: #fff; font: inherit; cursor: pointer; }
       button.primary { background: var(--magenta); border-color: var(--magenta); color: #000; font-weight: 700; margin-top: 12px; }
       #board i.ok { color: var(--cyan); font-style: normal; }
+      #toasts { right: 12px; bottom: 44px; display: flex; flex-direction: column; gap: 6px; pointer-events: none; width: 260px; }
+      .toast { padding: 8px 12px; background: rgba(10,10,20,.9); border: 1px solid #2a2440; border-left: 3px solid var(--cyan); border-radius: 6px; animation: toastIn .25s ease-out both; }
+      .toast.unlock { border-left-color: var(--magenta); } .toast.feat { border-left-color: var(--gold); }
+      .toast .head { display: block; font-size: 10px; letter-spacing: .24em; color: #6b7783; font-family: var(--display); }
+      .toast b { display: block; color: #fff; } .toast small { color: #9aa4b0; }
+      .toast.out { animation: toastOut .6s ease-in both; }
+      @keyframes toastIn { from { opacity: 0; transform: translateX(24px); } } @keyframes toastOut { to { opacity: 0; transform: translateX(24px); } }
+      #collection-btn { right: 12px; bottom: 12px; font-size: 12px; padding: 5px 10px; background: rgba(10,10,20,.78); }
+      #collection { inset: 0; display: grid; place-items: start center; overflow: auto; padding: 4vh 0; background: rgba(4,4,10,.82); backdrop-filter: blur(3px); }
+      #collection[hidden] { display: none; }
+      .panel.wide { width: min(1100px, 94vw); }
+      .panel .row { display: flex; justify-content: space-between; align-items: center; }
+      .panel h3 { color: #fff; margin: 16px 0 8px; letter-spacing: .08em; font-size: 13px; }
+      .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 8px; }
+      .card { padding: 10px 12px; background: #12121f; border: 1px solid #2a2440; border-radius: 8px; }
+      .card b { display: block; color: #fff; margin: 4px 0; } .card p { color: #9aa4b0; font-size: 12px; }
+      .card .tag { font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: #6b7783; }
+      .card .tag.uncommon { color: var(--cyan); } .card .tag.rare { color: var(--gold); } .card .tag.ball { color: var(--magenta); }
+      .card.locked { opacity: .55; border-style: dashed; } .card.unseen b { color: #6b7783; }
+      .card.feat { border-left: 3px solid var(--gold); } .card.feat.locked { border-left-color: #2a2440; }
+      .card .prog { height: 4px; background: #1a1d2a; border-radius: 2px; margin-top: 6px; overflow: hidden; }
+      .card .prog div { height: 100%; background: var(--cyan); }
+      .card small { color: #6b7783; font-size: 11px; }
+      #run-discoveries ul { list-style: none; margin: 4px 0 10px; } #run-discoveries li { color: #c8d0d8; }
+      #run-discoveries .tag { font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--cyan); }
+      #run-discoveries .tag.unlock { color: var(--magenta); } #run-discoveries .tag.feat { color: var(--gold); }
       #board ol { margin: 6px 0 0 18px; } #board li { display: flex; justify-content: space-between; max-width: 360px; } #board h3 { color: #fff; margin-top: 8px; }
     </style>
   </head>

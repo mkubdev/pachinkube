@@ -5,6 +5,16 @@ import { BoardRenderer } from "./render/scene";
 import { GameUI } from "./game/ui";
 import { GameAudio } from "./game/audio";
 import { BALL_TYPES, type BallTypeId } from "./game/balls";
+import {
+  LocalMetaStore,
+  newTracker,
+  recordDrop,
+  recordEvents,
+  recordOffers,
+  recordRunEnd,
+  recordRunStart,
+  unlockedPool,
+} from "./game/meta";
 
 const NEON_MAGENTA = 0xff2d95;
 const NEON_CYAN = 0x2de2ff;
@@ -16,7 +26,17 @@ const seed = params.get("seed") ?? `run-${Date.now().toString(36)}`;
 
 const canvas = document.getElementById("game") as HTMLCanvasElement;
 
-let run = await Run.create(seed);
+// Progression lives in localStorage for now; the store interface is what a
+// per-Discord-user server store will implement later.
+const metaStore = new LocalMetaStore(typeof localStorage === "undefined" ? null : localStorage);
+const meta = metaStore.load();
+const pool = unlockedPool(meta);
+const tracker = newTracker();
+recordRunStart(meta);
+metaStore.save(meta);
+
+let run = await Run.create(seed, { pool });
+let runEnded = false;
 const dims = { width: run.sim.config.width, height: run.sim.config.height, buckets: run.sim.config.buckets };
 const view = new BoardRenderer(canvas, dims);
 view.setPegs(run.sim.pegs);
@@ -30,6 +50,8 @@ const ui = new GameUI((x, y) => view.project(x, y));
 ui.setPockets(run.sim.bucketCenters, run.pocketMultipliers());
 ui.onPick = (i) => {
   run.pick(i);
+  ui.toasts(recordRunEnd(meta, run).filter((n) => n.kind !== "discover")); // charm discoveries → collection
+  metaStore.save(meta);
   view.resetPegs();
   ui.updatePocketMults(run.pocketMultipliers());
   ui.updateCharms(run);
@@ -44,7 +66,7 @@ ui.onSubmit = async (name) => {
     method: "POST",
     headers: { "content-type": "application/json" },
     // The input log lets the server replay the run and verify the score.
-    body: JSON.stringify({ name, score: run.totalScore, seed, ticks: run.sim.tick, log: run.log }),
+    body: JSON.stringify({ name, score: run.totalScore, seed, ticks: run.sim.tick, log: run.log, pool: run.pool }),
   });
   const data = (await res.json()) as { improved?: boolean; verified?: boolean; error?: string };
   if (!res.ok) return `error: ${data.error}`;
@@ -62,7 +84,7 @@ let auto = params.get("auto") === "1";
 function drop(): void {
   audio.unlock();
   if (aimX === null) return;
-  run.drop(aimX);
+  if (run.drop(aimX)) recordDrop(meta);
 }
 
 addEventListener("pointermove", (e) => {
@@ -73,7 +95,9 @@ canvas.addEventListener("pointerdown", drop);
 addEventListener("keydown", (e) => {
   if (e.code === "Space") { e.preventDefault(); drop(); }
   if (e.code === "KeyA") auto = !auto;
+  if (e.code === "KeyC") ui.toggleCollection(meta);
 });
+ui.onCollection = () => ui.toggleCollection(meta);
 
 /** One fixed simulation step plus the presentation reactions to its events. */
 function simStep(): void {
@@ -185,4 +209,5 @@ if (pre > 0) {
   curr = run.sim.snapshot();
   prev = curr;
 }
+if (params.get("collection") === "1") ui.toggleCollection(meta);
 requestAnimationFrame(loop);

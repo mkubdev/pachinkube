@@ -8,10 +8,10 @@
 import { Run } from "../src/game/run";
 import { Rng } from "../src/sim/rng";
 import { roundTarget } from "../src/game/scoring";
-import { ROUNDS } from "../src/game/run";
+import { CLEAR_ROUND as ROUNDS } from "../src/game/run";
 
 async function playOne(seed: string, maxTicks: number) {
-  const run = await Run.create(seed);
+  const run = await Run.create(seed, { rounds: ROUNDS });
   const policy = new Rng(7 + seed.length);
   const perRound: number[] = [];
   const reached = { round: 1, phase: run.phase };

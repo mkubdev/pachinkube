@@ -21,7 +21,10 @@ import {
 } from "./charms";
 import { BASE_CHIPS_FRESH, BASE_CHIPS_REPEAT, ballScore, bucketMultipliers, roundTarget } from "./scoring";
 
-export const ROUNDS = 8;
+/** Runs are endless: targets keep climbing until you miss one. Round 8 is the
+ *  "machine cleared" milestone, not the end. Tests pass a finite `rounds`. */
+export const CLEAR_ROUND = 8;
+export const ROUNDS = Number.POSITIVE_INFINITY;
 export const BALLS_PER_ROUND = 6;
 export const SHOP_OFFERS = 3;
 
@@ -44,6 +47,8 @@ export type GameEvent =
   | { type: "comboEnd"; count: number }
   /** Insurance fired: the failed round restarts instead of ending the run. */
   | { type: "retry"; round: number; left: number }
+  /** The machine-cleared milestone (round CLEAR_ROUND beaten); the run goes on. */
+  | { type: "cleared"; round: number }
   | { type: "pegsReset" }
   | { type: "ballScored"; ball: number; score: number; bucket: number; chips: number; mult: number }
   | { type: "roundEnd"; round: number; passed: boolean; roundScore: number; target: number }
@@ -58,6 +63,8 @@ export interface RunInput {
 export interface RunOptions {
   rounds?: number;
   ballsPerRound?: number;
+  /** What the shop may roll: the player's unlocked content. Defaults to everything. */
+  pool?: { charms: CharmId[]; balls: BallTypeId[] };
 }
 
 export class Run {
@@ -74,6 +81,8 @@ export class Run {
   offers: Offer[] = [];
   readonly log: RunInput[] = [];
   readonly balls = new Map<number, BallScoreState>();
+  /** Set once the run has cleared CLEAR_ROUND; the run itself continues. */
+  cleared = false;
   /** Peg hits chained within the combo window across all balls in flight. */
   combo = 0;
   bestCombo = 0;
@@ -86,11 +95,17 @@ export class Run {
   private readonly rounds: number;
   private readonly ballsPerRound: number;
   private readonly bucketMults: number[];
+  readonly pool: { charms: CharmId[]; balls: BallTypeId[] };
 
   private constructor(readonly sim: Sim, opts: RunOptions) {
     this.rounds = opts.rounds ?? ROUNDS;
     this.ballsPerRound = opts.ballsPerRound ?? BALLS_PER_ROUND;
     this.bucketMults = bucketMultipliers(sim.config.buckets);
+    // Sorted so that two equal pools roll identically regardless of input order.
+    this.pool = {
+      charms: [...(opts.pool?.charms ?? CHARM_IDS)].sort(),
+      balls: [...(opts.pool?.balls ?? SHOP_BALLS)].sort(),
+    };
   }
 
   static async create(seed: string, opts: RunOptions = {}): Promise<Run> {
@@ -228,6 +243,10 @@ export class Run {
       return;
     }
     out.push({ type: "roundEnd", round: this.round, passed, roundScore: this.roundScore, target: this.target });
+    if (passed && this.round >= CLEAR_ROUND && !this.cleared) {
+      this.cleared = true;
+      out.push({ type: "cleared", round: this.round });
+    }
     if (!passed) {
       this.phase = "lost";
     } else if (this.round >= this.rounds) {
@@ -248,14 +267,15 @@ export class Run {
     let guard = 0;
     while (offers.length < want && guard++ < 80) {
       // 1 in 3 offers is a ball type instead of a charm.
-      if (rng.next() < 0.34) {
-        const id = weightedPick(rng, SHOP_BALLS, (b) => BALL_TYPES[b].shopWeight);
+      if (rng.next() < 0.34 && this.pool.balls.length > 0) {
+        const id = weightedPick(rng, this.pool.balls, (b) => BALL_TYPES[b].shopWeight);
         if (seen.has(`ball:${id}`)) continue;
         seen.add(`ball:${id}`);
         offers.push({ kind: "ball", id, count: ballCount });
         continue;
       }
-      const id = weightedPick(rng, CHARM_IDS, (c) => RARITY_WEIGHT[CHARMS[c].rarity]);
+      if (this.pool.charms.length === 0) break;
+      const id = weightedPick(rng, this.pool.charms, (c) => RARITY_WEIGHT[CHARMS[c].rarity]);
       // Stackable charms may repeat; the rest only appear if not owned.
       const stackable =
         id === "magnet_coil" || id === "neon_sign" || id === "extra_ball" ||

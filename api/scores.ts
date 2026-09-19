@@ -10,8 +10,9 @@
  * accepted but stored unverified, so the board can show the difference.
  */
 import { Redis } from "@upstash/redis";
-import { replay, validateLog } from "../src/game/replay";
+import { replay, validateLog, validatePool } from "../src/game/replay";
 import type { RunInput } from "../src/game/run";
+import type { Pool } from "../src/game/meta";
 
 const KEY = "pachinkube:scores:v1";
 const TOP_N = 20;
@@ -99,7 +100,7 @@ export const usingRedis = store !== memoryStore;
 
 // --- validation ----------------------------------------------------------------
 
-function parseSubmission(body: unknown): (RunSubmission & { log?: RunInput[] }) | string {
+function parseSubmission(body: unknown): (RunSubmission & { log?: RunInput[]; pool?: Pool }) | string {
   if (typeof body !== "object" || body === null) return "body must be an object";
   const b = body as Record<string, unknown>;
   const name = typeof b.name === "string" ? b.name.trim() : "";
@@ -112,7 +113,8 @@ function parseSubmission(body: unknown): (RunSubmission & { log?: RunInput[] }) 
   const ticks = Number(b.ticks);
   if (!Number.isInteger(ticks) || ticks < 0) return "ticks must be a non-negative integer";
   if (b.log !== undefined && !validateLog(b.log)) return "log is malformed";
-  return { name, score, seed, ticks, log: b.log as RunInput[] | undefined };
+  if (b.pool !== undefined && !validatePool(b.pool)) return "pool is malformed";
+  return { name, score, seed, ticks, log: b.log as RunInput[] | undefined, pool: b.pool as Pool | undefined };
 }
 
 // --- handlers ------------------------------------------------------------------
@@ -135,10 +137,11 @@ export async function POST(req: Request): Promise<Response> {
   }
   const parsed = parseSubmission(body);
   if (typeof parsed === "string") return json({ error: parsed }, 400);
-  const { log, ...run } = parsed;
+  const { log, pool, ...run } = parsed;
   let verified = false;
   if (log) {
-    const r = await replay(run.seed, log);
+    // The pool the client played with shapes the shop, so the replay needs it.
+    const r = await replay(run.seed, log, pool);
     if (r.score !== run.score) {
       return json({ error: "score does not reproduce from log", replayed: r.score }, 422);
     }
