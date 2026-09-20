@@ -18,6 +18,7 @@ describe("main.ts wiring", () => {
     expect(main).toMatch(/metaStore\.save\(meta\)/);
     expect(main).toMatch(/rules: RULES_VERSION/);
     expect(main).toMatch(/anon: anonId\(\)/);
+    expect(main).toMatch(/ui\.enableShare\(data\.share\)/);
     expect(main).toMatch(/ui\.accountName && run\.totalScore > 0/); // auto-submit when signed in; the server judges "best"
     expect(main).not.toMatch(/bestBefore/);
     expect(main).toMatch(/ui\.showSignInCallout\(\)/);

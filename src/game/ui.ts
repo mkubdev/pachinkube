@@ -39,6 +39,8 @@ export class GameUI {
   /** Shop highlight: true when this player has never taken the item in any run. */
   isNew: ((kind: "charm" | "ball", id: string) => boolean) | null = null;
   private shopRun: Run | null = null;
+  /** Signed share token for the run just stored (from the submit response). */
+  private shareToken: string | null = null;
   onNewRun: (() => void) | null = null;
   onSubmit: ((name: string) => Promise<string>) | null = null;
   onCollection: (() => void) | null = null;
@@ -194,6 +196,7 @@ export class GameUI {
 
   /** Close overlays and clear per-run presentation state. */
   resetRun(): void {
+    this.shareToken = null;
     this.modal.hidden = true;
     this.root.querySelector<HTMLElement>("#collection")!.hidden = true;
     this.root.querySelector<HTMLElement>("#board-panel")!.hidden = true;
@@ -505,11 +508,13 @@ export class GameUI {
         <div id="run-discoveries"></div>
         <div id="board" class="dim">loading leaderboard…</div>
         <button id="again" class="primary big">▶ &nbsp;NEW RUN</button>
-        ${run.totalScore > 0 ? `<button id="share" class="share">⤴ &nbsp;challenge a friend</button><small id="share-msg" class="keys"></small>` : ""}
+        ${run.totalScore > 0 ? `<button id="share" class="share" disabled title="save your score first">⤴ &nbsp;challenge a friend</button><small id="share-msg" class="keys">save your score to share it</small>` : ""}
         <small class="keys">space / enter · new run</small>
       </div>`;
     this.modal.querySelector("#again")!.addEventListener("click", () => this.onNewRun?.());
-    this.modal.querySelector("#share")?.addEventListener("click", () => void this.share(run.totalScore));
+    this.modal.querySelector("#share")?.addEventListener("click", () => {
+      if (this.shareToken) void this.share(this.shareToken, run.totalScore);
+    });
     const form = this.modal.querySelector<HTMLFormElement>("#submit");
     form?.addEventListener("submit", async (ev) => {
       ev.preventDefault();
@@ -528,9 +533,10 @@ export class GameUI {
    * (/s is a server route with Open Graph tags). Native share sheet on phones,
    * clipboard elsewhere.
    */
-  private async share(score: number, msgEl?: HTMLElement | null, who?: string): Promise<void> {
-    const name = (who ?? this.accountName ?? this.submittedName ?? "").trim();
-    const url = `${location.origin}/s?score=${score}${name ? `&name=${encodeURIComponent(name)}` : ""}`;
+  private async share(token: string, score: number, msgEl?: HTMLElement | null): Promise<void> {
+    // The token is signed by the server for a score that is on the board; the
+    // preview renders from it, so the link cannot be edited into a bigger brag.
+    const url = `${location.origin}/s?t=${encodeURIComponent(token)}`;
     const text = `Try to beat my score: ${score.toLocaleString("en-US")}`;
     const msg = msgEl ?? this.modal.querySelector<HTMLElement>("#share-msg");
     const say = (s: string) => { if (msg) msg.textContent = s; };
@@ -545,6 +551,18 @@ export class GameUI {
     } catch {
       say(`${text} ${url}`); // last resort: show it so it can be copied by hand
     }
+  }
+
+  /** The run was stored: arm the challenge button with its signed token. */
+  enableShare(token: string): void {
+    this.shareToken = token;
+    const b = this.modal.querySelector<HTMLButtonElement>("#share");
+    const m = this.modal.querySelector<HTMLElement>("#share-msg");
+    if (b) {
+      b.disabled = false;
+      b.title = "Share: Try to beat my score";
+    }
+    if (m) m.textContent = "";
   }
 
   /** Result line of an automatic (signed-in) submission on the end screen. */
@@ -584,7 +602,7 @@ export class GameUI {
     try {
       const res = await fetch("/api/scores");
       const data = (await res.json()) as {
-        top: Array<{ name: string; score: number; verified?: boolean; discord?: boolean }>;
+        top: Array<{ name: string; score: number; verified?: boolean; discord?: boolean; share?: string }>;
         storage: string;
       };
       const me = (this.accountName ?? this.submittedName ?? "").toLowerCase();
@@ -595,7 +613,7 @@ export class GameUI {
               .map((r, i) => {
                 const mine = !!me && r.name.toLowerCase() === me;
                 // Your own row gets a share button: brag about the board score any time, not only right after a run.
-                const share = mine ? `<button class="share-row" data-score="${r.score}" data-name="${escapeHtml(r.name)}" title="Share: Try to beat my score">⤴</button>` : "";
+                const share = mine && r.share ? `<button class="share-row" data-score="${r.score}" data-token="${escapeHtml(r.share)}" title="Share: Try to beat my score">⤴</button>` : "";
                 return `<li class="${mine ? "me" : ""}${i === 0 ? " first" : ""}"><span class="rank">${i + 1}</span><span class="who">${r.discord ? '<i class="dc" title="Discord account">⌁</i> ' : ""}${escapeHtml(r.name)}${r.verified ? ' <i class="ok" title="replay verified">✓</i>' : ""}</span><span class="pts">${formatScore(r.score)}${share}</span></li>`;
               })
               .join("")}</ol><small class="share-row-msg keys"></small>`
@@ -603,7 +621,7 @@ export class GameUI {
       box.querySelectorAll<HTMLButtonElement>(".share-row").forEach((b) =>
         b.addEventListener("click", (ev) => {
           ev.stopPropagation();
-          void this.share(Number(b.dataset.score), box.querySelector<HTMLElement>(".share-row-msg"), b.dataset.name);
+          void this.share(b.dataset.token ?? "", Number(b.dataset.score), box.querySelector<HTMLElement>(".share-row-msg"));
         }),
       );
     } catch {

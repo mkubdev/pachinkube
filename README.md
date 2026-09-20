@@ -167,12 +167,16 @@ Keys: **C** collection · **L** global scoreboard · **M** lofi girl radio
 
 `index.html` carries Open Graph / Twitter tags and `public/og.png` (1200×630,
 rendered from `tools/og.html` with headless Edge), so a pasted link shows a
-neon preview. The end screen's **challenge a friend** button shares
-`/s?score=N&name=…` (native share sheet on phones, clipboard elsewhere) with
-the text *Try to beat my score: N*. `/s` is a server route (`api/share.ts`,
-rewritten in `vercel.json`) that answers with Open Graph tags carrying the
-score and name — *Kube scored 4,505,110 in PACHINKUBE* — and forwards humans to
-the game with `?challenge=N&by=…`, which greets them with *BEAT KUBE'S 4,505,110*.
+neon preview. The end screen's **challenge a friend** button (armed once the run is stored)
+and the ⤴ button on your own leaderboard row share `/s?t=<token>` (native
+share sheet on phones, clipboard elsewhere) with the text *Try to beat my
+score: N*. The token is an HMAC-signed `{score, name}` the server issues only
+for scores on the board (`src/server/share.ts`, secret `SHARE_SECRET` or
+`ADMIN_TOKEN`), so a link cannot be edited into a bigger brag; a bad token
+degrades to the plain preview. `/s` (`api/share.ts`, rewritten in
+`vercel.json`) answers with Open Graph tags — *Kube scored 4,505,110 in
+PACHINKUBE* — and forwards humans to the game with `?challenge=N&by=…`, which
+greets them with *BEAT KUBE'S 4,505,110*.
 
 ## Phones
 

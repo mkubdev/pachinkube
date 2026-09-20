@@ -161,7 +161,8 @@ async function submitRun(name: string): Promise<string> {
       ...(tainted ? {} : { log: run.log, pool: run.pool }),
     }),
   });
-  const data = (await res.json()) as { improved?: boolean; stored?: boolean; verified?: boolean; reason?: string; error?: string };
+  const data = (await res.json()) as { improved?: boolean; stored?: boolean; verified?: boolean; reason?: string; error?: string; share?: string };
+  if (data.stored && data.share) ui.enableShare(data.share);
   if (res.status === 409) return "that name belongs to another player — pick another, or sign in with Discord";
   if (!res.ok) return `error: ${data.error}`;
   if (!data.stored) {

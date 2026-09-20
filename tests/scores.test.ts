@@ -101,10 +101,13 @@ describe("scores api (memory fallback)", () => {
     expect((await post({ name: "max", anon: "browser-max00000", ...runs[2]! })).status).toBe(201);
     expect((await post({ name: "ana", anon: "browser-ana00000", ...runs[0]! })).status).toBe(201);
     const res = await GET(new Request("http://t/api/scores"));
-    const data = (await res.json()) as { top: Array<{ name: string; score: number; verified: boolean; discord?: boolean }> };
-    expect(data.top.filter((r) => !r.discord && (r.name === "ana" || r.name === "max"))).toEqual([
+    const data = (await res.json()) as { top: Array<{ name: string; score: number; verified: boolean; discord?: boolean; share?: string }> };
+    const rows = data.top.filter((r) => !r.discord && (r.name === "ana" || r.name === "max"));
+    expect(rows.map(({ share, ...r }) => (void share, r))).toEqual([
       { name: "ana", score: runs[0]!.score, verified: true, discord: false },
       { name: "max", score: runs[1]!.score, verified: true, discord: false },
     ]);
+    // Every row carries a signed share token.
+    for (const r of rows) expect(r.share).toMatch(/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/);
   });
 });

@@ -1,21 +1,27 @@
 /**
- * Share links: /s?score=4505110&name=Kube
+ * Share links: /s?t=<signed token>
  *
  * Chat apps (Discord, Slack, iMessage) fetch the URL and read the Open Graph
  * tags, so the preview can say "Try to beat my score: 4,505,110" with the
- * player's name — static index.html tags cannot carry a score. Humans are sent
- * straight on to the game (meta refresh + script), with the challenge in the
- * query so the game can greet them.
+ * player's name — static index.html tags cannot carry a score. The token is
+ * signed by the server for scores that are actually on the board
+ * (`src/server/share.ts`), so a link can never claim a score that was not
+ * verified; a bad token degrades to the plain preview. Humans are sent
+ * straight on to the game, with the challenge in the query for the greeting.
  */
+import { verifyShare } from "../src/server/share.js";
+
 const SITE = "https://pachinkube.vercel.app";
 
 const esc = (s: string): string => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 
-export function sharePage(params: URLSearchParams): { html: string; status: number } {
-  const score = Math.floor(Number(params.get("score")));
-  const rawName = (params.get("name") ?? "").trim().slice(0, 24);
+export async function sharePage(params: URLSearchParams): Promise<{ html: string; status: number }> {
+  const token = params.get("t") ?? "";
+  const payload = token ? await verifyShare(token) : null;
+  const score = payload ? payload.s : NaN;
+  const rawName = (payload?.n ?? "").trim().slice(0, 24);
   const name = /^[\p{L}\p{N} _.-]*$/u.test(rawName) ? rawName : "";
-  const valid = Number.isFinite(score) && score >= 0 && score < 1e15;
+  const valid = payload !== null && Number.isFinite(score) && score >= 0 && score < 1e15;
   const pretty = valid ? score.toLocaleString("en-US") : "";
   const title = valid ? `Try to beat my score: ${pretty}` : "PACHINKUBE";
   const who = name ? `${name} scored ${pretty} in PACHINKUBE` : valid ? `Someone scored ${pretty} in PACHINKUBE` : "PACHINKUBE";
@@ -23,7 +29,7 @@ export function sharePage(params: URLSearchParams): { html: string; status: numb
     ? `${who} — a pachinko roguelite: balls, charms, elements, absurd combos. Play in the browser, no install.`
     : "A pachinko roguelite: balls, charms, elements, absurd combos. Play in the browser, no install.";
   const target = valid ? `${SITE}/?challenge=${score}${name ? `&by=${encodeURIComponent(name)}` : ""}` : `${SITE}/`;
-  const self = `${SITE}/s?${params.toString()}`;
+  const self = valid ? `${SITE}/s?t=${encodeURIComponent(token)}` : `${SITE}/`;
   const html = `<!doctype html>
 <html lang="en"><head>
 <meta charset="utf-8" />
@@ -53,6 +59,6 @@ export function sharePage(params: URLSearchParams): { html: string; status: numb
 }
 
 export async function GET(req: Request): Promise<Response> {
-  const { html, status } = sharePage(new URL(req.url).searchParams);
+  const { html, status } = await sharePage(new URL(req.url).searchParams);
   return new Response(html, { status, headers: { "content-type": "text/html; charset=utf-8", "cache-control": "public, max-age=300" } });
 }

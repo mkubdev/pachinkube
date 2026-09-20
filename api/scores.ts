@@ -15,6 +15,7 @@ import type { RunInput } from "../src/game/run.js";
 import type { Pool } from "../src/game/meta.js";
 import { getSessionUser } from "../src/server/auth.js";
 import { RULES_VERSION } from "../src/game/version.js";
+import { signShare } from "../src/server/share.js";
 
 const KEY = "pachinkube:scores:v1";
 const TOP_N = 20;
@@ -59,6 +60,8 @@ export interface BoardRow {
   score: number;
   verified?: boolean;
   discord?: boolean;
+  /** Signed share token for /s?t=… (the preview shows exactly this score and name). */
+  share?: string;
 }
 
 interface Store {
@@ -222,7 +225,9 @@ export async function GET(req: Request): Promise<Response> {
     if (!token || req.headers.get("authorization") !== `Bearer ${token}`) return json({ error: "forbidden" }, 403);
     return json({ rows: await store.topMembers(TOP_N) });
   }
-  return json({ top: await store.top(TOP_N), storage: usingRedis ? "redis" : "memory", rules: RULES_VERSION });
+  const top = await store.top(TOP_N);
+  for (const r of top) r.share = await signShare({ s: r.score, n: r.name });
+  return json({ top, storage: usingRedis ? "redis" : "memory", rules: RULES_VERSION });
 }
 
 /**
@@ -287,5 +292,6 @@ export async function submitScore(body: unknown, user: { discordId: string; name
   }
   const result = await store.submit({ ...run, verified: true, at: new Date().toISOString(), discordId: user?.discordId, anonId });
   await store.claimName(nameKey(run.name), member);
-  return json({ ok: true, stored: true, verified: true, name: run.name, rules: RULES_VERSION, ...result }, 201);
+  const share = await signShare({ s: run.score, n: run.name });
+  return json({ ok: true, stored: true, verified: true, name: run.name, rules: RULES_VERSION, share, ...result }, 201);
 }
