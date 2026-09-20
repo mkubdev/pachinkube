@@ -117,7 +117,6 @@ async function newRun(nextSeed: string): Promise<void> {
   old.dispose();
   runEnded = false;
   tainted = false; // a fresh in-place run has no dev modifications
-  bestBefore = meta.stats.bestScore;
   auto = false;
   Object.assign(tracker, newTracker());
   recordRunStart(meta);
@@ -169,12 +168,9 @@ async function submitRun(name: string): Promise<string> {
     // Only replay-verified runs are kept; say why this one was not.
     return data.reason === "rules_version" ? "not saved — the game updated mid-run (refresh and play again)" : tainted ? "not saved — dev run" : "not saved — could not be verified";
   }
-  return "verified · " + (data.improved ? "new personal best!" : "submitted (not your best)");
+  return "verified · " + (data.improved ? "new personal best!" : "not above your best on the board");
 }
 ui.onSubmit = submitRun;
-
-/** Best score saved before this run started; auto-submit only beats it. */
-let bestBefore = meta.stats.bestScore;
 
 const stepper = new FixedStepper(run.sim.config.dt);
 // Presentation-only time dilation (slow-mo combo event): scales wall time
@@ -602,12 +598,11 @@ function simStep(): void {
       if (e.type === "phase" && e.phase === "shop") ui.toasts(recordOffers(meta, run.offers));
       if (e.type === "phase" && (e.phase === "won" || e.phase === "lost") && !runEnded) {
         runEnded = true;
-        // Signed in and above the saved best: the run posts itself.
-        if (ui.accountName && run.totalScore > bestBefore && run.totalScore > 0) {
-          bestBefore = run.totalScore;
-          setTimeout(() => void submitRun(ui.accountName!).then((msg) => ui.setAutoSubmit(`auto-saved · ${msg}`)).catch(() => ui.setAutoSubmit("could not save — try again from a new run", false)), 50);
-        } else if (ui.accountName) {
-          setTimeout(() => ui.setAutoSubmit(`not your best (${bestBefore.toLocaleString("en-US")}) — nothing to save`, false), 50);
+        // Signed in: every finished run posts itself. The server keeps only the
+        // best per player and says whether this one improved it, so no local
+        // "best so far" can go stale (a deleted board row used to haunt it).
+        if (ui.accountName && run.totalScore > 0) {
+          setTimeout(() => void submitRun(ui.accountName!).then((msg) => ui.setAutoSubmit(`auto-saved · ${msg}`, !msg.startsWith("not saved"))).catch(() => ui.setAutoSubmit("could not save — try again from a new run", false)), 50);
         }
         ui.toasts(recordRunEnd(meta, run));
         ui.showRunDiscoveries(meta, run);
