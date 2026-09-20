@@ -6,4 +6,4 @@
  * on a different version the score is stored *unverified* rather than
  * rejected: a deploy mid-run must never eat a real run.
  */
-export const RULES_VERSION = 10; // 10: Orbit swerves instead of pulling outward
+export const RULES_VERSION = 11; // 11: balls never sleep, Magnet Storm 0.6, pulled timers during storms

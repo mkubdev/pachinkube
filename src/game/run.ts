@@ -413,7 +413,7 @@ export class Run {
         this.sim.setGravityScaleAll(-0.55);
         break;
       case "magnet_storm":
-        this.sim.setGlobalPull(0.9);
+        this.sim.setGlobalPull(0.6); // 0.9 pressed balls into the edge peg columns
         break;
       case "slowmo":
         break;

@@ -232,6 +232,10 @@ export class Sim {
         .setTranslation(x, spawn.y ?? height + 0.5)
         .setLinvel(spawn.vx ?? 0, spawn.vy ?? 0)
         .setGravityScale(spawn.gravityScale ?? 1)
+        // A ball pressed against a peg by a pull has zero velocity; if it fell
+        // asleep there, the end of the pull would leave it floating. Balls
+        // never sleep — there are at most a dozen of them.
+        .setCanSleep(false)
         .setCcdEnabled(true),
     );
     const col = this.world.createCollider(
@@ -395,6 +399,8 @@ export class Sim {
   /** Extra centre pull applied to every ball, on top of per-ball `pull`. */
   setGlobalPull(pull: number): void {
     this.globalPull = pull;
+    // Belt and braces with setCanSleep(false): whatever was leaning on a peg falls now.
+    if (pull === 0) for (const body of this.balls.values()) body.wakeUp();
   }
 
   armPortals(count: number): void {
@@ -503,12 +509,13 @@ export class Sim {
       else meta.still = 0;
       // Hard timer: a ball gets BALL_LIFETIME_TICKS, a pulled ball less, then it is
       // pocketed where it is. Nothing should hold a round open for half a minute.
-      const lifetime = meta.pull !== 0 ? PULLED_LIFETIME_TICKS : BALL_LIFETIME_TICKS;
+      const pulled = meta.pull !== 0 || this.globalPull !== 0;
+      const lifetime = pulled ? PULLED_LIFETIME_TICKS : BALL_LIFETIME_TICKS;
       if (this.tick - meta.born > lifetime) {
         forced.push([id, this.bucketAt(x)]);
         continue;
       }
-      const staleLimit = meta.pull !== 0 ? staleTicksPulled : staleTicks;
+      const staleLimit = pulled ? staleTicksPulled : staleTicks;
       if (meta.still < stillTicks && meta.stale < staleLimit) continue;
       meta.still = 0;
       meta.stale = 0;
