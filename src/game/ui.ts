@@ -528,11 +528,11 @@ export class GameUI {
    * (/s is a server route with Open Graph tags). Native share sheet on phones,
    * clipboard elsewhere.
    */
-  private async share(score: number): Promise<void> {
-    const name = (this.accountName ?? this.submittedName ?? "").trim();
+  private async share(score: number, msgEl?: HTMLElement | null, who?: string): Promise<void> {
+    const name = (who ?? this.accountName ?? this.submittedName ?? "").trim();
     const url = `${location.origin}/s?score=${score}${name ? `&name=${encodeURIComponent(name)}` : ""}`;
     const text = `Try to beat my score: ${score.toLocaleString("en-US")}`;
-    const msg = this.modal.querySelector<HTMLElement>("#share-msg");
+    const msg = msgEl ?? this.modal.querySelector<HTMLElement>("#share-msg");
     const say = (s: string) => { if (msg) msg.textContent = s; };
     try {
       if (navigator.share) {
@@ -592,12 +592,20 @@ export class GameUI {
         `<h3>BEST RUNS <small>(${data.storage})</small></h3>` +
         (data.top.length
           ? `<ol>${data.top
-              .map(
-                (r, i) =>
-                  `<li class="${me && r.name.toLowerCase() === me ? "me" : ""}${i === 0 ? " first" : ""}"><span class="rank">${i + 1}</span><span class="who">${r.discord ? '<i class="dc" title="Discord account">⌁</i> ' : ""}${escapeHtml(r.name)}${r.verified ? ' <i class="ok" title="replay verified">✓</i>' : ""}</span><span class="pts">${formatScore(r.score)}</span></li>`,
-              )
-              .join("")}</ol>`
+              .map((r, i) => {
+                const mine = !!me && r.name.toLowerCase() === me;
+                // Your own row gets a share button: brag about the board score any time, not only right after a run.
+                const share = mine ? `<button class="share-row" data-score="${r.score}" data-name="${escapeHtml(r.name)}" title="Share: Try to beat my score">⤴</button>` : "";
+                return `<li class="${mine ? "me" : ""}${i === 0 ? " first" : ""}"><span class="rank">${i + 1}</span><span class="who">${r.discord ? '<i class="dc" title="Discord account">⌁</i> ' : ""}${escapeHtml(r.name)}${r.verified ? ' <i class="ok" title="replay verified">✓</i>' : ""}</span><span class="pts">${formatScore(r.score)}${share}</span></li>`;
+              })
+              .join("")}</ol><small class="share-row-msg keys"></small>`
           : `<p>nobody yet</p>`);
+      box.querySelectorAll<HTMLButtonElement>(".share-row").forEach((b) =>
+        b.addEventListener("click", (ev) => {
+          ev.stopPropagation();
+          void this.share(Number(b.dataset.score), box.querySelector<HTMLElement>(".share-row-msg"), b.dataset.name);
+        }),
+      );
     } catch {
       box.textContent = "leaderboard unavailable";
     }
