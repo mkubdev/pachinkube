@@ -1,0 +1,46 @@
+<!doctype html><html><head><meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  html,body{margin:0;width:1200px;height:630px;background:#07070c;overflow:hidden;font-family:"Space Grotesk",sans-serif;color:#c8d0d8}
+  .bg{position:absolute;inset:0;background:radial-gradient(700px 500px at 30% 50%, rgba(255,45,149,.22), transparent 70%), radial-gradient(600px 500px at 78% 40%, rgba(45,226,255,.2), transparent 70%)}
+  .board{position:absolute;left:820px;top:55px;width:320px;height:520px;border-radius:10px;background:linear-gradient(#141422,#0d0d18);box-shadow:0 0 60px rgba(255,45,149,.25), inset 0 0 40px rgba(0,0,0,.6);overflow:hidden}
+  .rail{position:absolute;top:24px;bottom:24px;width:6px;border-radius:3px}
+  .rail.l{left:14px;background:#ff2d95;box-shadow:0 0 22px #ff2d95}
+  .rail.r{right:14px;background:#2de2ff;box-shadow:0 0 22px #2de2ff}
+  .peg{position:absolute;width:14px;height:14px;border-radius:50%;background:#0e3b45}
+  .peg.lit{background:#ff5fb0;box-shadow:0 0 16px #ff2d95}
+  .peg.fire{background:#ff6a00;box-shadow:0 0 18px #ff6a00}
+  .peg.ice{background:#9fe8ff;box-shadow:0 0 18px #9fe8ff}
+  .peg.bump{width:26px;height:26px;margin:-6px;background:#ffb000;box-shadow:0 0 22px #ffb000}
+  .ball{position:absolute;width:20px;height:20px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#fff,#9aa4b0 60%,#4a5262);box-shadow:0 0 14px rgba(255,255,255,.6)}
+  .ball.rb{background:conic-gradient(#ff2d95,#ffd34d,#2de2ff,#b46cff,#ff2d95);box-shadow:0 0 22px #ff2d95}
+  .pocket{position:absolute;bottom:26px;height:8px;width:38px;border-radius:2px;background:#2de2ff;box-shadow:0 0 12px #2de2ff}
+  .pocket.j{background:#ff2d95;box-shadow:0 0 14px #ff2d95}
+  h1{position:absolute;left:80px;top:120px;margin:0;font-family:Orbitron,sans-serif;font-weight:900;font-size:70px;letter-spacing:.1em;color:#fff;text-shadow:0 0 30px rgba(255,45,149,.9),0 0 70px rgba(255,45,149,.5)}
+  h1 span{color:#ff2d95}
+  .tag{position:absolute;left:84px;top:215px;font-family:Orbitron,sans-serif;font-size:22px;letter-spacing:.34em;color:#2de2ff;text-shadow:0 0 18px rgba(45,226,255,.8)}
+  p{position:absolute;left:84px;top:270px;width:640px;margin:0;font-size:27px;line-height:1.35;color:#c8d0d8}
+  .chips{position:absolute;left:84px;top:420px;display:flex;gap:12px}
+  .chip{padding:8px 16px;border:1px solid #2a2440;border-radius:8px;background:rgba(10,10,20,.8);font-size:20px;color:#9aa4b0}
+  .chip b{color:#ffd34d;font-family:Orbitron,sans-serif;font-size:18px;letter-spacing:.08em}
+  .url{position:absolute;left:84px;bottom:36px;font-family:Orbitron,sans-serif;font-size:18px;letter-spacing:.2em;color:#5a6470}
+  .combo{position:absolute;right:80px;top:30px;font-family:Orbitron,sans-serif;font-weight:900;font-size:58px;color:#ffd34d;text-shadow:0 0 26px rgba(255,211,77,.95)}
+  .combo small{display:block;font-size:12px;letter-spacing:.4em;color:#9aa4b0;text-align:right}
+</style></head><body>
+<div class="bg"></div>
+<h1>PACHIN<span>KUBE</span></h1>
+<div class="tag">PACHINKO · ROGUELITE</div>
+<p>Balls, charms, elements and absurd combos.<br>Chain reactions. Endless rounds. One board.</p>
+<div class="chips"><div class="chip"><b>25</b> balls</div><div class="chip"><b>58</b> charms</div><div class="chip"><b>7</b> combo events</div><div class="chip">in the browser</div></div>
+<div class="url">PACHINKUBE.VERCEL.APP</div>
+<div class="board">
+  <div class="rail l"></div><div class="rail r"></div>
+  <div class="combo">47<small>COMBO</small></div>
+  <script>
+    const B=document.currentScript.parentElement;const cls=['','','','lit','','fire','','','ice','','lit','','','bump','','','lit','','','fire','','','','lit','ice','','','','lit','',''];
+    let k=0;for(let r=0;r<9;r++){const cols=r%2?6:7;for(let c=0;c<cols;c++){const d=document.createElement('div');d.className='peg '+(cls[(k++)%cls.length]||'');d.style.left=(40+(r%2?21:0)+c*39)+'px';d.style.top=(110+r*44)+'px';B.appendChild(d);}}
+    for(const [x,y,rb] of [[120,180,0],[210,290,1],[160,410,0],[250,150,0]]){const b=document.createElement('div');b.className='ball'+(rb?' rb':'');b.style.left=x+'px';b.style.top=y+'px';B.appendChild(b);}
+    for(let i=0;i<7;i++){const p=document.createElement('div');p.className='pocket'+(i===3?' j':'');p.style.left=(26+i*41)+'px';B.appendChild(p);}
+  </script>
+</div>
+</body></html>

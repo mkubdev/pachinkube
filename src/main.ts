@@ -182,6 +182,14 @@ let curr: Snapshot = prev;
 let aimX: number | null = 0;
 // ?auto=1 starts the deterministic auto-drop: dev/screenshot aid, not a feature.
 let auto = params.get("auto") === "1";
+// Arrived from a share link: say whose score to beat.
+{
+  const challenge = Number(params.get("challenge"));
+  const by = (params.get("by") ?? "").trim().slice(0, 24);
+  if (Number.isFinite(challenge) && challenge > 0) {
+    setTimeout(() => ui.notice(`BEAT ${by ? by.toUpperCase() + "'S " : ""}${Math.floor(challenge).toLocaleString("en-US")}`), 600);
+  }
+}
 
 function drop(): void {
   audio.unlock();

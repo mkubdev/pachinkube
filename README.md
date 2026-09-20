@@ -163,6 +163,17 @@ Keys: **C** collection · **L** global scoreboard · **M** lofi girl radio
 `?auto=1`, `?pre=N` (pre-roll N ticks), `?charms=a,b` (start holding charms),
 `?mute=1`, `?collection=1`.
 
+## Sharing
+
+`index.html` carries Open Graph / Twitter tags and `public/og.png` (1200×630,
+rendered from `tools/og.html` with headless Edge), so a pasted link shows a
+neon preview. The end screen's **challenge a friend** button shares
+`/s?score=N&name=…` (native share sheet on phones, clipboard elsewhere) with
+the text *Try to beat my score: N*. `/s` is a server route (`api/share.ts`,
+rewritten in `vercel.json`) that answers with Open Graph tags carrying the
+score and name — *Kube scored 4,505,110 in PACHINKUBE* — and forwards humans to
+the game with `?challenge=N&by=…`, which greets them with *BEAT KUBE'S 4,505,110*.
+
 ## Phones
 
 The game is playable on a phone in portrait. Touch aims while the finger is

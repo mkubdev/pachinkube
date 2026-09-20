@@ -505,9 +505,11 @@ export class GameUI {
         <div id="run-discoveries"></div>
         <div id="board" class="dim">loading leaderboard…</div>
         <button id="again" class="primary big">▶ &nbsp;NEW RUN</button>
+        ${run.totalScore > 0 ? `<button id="share" class="share">⤴ &nbsp;challenge a friend</button><small id="share-msg" class="keys"></small>` : ""}
         <small class="keys">space / enter · new run</small>
       </div>`;
     this.modal.querySelector("#again")!.addEventListener("click", () => this.onNewRun?.());
+    this.modal.querySelector("#share")?.addEventListener("click", () => void this.share(run.totalScore));
     const form = this.modal.querySelector<HTMLFormElement>("#submit");
     form?.addEventListener("submit", async (ev) => {
       ev.preventDefault();
@@ -519,6 +521,30 @@ export class GameUI {
       void this.loadBoard();
     });
     void this.loadBoard();
+  }
+
+  /**
+   * "Try to beat my score: N" with a link whose preview carries the score
+   * (/s is a server route with Open Graph tags). Native share sheet on phones,
+   * clipboard elsewhere.
+   */
+  private async share(score: number): Promise<void> {
+    const name = (this.accountName ?? this.submittedName ?? "").trim();
+    const url = `${location.origin}/s?score=${score}${name ? `&name=${encodeURIComponent(name)}` : ""}`;
+    const text = `Try to beat my score: ${score.toLocaleString("en-US")}`;
+    const msg = this.modal.querySelector<HTMLElement>("#share-msg");
+    const say = (s: string) => { if (msg) msg.textContent = s; };
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: "PACHINKUBE", text, url });
+        say("shared");
+        return;
+      }
+      await navigator.clipboard.writeText(`${text} ${url}`);
+      say("copied — paste it to your friends");
+    } catch {
+      say(`${text} ${url}`); // last resort: show it so it can be copied by hand
+    }
   }
 
   /** Result line of an automatic (signed-in) submission on the end screen. */

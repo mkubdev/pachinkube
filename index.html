@@ -7,6 +7,20 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <title>PACHINKUBE</title>
+    <meta name="description" content="A pachinko roguelite: balls, charms, elements, absurd combos. Play in the browser, no install." />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="PACHINKUBE" />
+    <meta property="og:title" content="PACHINKUBE" />
+    <meta property="og:description" content="A pachinko roguelite: balls, charms, elements, absurd combos. Play in the browser, no install." />
+    <meta property="og:url" content="https://pachinkube.vercel.app/" />
+    <meta property="og:image" content="https://pachinkube.vercel.app/og.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="PACHINKUBE — neon pachinko board" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="PACHINKUBE" />
+    <meta name="twitter:description" content="A pachinko roguelite: balls, charms, elements, absurd combos. Play in the browser, no install." />
+    <meta name="twitter:image" content="https://pachinkube.vercel.app/og.png" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -140,6 +154,9 @@
       .panel.end button.primary.big:hover { transform: translateY(-1px); box-shadow: 0 0 40px rgba(255,45,149,.9); }
       @keyframes pulseBtn { to { box-shadow: 0 0 44px rgba(255,45,149,.9); } }
       .panel.end .keys { color: #5a6470; font-size: 11px; margin-top: 6px; letter-spacing: .06em; }
+      .panel.end button.share { margin-top: 10px; font-family: var(--display); font-size: 12px; letter-spacing: .14em; color: var(--cyan); border-color: rgba(45,226,255,.5); }
+      .panel.end button.share:hover { background: rgba(45,226,255,.1); }
+      .panel.end #share-msg { color: var(--cyan); min-height: 1.2em; user-select: text; -webkit-user-select: text; }
       .offers { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; }
       .offer { text-align: left; padding: 14px; background: #12121f; border: 1px solid #2a2440; border-radius: 8px; color: inherit; font: inherit; cursor: pointer; transition: transform .1s, border-color .1s; }
       .offer:hover { transform: translateY(-2px); border-color: var(--cyan); }
