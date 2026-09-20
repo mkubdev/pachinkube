@@ -35,6 +35,8 @@ export interface MetaStats {
   /** Combo events fired, and portal rides taken. */
   comboEvents: number;
   portals: number;
+  /** Balls popped off bumper pegs. */
+  bumperHits: number;
 }
 
 export interface MetaState {
@@ -59,7 +61,7 @@ export function emptyMeta(): MetaState {
     stats: {
       runs: 0, wins: 0, losses: 0, ballsDropped: 0, pegHits: 0, jackpots: 0,
       roundsCleared: 0, bestRound: 0, bestCombo: 0, bestScore: 0, bestBallScore: 0, totalScore: 0,
-      reactions: 0, steams: 0, comboEvents: 0, portals: 0,
+      reactions: 0, steams: 0, comboEvents: 0, portals: 0, bumperHits: 0,
     },
     discovered: { charms: [], balls: ["steel"] },
     feats: {},
@@ -125,6 +127,10 @@ export const UNLOCK_RULES: UnlockRule[] = [
   { kind: "charm", id: "cold_snap", stat: "roundsCleared", value: 12, hint: "Clear 12 rounds (lifetime)" },
   { kind: "charm", id: "ball_lightning", stat: "bestCombo", value: 60, hint: "Reach a 60 combo" },
   { kind: "charm", id: "melting_point", stat: "steams", value: 30, hint: "Trigger 30 steam reactions" },
+  // bumpers
+  { kind: "charm", id: "pop_bumpers", stat: "roundsCleared", value: 5, hint: "Clear 5 rounds (lifetime)" },
+  { kind: "charm", id: "super_bumpers", stat: "bestCombo", value: 50, hint: "Reach a 50 combo" },
+  { kind: "charm", id: "bumper_crown", stat: "bumperHits", value: 150, hint: "Pop off 150 bumpers" },
   { kind: "charm", id: "elemental_surge", stat: "reactions", value: 800, hint: "Trigger 800 elemental reactions" },
   { kind: "charm", id: "solstice", stat: "bestRound", value: 7, hint: "Reach round 7" },
   { kind: "charm", id: "thunderhead", stat: "reactions", value: 200, hint: "Trigger 200 elemental reactions" },
@@ -200,6 +206,7 @@ export const THRESHOLD_FEATS: ThresholdFeat[] = [
   ...tier("roundsCleared", "cleared", ["Journeyman", "Veteran", "Machine Spirit"], [25, 100, 400], (v) => `Clear ${v} rounds (lifetime).`),
   ...tier("totalScore", "total", ["Millionaire", "Multimillionaire", "Billionaire"], [1_000_000, 10_000_000, 1_000_000_000], (v) => `Score ${v.toLocaleString("en-US")} across all runs.`),
   ...tier("losses", "losses", ["Bruised", "Stubborn", "Unbreakable"], [5, 25, 100], (v) => `Lose ${v} runs and come back.`),
+  ...tier("bumperHits", "bumpers", ["Pinball", "Wizard", "Tilt"], [50, 500, 5000], (v) => `Pop off ${v} bumpers.`),
 ];
 
 const MOMENT_FEATS = {
@@ -337,6 +344,9 @@ export function recordEvents(
         break;
       case "blink":
         feat(meta, "first_blink", out, now);
+        break;
+      case "bumper":
+        s.bumperHits++;
         break;
       case "ballScored": {
         const centre = (run.sim.config.buckets - 1) / 2;

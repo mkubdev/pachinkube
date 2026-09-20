@@ -6,6 +6,7 @@
  * Everything the UI needs arrives as `GameEvent`s from `step()`.
  */
 import { Sim } from "../sim/world.js";
+import { BUMPER_RESTITUTION } from "../sim/types.js";
 import type { Rng } from "../sim/rng.js";
 import type { BallSpawn, SimEvent } from "../sim/types.js";
 import { BALL_TYPES, SHOP_BALLS, STARTING_BAG, type BallTypeId } from "./balls.js";
@@ -28,6 +29,13 @@ import { COMBO_EVENTS, COMBO_EVENT_COOLDOWN_TICKS, COMBO_EVENT_EVERY, COMBO_EVEN
 export const CLEAR_ROUND = 8;
 export const ROUNDS = Number.POSITIVE_INFINITY;
 export const BALLS_PER_ROUND = 6;
+/** One extra ball per round every this many rounds. */
+export const BALL_EVERY_ROUNDS = 3;
+/** Pop bumpers: seeded pegs that shove the ball and count as several combo hits. */
+export const BUMPERS_PER_ROUND = 3;
+export const BUMPER_COMBO = 3; // on top of the hit itself
+export const BUMPER_KICK = 3.2;
+export const BUMPER_CHIPS = 15;
 export const SHOP_OFFERS = 3;
 
 export type Phase = "drop" | "shop" | "won" | "lost";
@@ -35,7 +43,7 @@ export type Phase = "drop" | "shop" | "won" | "lost";
 export type Offer = { kind: "charm"; id: CharmId } | { kind: "ball"; id: BallTypeId; count: number };
 
 /** Peg hits closer together than this (in ticks) chain into one combo. */
-export const COMBO_WINDOW_TICKS = 42; // 0.3 s at 120 Hz: multiball must actually be dense
+export const COMBO_WINDOW_TICKS = 54; // 0.3 s at 120 Hz: multiball must actually be dense
 export const COMBO_MILESTONE = 10;
 
 export type GameEvent =
@@ -68,6 +76,10 @@ export type GameEvent =
   /** Quantum ball teleported. */
   | { type: "blink"; ball: number; from: { x: number; y: number }; to: { x: number; y: number } }
   | { type: "pegsReset" }
+  /** This round's bumper pegs (renderer sizes and colours them). */
+  | { type: "bumpers"; pegs: number[] }
+  /** A ball popped off a bumper. */
+  | { type: "bumper"; peg: number; x: number; y: number; combo: number; ball: number }
   | { type: "ballScored"; ball: number; score: number; bucket: number; chips: number; mult: number }
   | { type: "roundEnd"; round: number; passed: boolean; roundScore: number; target: number }
   | { type: "phase"; phase: Phase }
@@ -96,6 +108,8 @@ export class Run {
   readonly ownedBalls: BallTypeId[] = [...STARTING_BAG];
   readonly charms: CharmId[] = [];
   readonly lit = new Set<number>();
+  /** Peg ids that are pop bumpers this round. */
+  readonly bumpers = new Set<number>();
   offers: Offer[] = [];
   readonly log: RunInput[] = [];
   readonly balls = new Map<number, BallScoreState>();
@@ -217,6 +231,9 @@ export class Run {
   /** Drop the next ball from the bag at board x. Returns false if not allowed. */
   drop(x: number): boolean {
     if (this.phase !== "drop" || this.ballsLeft <= 0) return false;
+    // Never release a ball outside the outermost peg column.
+    const lim = this.sim.dropLimit;
+    x = Math.max(-lim, Math.min(lim, x));
     const type = this.bag.shift() ?? "steel";
     this.ballsLeft--;
     this.log.push({ tick: this.sim.tick, action: { type: "drop", x } });
@@ -414,7 +431,7 @@ export class Run {
   private setPegElement(peg: number, state: PegElementState | null, out: GameEvent[]): void {
     if (state) this.pegElements.set(peg, state);
     else this.pegElements.delete(peg);
-    this.sim.setPegRestitution(peg, state?.el === "ice" ? ICE_RESTITUTION : this.sim.config.restitution);
+    this.sim.setPegRestitution(peg, state?.el === "ice" ? ICE_RESTITUTION : this.bumpers.has(peg) ? BUMPER_RESTITUTION : this.sim.config.restitution);
     out.push({ type: "pegElement", peg, el: state?.el ?? null });
   }
 
@@ -443,14 +460,26 @@ export class Run {
       const ids = shuffle(this.sim.pegs.map((p) => p.id), this.sim.streams.layout).slice(0, frozen);
       for (const peg of ids) this.freezePeg(peg, pending);
     }
+    // Bumpers: a few seeded pegs in the middle rows (never the top row, where a
+    // pop would fire the drop straight back up, nor the bottom row).
+    for (const p of this.bumpers) this.sim.setPegBumper(p, false);
+    this.bumpers.clear();
+    const H = this.sim.config.height;
+    const nb = BUMPERS_PER_ROUND + this.sumCharm((c) => c.extraBumpers ?? 0);
+    const candidates = this.sim.pegs.filter((p) => p.y < H * 0.8 && p.y > H * 0.3 && !this.pegElements.has(p.id)).map((p) => p.id);
+    for (const id of shuffle(candidates, this.sim.streams.layout).slice(0, nb)) {
+      this.bumpers.add(id);
+      this.sim.setPegBumper(id, true);
+    }
+    pending.push({ type: "bumpers", pegs: [...this.bumpers].sort((a, b) => a - b) });
     this.pendingRoundEvents = pending;
     this.combo = 0;
     this.lastHitTick = -1;
     this.landedThisRound = 0;
     this.ballExtra.clear();
     this.phase = "drop";
-    // One more ball every five rounds, so deep runs keep widening.
-    this.ballsLeft = this.ballsPerRound + Math.floor((this.round - 1) / 5) + this.sumCharm((c) => c.extraBalls ?? 0);
+    // One more ball every few rounds, so deep runs keep widening.
+    this.ballsLeft = this.ballsPerRound + Math.floor((this.round - 1) / BALL_EVERY_ROUNDS) + this.sumCharm((c) => c.extraBalls ?? 0);
     this.activeEffects.clear();
     this.secondWindUsed = false;
     this.sim.setGravityScaleAll(1);
@@ -575,22 +604,37 @@ export class Run {
 
       // Combo: hits chained across every ball in flight. Milestones pay out
       // +1 mult to all balls in play, so multiball is worth engineering.
-      this.combo++;
+      // A bumper counts as several hits at once, so milestones and events are
+      // detected by crossing, not equality.
+      const prevCombo = this.combo;
+      const isBumper = this.bumpers.has(ev.peg);
+      const bumperCombo = isBumper ? BUMPER_COMBO + this.sumCharm((c) => c.bumperCombo ?? 0) : 0;
+      this.combo += 1 + bumperCombo;
       this.bestCombo = Math.max(this.bestCombo, this.combo);
       this.lastHitTick = this.sim.tick;
-      const milestone = this.combo % this.comboMilestone() === 0;
-      out.push({ type: "combo", count: this.combo, milestone });
+      const m = this.comboMilestone();
+      const milestones = Math.floor(this.combo / m) - Math.floor(prevCombo / m);
+      out.push({ type: "combo", count: this.combo, milestone: milestones > 0 });
       // Combo events: every 50th hit, but never two within the cooldown.
       const every = Math.max(20, COMBO_EVENT_EVERY + this.sumCharm((c) => c.eventEveryDelta ?? 0));
-      if (this.combo % every === 0 && this.sim.tick - this.lastComboEventTick >= COMBO_EVENT_COOLDOWN_TICKS) {
+      const crossedEvent = Math.floor(this.combo / every) > Math.floor(prevCombo / every);
+      if (crossedEvent && this.sim.tick - this.lastComboEventTick >= COMBO_EVENT_COOLDOWN_TICKS) {
         this.lastComboEventTick = this.sim.tick;
         const kind = weightedPick(this.sim.streams.fx, COMBO_EVENT_KINDS, (k) => COMBO_EVENTS[k].weight);
         this.triggerComboEvent(kind, out);
       }
-      if (milestone) {
-        for (const b of this.balls.values()) b.mult += 1;
-        out.push({ type: "popup", x: 0, y: this.sim.config.height * 0.55, text: `COMBO ${this.combo} · +1 mult all`, kind: "mult" });
+      if (milestones > 0) {
+        for (const b of this.balls.values()) b.mult += milestones;
+        out.push({ type: "popup", x: 0, y: this.sim.config.height * 0.55, text: `COMBO ${this.combo} · +${milestones} mult all`, kind: "mult" });
         out.push({ type: "shake", strength: 0.35 });
+      }
+      if (isBumper) {
+        ball.chips += Math.round(BUMPER_CHIPS * type.chipFactor);
+        const bm = this.sumCharm((c) => c.bumperMult ?? 0);
+        if (bm > 0) ctx.addMult(bm, "bumper");
+        this.sim.kickBall(ball.id, peg.x, peg.y, BUMPER_KICK);
+        out.push({ type: "bumper", peg: ev.peg, x: peg.x, y: peg.y, combo: this.combo, ball: ball.id });
+        out.push({ type: "popup", x: peg.x, y: peg.y + 0.35, text: `BUMPER +${1 + bumperCombo} combo`, kind: "mult" });
       }
 
       if (ball.type === "spark" && this.sim.streams.fx.next() < 0.25) ctx.addMult(1, "spark");

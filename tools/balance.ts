@@ -8,7 +8,10 @@
 import { Run } from "../src/game/run.js";
 import { Rng } from "../src/sim/rng.js";
 import { roundTarget } from "../src/game/scoring.js";
-import { CLEAR_ROUND as ROUNDS } from "../src/game/run.js";
+import { CLEAR_ROUND } from "../src/game/run.js";
+
+/** BALANCE_ROUNDS=12 probes the endless rounds too (the run is capped there). */
+const ROUNDS = Number(process.env.BALANCE_ROUNDS ?? CLEAR_ROUND);
 
 async function playOne(seed: string, maxTicks: number) {
   const run = await Run.create(seed, { rounds: ROUNDS });

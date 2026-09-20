@@ -73,7 +73,7 @@ export class GameUI {
         <button id="collection-btn" title="Collection (C)">◈ collection</button>
         <span id="account"></span>
       </div>
-      <div id="hint">move: aim · click / space: drop · A: auto · C: collection · L: scores · M: music</div>`;
+      <div id="hint">move: aim · click / space: drop · <b>hold to stream</b> · A: auto · C: collection · L: scores · M: music</div>`;
     this.hud = this.root.querySelector("#hud")!;
     this.flightEl = this.root.querySelector("#flight")!;
     this.charmsEl = this.root.querySelector("#charms")!;

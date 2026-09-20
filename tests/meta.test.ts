@@ -54,7 +54,7 @@ describe("meta progression", () => {
     const notices = recordEvents(meta, events, run, tracker, () => "2026-09-19T00:00:00Z");
     // 60 combo: every bestCombo gate up to 60 opens plus the 40-combo feat; balls sit on the peg ladder.
     expect(notices.map((n) => `${n.kind}:${"id" in n ? n.id : ""}`).sort()).toEqual(
-      ["feat:combo_40", "unlock:long_fuse", "unlock:milestone_maker", "unlock:split_shot", "unlock:ball_lightning"].sort(),
+      ["feat:combo_40", "unlock:long_fuse", "unlock:milestone_maker", "unlock:split_shot", "unlock:ball_lightning", "unlock:super_bumpers"].sort(),
     );
     expect(isUnlocked(meta, "charm", "split_shot")).toBe(true);
     expect(isUnlocked(meta, "charm", "second_wind")).toBe(false);

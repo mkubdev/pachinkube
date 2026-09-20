@@ -89,7 +89,29 @@ twice (×1.5, ×2, …), *Jackpot Growth* adds +1 to the centre per round cleare
 (1 round) makes the edges the jackpots. Labels bump and strips brighten as the
 multipliers move.
 
-**Combos.** Peg hits closer than **0.35 s** apart — across every ball in flight —
+**Bumpers.** Every round three seeded pegs in the middle rows are **pop
+bumpers**: twice the radius, bouncier, amber. A ball that touches one is shoved
+away (`Sim.kickBall`), earns bonus chips, and the hit counts as **four combo
+hits** at once (milestones and combo events are detected by crossing, so a
+bumper can pay a milestone mid-jump). *Pop Bumpers* adds two more per round,
+*Super Bumpers* makes each worth +3 more combo, *Bumper Crown* gives +1 mult
+per pop. Bumpers are part of the seeded layout, so replays verify.
+
+**No free fall.** The side channels used to let a ball drop from the top to an
+edge pocket without touching anything. Two fixes: drops are clamped to the
+outermost peg column (the aim marker shows the clamped spot), and every odd
+row has a **wall fin** on each side — a short neon ramp from the wall down and
+inward that throws a channel ball back into the pegs (`Sim.fins`, drawn by the
+renderer, counted as a wall hit for Bumper Kings). The fin tip stays a
+Heavy-width clear of the edge pegs so nothing wedges; `tests/bumpers.test.ts`
+drops Steel, Heavy and Cluster down both channels to prove it.
+
+**Streaming.** Hold the mouse button, a finger, or space and a ball leaves every
+0.4 s at the aim — the pachinko handle. A tap is still a single drop.
+
+**Balls.** Six per round, **+1 every 3 rounds** (9 by round 10), plus charms.
+
+**Combos.** Peg hits closer than **0.45 s** apart — across every ball in flight —
 chain into one combo (it was 0.6 s; with six balls in play that never lapsed
 and every combo-gated unlock fell in one run). Every 10th hit is a milestone:
 **+1 mult to all balls in play**, so multiball is worth engineering. The
@@ -334,8 +356,10 @@ NAT cannot reach the add-on's `localhost:9876`.
   over rounds 1–8 before the 2026-09-19 easing); real runs stalled around
   round 10, so the curve was softened to 1.58×/1.38×. Tune in `scoring.ts` and
   re-run the probe.
-- **Combo window** is 0.35 s (42 ticks): a lone ball falling one row from rest
-  takes ~0.4 s, so single-ball chains still break between rows by design.
+- **Combo window** is 0.45 s (54 ticks), tuned so a stream of balls 0.4 s apart
+  keeps the chain alive; it was 0.35 s, which forced players to dump the whole
+  bag at once to combo. Probe through round 12 after this change (dumb policy,
+  full pool): 100/100/100/100/100/98/92/78/75/81/65/55 % pass, 6 clears in 40.
 - **Rate limiting** on `POST /api/scores` (replay costs CPU).
 - **Cabinet body** still reads light under the studio HDRI; darken or re-export.
 - **Leaderboard identity**: `api/scores` still keys on the typed name; switch to

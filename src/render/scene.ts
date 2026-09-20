@@ -160,7 +160,7 @@ const auraFrag = /* glsl */ `
     gl_FragColor = vec4(c * alpha, 0.0);
   }`;
 
-import type { Peg, Snapshot } from "../sim/types.js";
+import { BUMPER_RADIUS, type Fin, type Peg, type Snapshot } from "../sim/types.js";
 import { BALL_TYPES, type BallTypeId } from "../game/balls.js";
 
 export const MAX_BALLS = 1024;
@@ -171,6 +171,9 @@ const NEON_CYAN = 0x2de2ff;
 // is pushed past 1.0 so it glows.
 const PEG_UNLIT = new THREE.Color(0x0e3b45);
 const PEG_LIT = new THREE.Color(1.0, 0.18, 0.58).multiplyScalar(2.2);
+/** Bumpers glow amber so they read as targets before the first hit. */
+const PEG_BUMPER = new THREE.Color(1.0, 0.5, 0.08).multiplyScalar(1.5);
+const PEG_BUMPER_LIT = new THREE.Color(1.0, 0.82, 0.25).multiplyScalar(2.4);
 const PEG_HOT = new THREE.Color(1.0, 0.9, 1.0).multiplyScalar(4.0);
 const SHARD_COLOR = new THREE.Color(0xfff1a8);
 const TRAIL_SPEED = 5.5;
@@ -197,6 +200,8 @@ export class BoardRenderer {
   private readonly auraSeed: THREE.InstancedBufferAttribute;
   private pegStampAttr: THREE.InstancedBufferAttribute | null = null;
   private pegBase: Peg[] = [];
+  private pegBumper = new Uint8Array(0);
+  private finMeshes: THREE.Mesh[] = [];
   private readonly pocketStrips: THREE.Mesh[] = [];
   private readonly laser: THREE.Mesh;
   private laserLife = 0;
@@ -436,6 +441,32 @@ export class BoardRenderer {
     this.pegs = mesh;
     this.pegLit = new Uint8Array(pegs.length);
     this.pegPulse = new Float32Array(pegs.length);
+    this.pegBumper = new Uint8Array(pegs.length);
+  }
+
+  private pegRadius(i: number): number {
+    return this.pegBumper[i] ? BUMPER_RADIUS : (this.pegBase[i]?.radius ?? 0.08);
+  }
+
+  private pegColor(i: number): THREE.Color {
+    const lit = this.pegLit[i] === 1;
+    return this.pegBumper[i] ? (lit ? PEG_BUMPER_LIT : PEG_BUMPER) : lit ? PEG_LIT : PEG_UNLIT;
+  }
+
+  /** This round's bumper pegs: bigger and amber. Called with the new set every round. */
+  setPegBumpers(pegs: number[]): void {
+    if (!this.pegs) return;
+    this.pegBumper.fill(0);
+    for (const p of pegs) this.pegBumper[p] = 1;
+    for (let i = 0; i < this.pegBase.length; i++) {
+      const p = this.pegBase[i]!;
+      this.dummy.position.set(p.x, p.y, 0);
+      this.dummy.scale.setScalar(this.pegRadius(i));
+      this.dummy.updateMatrix();
+      this.pegs.setMatrixAt(i, this.dummy.matrix);
+      this.writePegColor(i, this.pegColor(i));
+    }
+    this.pegs.instanceMatrix.needsUpdate = true;
   }
 
   private writePegColor(i: number, c: THREE.Color): void {
@@ -499,7 +530,7 @@ export class BoardRenderer {
   setPegLit(peg: number, lit: boolean): void {
     if (!this.pegs) return;
     this.pegLit[peg] = lit ? 1 : 0;
-    this.writePegColor(peg, lit ? PEG_LIT : PEG_UNLIT);
+    this.writePegColor(peg, this.pegColor(peg));
   }
 
   /** Flash a peg white-hot; it decays back to its lit/unlit colour. */
@@ -513,7 +544,7 @@ export class BoardRenderer {
     this.pegLit.fill(0);
     this.pegPulse.fill(0);
     this.pulsing.clear();
-    for (let i = 0; i < this.pegs.count; i++) this.writePegColor(i, PEG_UNLIT);
+    for (let i = 0; i < this.pegs.count; i++) this.writePegColor(i, this.pegColor(i));
     this.resetPegElements();
   }
 
@@ -535,6 +566,28 @@ export class BoardRenderer {
   /** Momentary bloom surge for milestones and big landings. */
   kickBloom(strength: number): void {
     this.bloomKick = Math.min(2.5, this.bloomKick + strength);
+  }
+
+  /** Wall fins: short neon ramps in the wall colour (left magenta, right cyan). */
+  setFins(fins: Fin[]): void {
+    for (const m of this.finMeshes) {
+      this.scene.remove(m);
+      m.geometry.dispose();
+    }
+    this.finMeshes = [];
+    for (const f of fins) {
+      const dx = f.x2 - f.x1;
+      const dy = f.y2 - f.y1;
+      const color = f.x1 < 0 ? NEON_MAGENTA : NEON_CYAN;
+      const m = new THREE.Mesh(
+        new THREE.BoxGeometry(Math.hypot(dx, dy), 0.07, 0.3),
+        new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 1.6, roughness: 0.4 }),
+      );
+      m.position.set((f.x1 + f.x2) / 2, (f.y1 + f.y2) / 2, 0);
+      m.rotation.z = Math.atan2(dy, dx);
+      this.scene.add(m);
+      this.finMeshes.push(m);
+    }
   }
 
   setAim(x: number | null): void {
@@ -663,7 +716,7 @@ export class BoardRenderer {
         const o1 = curr.pegOffsets[i] ?? 0;
         const o0 = po ? (po[i] ?? o1) : o1;
         this.dummy.position.set(p.x + o0 + (o1 - o0) * alpha, p.y, 0);
-        this.dummy.scale.setScalar(p.radius);
+        this.dummy.scale.setScalar(this.pegRadius(i));
         this.dummy.updateMatrix();
         this.pegs.setMatrixAt(i, this.dummy.matrix);
       }
@@ -673,7 +726,7 @@ export class BoardRenderer {
       for (let i = 0; i < this.pegBase.length; i++) {
         const p = this.pegBase[i]!;
         this.dummy.position.set(p.x, p.y, 0);
-        this.dummy.scale.setScalar(p.radius);
+        this.dummy.scale.setScalar(this.pegRadius(i));
         this.dummy.updateMatrix();
         this.pegs.setMatrixAt(i, this.dummy.matrix);
       }
@@ -707,7 +760,7 @@ export class BoardRenderer {
     if (this.pegs && this.pulsing.size) {
       for (const i of this.pulsing) {
         const v = (this.pegPulse[i] = Math.max(0, this.pegPulse[i]! - dt * 5));
-        this.color.copy(this.pegLit[i] ? PEG_LIT : PEG_UNLIT).lerp(PEG_HOT, v * v);
+        this.color.copy(this.pegColor(i)).lerp(PEG_HOT, v * v);
         this.writePegColor(i, this.color);
         if (v <= 0) this.pulsing.delete(i);
       }

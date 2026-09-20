@@ -101,10 +101,10 @@ describe("passive charms", () => {
 
   it("long fuse and milestone maker change combo parameters", async () => {
     const run = await make("fuse");
-    expect(run.comboWindow()).toBe(42);
+    expect(run.comboWindow()).toBe(54);
     expect(run.comboMilestone()).toBe(10);
     run.charms.push("long_fuse", "milestone_maker", "milestone_maker", "milestone_maker");
-    expect(run.comboWindow()).toBe(72);
+    expect(run.comboWindow()).toBe(84);
     expect(run.comboMilestone()).toBe(5); // floored
   });
 
@@ -152,7 +152,7 @@ describe("passive charms", () => {
 });
 
 describe("board motion and ball scaling", () => {
-  it("adds a ball every five rounds", async () => {
+  it("adds a ball every three rounds", async () => {
     const run = await make("scale");
     const at = (round: number) => {
       (run as unknown as { round: number }).round = round;
@@ -160,9 +160,10 @@ describe("board motion and ball scaling", () => {
       return run.ballsLeft;
     };
     expect(at(1)).toBe(6);
-    expect(at(5)).toBe(6);
-    expect(at(6)).toBe(7);
-    expect(at(11)).toBe(8);
+    expect(at(3)).toBe(6);
+    expect(at(4)).toBe(7);
+    expect(at(7)).toBe(8);
+    expect(at(10)).toBe(9);
   });
 
   it("drift moves pegs deterministically and Restless Board keeps them moving", async () => {

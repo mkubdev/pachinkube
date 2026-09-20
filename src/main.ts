@@ -68,6 +68,7 @@ music.onChange = () => ui.setMusic(music.playing, music.volume, music.station);
 const dims = { width: run.sim.config.width, height: run.sim.config.height, buckets: run.sim.config.buckets };
 const view = new BoardRenderer(canvas, dims);
 view.setPegs(run.sim.pegs);
+view.setFins(run.sim.fins);
 void view.loadCabinet("assets/models/cabinet.glb");
 void view.loadEnvironment("assets/env/neon_photostudio_1k.hdr");
 
@@ -120,6 +121,7 @@ async function newRun(nextSeed: string): Promise<void> {
 
   view.resetForNewRun();
   view.setPegs(run.sim.pegs);
+  view.setFins(run.sim.fins);
   view.resetPegs();
   ui.resetRun();
   ui.setPockets(run.sim.bucketCenters, run.pocketMultipliers());
@@ -171,29 +173,64 @@ function drop(): void {
 // Mouse: hover aims, click drops. Touch/pen: the finger aims while it is down
 // and the ball drops where it lifts, so a tap drops at the tap and a drag lets
 // you line the shot up first without the ball leaving on contact.
-let dragging = false;
+// Hold to stream: keep the button/finger/space down and a ball leaves every
+// STREAM_MS at the aim — the pachinko handle. A stream of balls ~0.4 s apart
+// keeps the combo chain alive without dumping the whole bag at once.
+const STREAM_MS = 400;
+const STREAM_DELAY_MS = 320; // hold this long before the stream starts (a tap is a single drop)
+let dragging = false; // touch/pen finger down
+let holding = false; // mouse button down
+let spaceHeld = false;
+let holdSince = 0;
+let lastStreamAt = 0;
+let streamDrops = 0;
 function aimAt(e: PointerEvent): void {
-  aimX = view.boardXAt(e.clientX, e.clientY);
+  const x = view.boardXAt(e.clientX, e.clientY);
+  // The aim marker shows where the ball will actually be released (see Run.drop).
+  aimX = x === null ? null : Math.max(-run.sim.dropLimit, Math.min(run.sim.dropLimit, x));
   view.setAim(run.phase === "drop" ? aimX : null);
+}
+function beginHold(now: number): void {
+  holdSince = now;
+  lastStreamAt = now;
+  streamDrops = 0;
 }
 addEventListener("pointermove", (e) => {
   if (e.pointerType === "mouse" || dragging) aimAt(e);
 });
 canvas.addEventListener("pointerdown", (e) => {
   aimAt(e);
-  if (e.pointerType === "mouse") drop();
-  else {
+  beginHold(performance.now());
+  if (e.pointerType === "mouse") {
+    drop();
+    holding = true;
+  } else {
     dragging = true;
     canvas.setPointerCapture(e.pointerId);
   }
 });
 canvas.addEventListener("pointerup", (e) => {
+  holding = false;
   if (!dragging) return;
   dragging = false;
   aimAt(e);
-  drop();
+  if (streamDrops === 0) drop(); // a tap or a short drag: one ball where the finger lifted
 });
-canvas.addEventListener("pointercancel", () => (dragging = false));
+canvas.addEventListener("pointercancel", () => {
+  dragging = false;
+  holding = false;
+});
+addEventListener("keyup", (e) => {
+  if (e.code === "Space") spaceHeld = false;
+});
+/** Called every frame: feeds the stream while something is held. */
+function streamTick(now: number): void {
+  if (!(holding || dragging || spaceHeld) || run.phase !== "drop" || aimX === null) return;
+  if (now - holdSince < STREAM_DELAY_MS || now - lastStreamAt < STREAM_MS) return;
+  lastStreamAt = now;
+  streamDrops++;
+  drop();
+}
 
 // Phones stack the HUD above and the dock below the board: measure the bars
 // and let the camera fit the board into the band between them.
@@ -234,7 +271,14 @@ addEventListener("keydown", (e) => {
     again.click();
     return;
   }
-  if (e.code === "Space") { e.preventDefault(); drop(); }
+  if (e.code === "Space") {
+    e.preventDefault();
+    if (!e.repeat) {
+      drop();
+      spaceHeld = true;
+      beginHold(performance.now());
+    }
+  }
   if (e.code === "KeyA") auto = !auto;
   if (e.code === "KeyC") ui.toggleCollection(meta);
   if (e.code === "KeyL") void ui.toggleBoard();
@@ -351,6 +395,17 @@ function simStep(): void {
         break;
       case "pegElement":
         view.setPegElement(e.peg, e.el);
+        break;
+      case "bumpers":
+        view.setPegBumpers(e.pegs);
+        break;
+      case "bumper":
+        view.fx.ring(e.x, e.y, 0xffb000, 1.1, 0.35);
+        view.fx.burst(e.x, e.y, 0xffd34d, 26, 5.5, 0.16, 0.5);
+        view.pulsePeg(e.peg);
+        view.kickBloom(0.45);
+        view.addShake(0.15);
+        audio.mult();
         break;
       case "comboEvent": {
         ui.banner(e.label);
@@ -550,6 +605,7 @@ function loop(now: number): void {
   }
   const alpha = stepper.advance(dtSec * timeScale, simStep);
 
+  streamTick(now);
   view.setAim(run.phase === "drop" ? aimX : null);
   view.render(prev, curr, alpha, dtSec);
   ui.tickPopups(now);

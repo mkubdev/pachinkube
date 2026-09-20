@@ -73,7 +73,7 @@ describe("board geometry", () => {
       let lostAt = -1;
       for (let t = 0; t < 120 * 10 && lostAt < 0; t++) for (const e of sim.step()) if (e.type === "ballLost" && e.ball === id) lostAt = t;
       expect(lostAt, `x=${x}`).toBeGreaterThan(0);
-      expect(lostAt).toBeLessThan(120 * 6);
+      expect(lostAt).toBeLessThan(120 * 10); // fins now bounce it through the field instead of down the channel
       sim.dispose();
     }
   });

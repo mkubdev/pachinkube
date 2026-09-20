@@ -45,6 +45,13 @@ describe("main.ts wiring", () => {
     expect(main).toMatch(/canvas\.addEventListener\("pointercancel"/);
     expect(main).toMatch(/setPointerCapture\(e\.pointerId\)/);
     expect(main).toMatch(/view\.setViewInsets\(/);
+    expect(main).toMatch(/function streamTick/);
+    expect(main).toMatch(/streamTick\(now\)/);
+    expect(main).toMatch(/case "bumpers"/);
+    expect(main).toMatch(/case "bumper"/);
+    expect(main).toMatch(/view\.setPegBumpers\(e\.pegs\)/);
+    expect((main.match(/view\.setFins\(run\.sim\.fins\)/g) ?? []).length).toBeGreaterThanOrEqual(2);
+    expect(main).toMatch(/run\.sim\.dropLimit/);
     expect(main).toMatch(/new ResizeObserver/);
     const html = readFileSync("index.html", "utf8");
     expect(html).toMatch(/viewport-fit=cover/);

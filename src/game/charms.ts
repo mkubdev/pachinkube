@@ -150,6 +150,14 @@ export interface Charm {
   /** Reverse the pattern: edges become the jackpots. */
   invertPockets?: boolean;
 
+  // --- bumpers ---------------------------------------------------------------
+  /** Extra bumper pegs every round (3 by default). */
+  extraBumpers?: number;
+  /** Extra combo count on every bumper hit (a bumper is worth 1 + 3 by default). */
+  bumperCombo?: number;
+  /** Mult given to the ball on every bumper hit. */
+  bumperMult?: number;
+
   // --- combo economy ---------------------------------------------------------
   /** Change to how many combo hits a combo event needs (50 by default, floor 20). */
   eventEveryDelta?: number;
@@ -215,6 +223,10 @@ export type CharmId =
   | "jackpot_growth"
   | "pocket_lottery"
   | "inversion"
+  // bumpers
+  | "pop_bumpers"
+  | "super_bumpers"
+  | "bumper_crown"
   // combo economy
   | "echo_chamber"
   | "second_wind"
@@ -433,6 +445,11 @@ export const CHARMS: Record<CharmId, Charm> = {
   jackpot_growth: { id: "jackpot_growth", name: "Jackpot Growth", desc: "Centre pocket +1 for every round you clear this run.", rarity: "rare", jackpotGrowth: 1 },
   pocket_lottery: { id: "pocket_lottery", name: "Pocket Lottery", desc: "Each round one pocket is drawn and carries +3.", rarity: "common", lottery: 3 },
   inversion: { id: "inversion", name: "Inversion", desc: "For 1 round the edges are the jackpots and the centre pays ×1.", rarity: "uncommon", duration: 1, invertPockets: true },
+
+  // --- bumpers ---------------------------------------------------------------
+  pop_bumpers: { id: "pop_bumpers", name: "Pop Bumpers", desc: "Two more bumper pegs every round.", rarity: "uncommon", extraBumpers: 2 },
+  super_bumpers: { id: "super_bumpers", name: "Super Bumpers", desc: "Bumpers count for +3 more combo.", rarity: "rare", bumperCombo: 3 },
+  bumper_crown: { id: "bumper_crown", name: "Bumper Crown", desc: "Every bumper hit gives the ball +1 mult.", rarity: "rare", bumperMult: 1 },
 
   // --- combo economy -------------------------------------------------------
   echo_chamber: { id: "echo_chamber", name: "Echo Chamber", desc: "Combo events fire every 40 hits instead of 50.", rarity: "rare", eventEveryDelta: -10 },

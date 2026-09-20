@@ -8,6 +8,14 @@ export interface Peg extends Vec2 {
   radius: number;
 }
 
+/** A wall fin: fixed ramp from the wall (x1,y1) down and inward to its tip (x2,y2). */
+export interface Fin {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+}
+
 export interface BallState extends Vec2 {
   id: number;
   vx: number;
@@ -51,6 +59,14 @@ export interface BallSpawn {
   /** Opaque label for the game layer, e.g. the ball type id. */
   tag?: string;
 }
+
+/** Wall fins reach this far in from the wall; their tip must stay a Heavy-width clear of the odd-row edge peg. */
+export const FIN_REACH = 0.45;
+export const FIN_DROP = 0.44;
+
+/** Bumper pegs: bigger, bouncier, and they pop the ball away (see Sim.setPegBumper). */
+export const BUMPER_RADIUS = 0.16;
+export const BUMPER_RESTITUTION = 0.9;
 
 export const DEFAULT_CONFIG: SimConfig = {
   seed: "pachinkube",

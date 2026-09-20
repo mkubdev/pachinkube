@@ -12,8 +12,13 @@ import RAPIER from "@dimforge/rapier2d-compat";
 
 import { hash32, makeStreams, type Streams } from "./rng.js";
 import {
+  BUMPER_RADIUS,
+  BUMPER_RESTITUTION,
   DEFAULT_CONFIG,
+  FIN_DROP,
+  FIN_REACH,
   type BallSpawn,
+  type Fin,
   type BallState,
   type Peg,
   type PegMotion,
@@ -43,6 +48,10 @@ export class Sim {
   readonly config: SimConfig;
   readonly streams: Streams;
   readonly pegs: Peg[] = [];
+  /** Wall fins (see buildBoard). */
+  readonly fins: Fin[] = [];
+  /** Furthest |x| a ball may be released at: the outermost peg column, so every drop meets a peg. */
+  dropLimit = 0;
   tick = 0;
 
   private readonly world: RAPIER.World;
@@ -152,6 +161,7 @@ export class Sim {
     // Edge pegs sit EDGE_GAP clear of the wall so no ball can wedge there.
     const margin = EDGE_GAP + pegRadius + 0.02;
     const colGap = (width - margin * 2) / Math.max(pegCols - 1, 1);
+    this.dropLimit = half - margin;
     let id = 0;
     for (let r = 0; r < pegRows; r++) {
       const offset = r % 2 === 1 ? colGap / 2 : 0;
@@ -171,6 +181,29 @@ export class Sim {
         this.pegColliders.push(col);
         this.pegRow.push(r);
         id++;
+      }
+      // Wall fins on the odd rows (where the edge peg sits half a column in):
+      // a ramp from the wall down and inward, so nothing can fall the side
+      // channel to the bottom untouched. Its tip stays FIN_REACH from the
+      // wall, a Heavy-width clear of that row's edge peg, and short of the
+      // even rows' edge column above and below.
+      if (r % 2 === 1) {
+        const y = top - r * rowGap;
+        for (const sx of [-1, 1]) {
+          const fin: Fin = { x1: sx * half, y1: y + FIN_DROP * 0.7, x2: sx * (half - FIN_REACH), y2: y - FIN_DROP * 0.3 };
+          const dx = fin.x2 - fin.x1;
+          const dy = fin.y2 - fin.y1;
+          const c = this.world.createCollider(
+            RAPIER.ColliderDesc.cuboid(Math.hypot(dx, dy) / 2, 0.03)
+              .setTranslation((fin.x1 + fin.x2) / 2, (fin.y1 + fin.y2) / 2)
+              .setRotation(Math.atan2(dy, dx))
+              .setRestitution(0.5)
+              .setActiveEvents(RAPIER.ActiveEvents.COLLISION_EVENTS),
+            fixed,
+          );
+          this.wallHandles.add(c.handle); // fins count as wall hits (Bumper Kings)
+          this.fins.push(fin);
+        }
       }
     }
   }
@@ -493,6 +526,25 @@ export class Sim {
 
   resetPegRestitution(): void {
     for (const c of this.pegColliders) c.setRestitution(this.config.restitution);
+  }
+
+  /** Turn a peg into a pop bumper (bigger, bouncier) or back into a plain peg. */
+  setPegBumper(peg: number, on: boolean): void {
+    const c = this.pegColliders[peg];
+    if (!c) return;
+    c.setRadius(on ? BUMPER_RADIUS : this.config.pegRadius);
+    c.setRestitution(on ? BUMPER_RESTITUTION : this.config.restitution);
+  }
+
+  /** Shove a ball straight away from a point (bumper pop), `strength` in m/s. */
+  kickBall(id: number, fromX: number, fromY: number, strength: number): void {
+    const body = this.balls.get(id);
+    if (!body) return;
+    const p = body.translation();
+    const dx = p.x - fromX;
+    const dy = p.y - fromY;
+    const d = Math.hypot(dx, dy) || 1;
+    body.applyImpulse({ x: (dx / d) * strength * body.mass(), y: (dy / d) * strength * body.mass() }, true);
   }
 
   /** Pocket index under board x. */

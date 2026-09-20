@@ -44,6 +44,7 @@ const CHARM_GLYPH: Record<CharmId, keyof typeof G> = {
   thunderhead: "bolt", solstice: "sun", drift: "wave", restless_board: "gear",
   permafrost: "snow", backdraft: "flame", lightning_rod: "bolt", flashpoint: "flame", thermal_shock: "sun", ball_lightning: "bolt",
   aurora: "star", cold_snap: "snow",
+  pop_bumpers: "gear", super_bumpers: "star", bumper_crown: "trophy",
   roulette: "dice", hot_pocket: "flame", groove: "arrow", jackpot_growth: "coin", pocket_lottery: "star", inversion: "split",
   echo_chamber: "wave", second_wind: "heart", overclock: "clock",
 };
@@ -61,7 +62,7 @@ const FEAT_GLYPH: Record<string, keyof typeof G> = {
 const FAMILY_GLYPH: Record<string, keyof typeof G> = {
   combo: "star", run: "trophy", ball: "coin", round: "trophy", runs: "clock", wins: "trophy", drops: "ball",
   pegs: "gear", jackpots: "eye", reactions: "sun", events: "bolt", portals: "eye",
-  steams: "sun", cleared: "trophy", total: "coin", losses: "skull",
+  steams: "sun", cleared: "trophy", total: "coin", losses: "skull", bumpers: "gear",
 };
 
 interface Palette { primary: string; secondary: string; highlight: string }
