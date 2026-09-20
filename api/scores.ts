@@ -31,14 +31,20 @@ interface RunRecord extends RunSubmission {
   verified: boolean;
   /** Set when the run was submitted by a signed-in Discord user. */
   discordId?: string;
+  /** Anonymous players: a random id the browser keeps, so a typed name belongs to one device. */
+  anonId?: string;
 }
 
 /**
  * Sorted-set member: signed-in players are keyed by Discord id so a rename
- * keeps one row; anonymous players are keyed by the typed name.
+ * keeps one row; anonymous players by their browser's anonymous id. Rows from
+ * before anonymous ids were keyed by the typed name (legacy) and are frozen:
+ * nobody can post under those names.
  */
-const memberFor = (run: RunRecord): string => (run.discordId ? `d:${run.discordId}` : run.name);
+const memberFor = (run: RunRecord): string => (run.discordId ? `d:${run.discordId}` : run.anonId ? `a:${run.anonId}` : run.name);
 const isDiscordMember = (m: string): boolean => m.startsWith("d:");
+/** Display names are unique across the board, case-insensitively. */
+const nameKey = (name: string): string => name.trim().toLowerCase();
 
 const json = (data: unknown, status = 200): Response =>
   new Response(JSON.stringify(data), {
@@ -62,6 +68,9 @@ interface Store {
   remove(member: string): Promise<boolean>;
   /** Owner maintenance: members with their stored record. */
   topMembers(n: number): Promise<Array<{ member: string; score: number; verified?: boolean; name?: string }>>;
+  /** Which member holds a display name (lower-cased), if any. */
+  ownerOf(key: string): Promise<string | null>;
+  claimName(key: string, member: string): Promise<void>;
 }
 
 function redisStore(): Store | null {
@@ -110,8 +119,20 @@ function redisStore(): Store | null {
     },
     async remove(member) {
       const n = await redis.zrem(KEY, member);
+      const rec = parseRecord(await redis.hget<string | RunRecord>(`${KEY}:runs`, member));
       await redis.hdel(`${KEY}:runs`, member);
+      if (rec) await redis.hdel(`${KEY}:names`, nameKey(rec.name));
       return n > 0;
+    },
+    async ownerOf(key) {
+      const indexed = await redis.hget<string>(`${KEY}:names`, key);
+      if (indexed) return indexed;
+      // Legacy rows are keyed by the typed name itself.
+      const flat = (await redis.zrange(KEY, 0, TOP_N - 1, { rev: true })) as string[];
+      return flat.find((m) => !m.startsWith("d:") && !m.startsWith("a:") && nameKey(m) === key) ?? null;
+    },
+    async claimName(key, member) {
+      await redis.hset(`${KEY}:names`, { [key]: member });
     },
   };
 }
@@ -123,6 +144,7 @@ function parseRecord(raw: string | RunRecord | null | undefined): RunRecord | nu
 }
 
 const memory = new Map<string, RunRecord>();
+const memoryNames = new Map<string, string>();
 const memoryStore: Store = {
   async top(n) {
     return [...memory.entries()]
@@ -142,7 +164,15 @@ const memoryStore: Store = {
     return memory.get(member) ?? null;
   },
   async remove(member) {
+    const rec = memory.get(member);
+    if (rec) memoryNames.delete(nameKey(rec.name));
     return memory.delete(member);
+  },
+  async ownerOf(key) {
+    return memoryNames.get(key) ?? [...memory.keys()].find((m) => !m.startsWith("d:") && !m.startsWith("a:") && nameKey(m) === key) ?? null;
+  },
+  async claimName(key, member) {
+    memoryNames.set(key, member);
   },
   async topMembers(n) {
     return [...memory].sort((a, b) => b[1].score - a[1].score).slice(0, n).map(([member, r]) => ({ member, score: r.score, verified: r.verified, name: r.name }));
@@ -154,13 +184,16 @@ export const usingRedis = store !== memoryStore;
 
 // --- validation ----------------------------------------------------------------
 
-function parseSubmission(body: unknown, sessionName?: string): (RunSubmission & { log?: RunInput[]; pool?: Pool; rules?: number }) | string {
+function parseSubmission(body: unknown, sessionName?: string): (RunSubmission & { log?: RunInput[]; pool?: Pool; rules?: number; anonId?: string }) | string {
   if (typeof body !== "object" || body === null) return "body must be an object";
   const b = body as Record<string, unknown>;
   // Signed in: the Discord username is the name, whatever the client sent.
   const name = sessionName ? sessionName.slice(0, 24) : typeof b.name === "string" ? b.name.trim() : "";
   if (name.length < 1 || name.length > 24) return "name must be 1-24 chars";
   if (!sessionName && !/^[\p{L}\p{N} _.-]+$/u.test(name)) return "name has invalid characters";
+  // Anonymous submissions carry the browser's anonymous id, so the name is theirs alone.
+  const anonId = typeof b.anon === "string" ? b.anon : undefined;
+  if (!sessionName && (!anonId || !/^[A-Za-z0-9_-]{8,64}$/.test(anonId))) return "anon id missing — refresh the game";
   const score = Number(b.score);
   if (!Number.isFinite(score) || score < 0) return "score must be a non-negative number";
   const seed = typeof b.seed === "string" ? b.seed : "";
@@ -171,7 +204,7 @@ function parseSubmission(body: unknown, sessionName?: string): (RunSubmission & 
   if (b.pool !== undefined && !validatePool(b.pool)) return "pool is malformed";
   const rules = b.rules === undefined ? undefined : Number(b.rules);
   if (rules !== undefined && !Number.isInteger(rules)) return "rules must be an integer";
-  return { name, score, seed, ticks, log: b.log as RunInput[] | undefined, pool: b.pool as Pool | undefined, rules };
+  return { name, score, seed, ticks, log: b.log as RunInput[] | undefined, pool: b.pool as Pool | undefined, rules, anonId: sessionName ? undefined : anonId };
 }
 
 // --- handlers ------------------------------------------------------------------
@@ -232,7 +265,14 @@ export async function POST(req: Request): Promise<Response> {
 export async function submitScore(body: unknown, user: { discordId: string; name: string } | null): Promise<Response> {
   const parsed = parseSubmission(body, user?.name);
   if (typeof parsed === "string") return json({ error: parsed }, 400);
-  const { log, pool, rules, ...run } = parsed;
+  const { log, pool, rules, anonId, ...run } = parsed;
+  // A display name belongs to whoever posted it first (Discord identities
+  // always win their own name): nobody can post as somebody else.
+  const member = user ? `d:${user.discordId}` : `a:${anonId}`;
+  const owner = await store.ownerOf(nameKey(run.name));
+  if (owner && owner !== member && !user) {
+    return json({ error: "name taken — pick another, or sign in with Discord", reason: "name_taken" }, 409);
+  }
   // Only replay-verified runs reach the board. Anything else (played under
   // other rules after a mid-run deploy, dev-modified, no log) is acknowledged
   // but not stored: the leaderboard is proof, not a claim.
@@ -245,6 +285,7 @@ export async function submitScore(body: unknown, user: { discordId: string; name
   if (r.score !== run.score) {
     return json({ error: "score does not reproduce from log", replayed: r.score }, 422);
   }
-  const result = await store.submit({ ...run, verified: true, at: new Date().toISOString(), discordId: user?.discordId });
+  const result = await store.submit({ ...run, verified: true, at: new Date().toISOString(), discordId: user?.discordId, anonId });
+  await store.claimName(nameKey(run.name), member);
   return json({ ok: true, stored: true, verified: true, name: run.name, rules: RULES_VERSION, ...result }, 201);
 }

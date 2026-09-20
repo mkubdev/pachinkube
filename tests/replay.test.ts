@@ -52,7 +52,7 @@ describe("replay verification", () => {
       full.step();
     }
     expect(full.phase).toBe("lost");
-    const body = { name: "cheater", score: full.totalScore * 10 + 1, seed: "replay-3", ticks: full.sim.tick, log: full.log };
+    const body = { name: "cheater", anon: "browser-cheat000", score: full.totalScore * 10 + 1, seed: "replay-3", ticks: full.sim.tick, log: full.log };
     const res = await POST(new Request("http://t/api/scores", { method: "POST", body: JSON.stringify(body) }));
     expect(res.status).toBe(422);
     const honest = { ...body, name: "honest", score: full.totalScore };

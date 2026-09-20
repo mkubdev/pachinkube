@@ -332,6 +332,15 @@ After that the dock shows **sign in**; signed-in players' collections sync via
 `/api/meta` and their leaderboard entries are keyed by Discord id and named by
 their Discord username.
 
+**Names are owned.** Anonymous submissions carry a random id the browser keeps
+(`localStorage` `pachinkube.anon`) and rows are keyed by it (`a:<id>`); a
+display name belongs, case-insensitively, to the first member that posted it,
+so nobody can post as another player (`409 name_taken`). Discord identities
+always keep their own name and take it over from an anonymous holder. Rows
+from before anonymous ids (keyed by the bare name) are frozen: no one can post
+under those names; delete them with the admin route if the player wants to
+re-claim the name from their own browser.
+
 **Verified only.** Since 2026-09-20 the leaderboard stores nothing it cannot
 replay: a run played across a deploy (rules mismatch), a dev-modified run, or a
 submission without a log is acknowledged with `stored: false` and a reason, and

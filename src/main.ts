@@ -135,6 +135,21 @@ async function newRun(nextSeed: string): Promise<void> {
   stepper.reset();
   ui.notice("NEW RUN");
 }
+/** Anonymous identity: a random id this browser keeps, so a typed name is ours alone. */
+function anonId(): string {
+  const KEY = "pachinkube.anon";
+  try {
+    const existing = localStorage.getItem(KEY);
+    if (existing && /^[A-Za-z0-9_-]{8,64}$/.test(existing)) return existing;
+    const bytes = crypto.getRandomValues(new Uint8Array(12));
+    const id = [...bytes].map((b) => b.toString(16).padStart(2, "0")).join("");
+    localStorage.setItem(KEY, id);
+    return id;
+  } catch {
+    return `s${Math.random().toString(36).slice(2, 14)}${Date.now().toString(36)}`;
+  }
+}
+
 /** Submit the finished run; shared by the manual form and auto-submit. */
 async function submitRun(name: string): Promise<string> {
   const res = await fetch("/api/scores", {
@@ -143,11 +158,12 @@ async function submitRun(name: string): Promise<string> {
     // The input log lets the server replay the run and verify the score. A
     // tainted (dev-modified) run sends no log and is stored unverified.
     body: JSON.stringify({
-      name, score: run.totalScore, seed, ticks: run.sim.tick, rules: RULES_VERSION,
+      name, score: run.totalScore, seed, ticks: run.sim.tick, rules: RULES_VERSION, anon: anonId(),
       ...(tainted ? {} : { log: run.log, pool: run.pool }),
     }),
   });
   const data = (await res.json()) as { improved?: boolean; stored?: boolean; verified?: boolean; reason?: string; error?: string };
+  if (res.status === 409) return "that name belongs to another player — pick another, or sign in with Discord";
   if (!res.ok) return `error: ${data.error}`;
   if (!data.stored) {
     // Only replay-verified runs are kept; say why this one was not.

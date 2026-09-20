@@ -3,8 +3,8 @@ import { DELETE, GET, POST, submitScore, usingRedis } from "../api/scores.js";
 import { RULES_VERSION } from "../src/game/version.js";
 import { Run } from "../src/game/run.js";
 
-const post = (body: unknown) =>
-  POST(new Request("http://t/api/scores", { method: "POST", body: JSON.stringify(body), headers: { "content-type": "application/json" } }));
+const post = (body: Record<string, unknown>) =>
+  POST(new Request("http://t/api/scores", { method: "POST", body: JSON.stringify({ anon: "browser-aaaaaaaa", ...body }), headers: { "content-type": "application/json" } }));
 
 /** Play one round headlessly so a submission carries a log the server can replay. */
 async function played(seed: string) {
@@ -31,6 +31,24 @@ describe("scores api (memory fallback)", () => {
     expect((await post({ name: "<script>", score: 1, seed: "s", ticks: 1 })).status).toBe(400);
   });
 
+  it("a typed name belongs to the first browser that posted it; Discord identities keep their own", async () => {
+    const a = await played("own-a");
+    const b = await played("own-b");
+    expect((await post({ name: "Kubik", anon: "browser-one00001", ...a })).status).toBe(201);
+    // Another browser, same name: refused, whatever the score.
+    const other = await post({ name: "kubik", anon: "browser-two00002", ...b });
+    expect(other.status).toBe(409);
+    expect(((await other.json()) as { reason: string }).reason).toBe("name_taken");
+    // The owner can keep posting under it.
+    expect((await post({ name: "Kubik", anon: "browser-one00001", ...b })).status).toBe(201);
+    // Anonymous without an id: refused.
+    expect((await POST(new Request("http://t/api/scores", { method: "POST", body: JSON.stringify({ name: "ghost", ...a }) }))).status).toBe(400);
+    // A Discord user named like an anonymous player is not blocked, and then owns the name.
+    const d = await submitScore({ name: "x", ...a }, { discordId: "777", name: "Kubik" });
+    expect(d.status).toBe(201);
+    expect((await post({ name: "Kubik", anon: "browser-one00001", ...b })).status).toBe(409);
+  });
+
   it("unverified runs are acknowledged but never stored", async () => {
     // Other rules (deploy mid-run) and no log at all: both come back stored:false and leave the board alone.
     const other = await post({ name: "older", score: 999_999, seed: "s", ticks: 1, rules: RULES_VERSION - 1, log: [{ tick: 0, action: { type: "drop", x: 0 } }] });
@@ -49,13 +67,15 @@ describe("scores api (memory fallback)", () => {
     expect((await del("Bearer x", { members: ["a"] })).status).toBe(404); // no token configured
     process.env.ADMIN_TOKEN = "t0k";
     expect((await del("Bearer wrong", { members: ["a"] })).status).toBe(403);
-    await post({ name: "zed", ...(await played("zed-run")) });
-    // Owner listing shows raw members.
+    await post({ name: "zed", anon: "browser-zed00000", ...(await played("zed-run")) });
+    // Owner listing shows raw members (anonymous rows are keyed a:<anon id>).
     const list = await GET(new Request("http://t/api/scores?admin=1", { headers: { authorization: "Bearer t0k" } }));
-    expect(((await list.json()) as { rows: Array<{ member: string }> }).rows.some((r) => r.member === "zed")).toBe(true);
+    expect(((await list.json()) as { rows: Array<{ member: string; name?: string }> }).rows.some((r) => r.member === "a:browser-zed00000" && r.name === "zed")).toBe(true);
     expect((await GET(new Request("http://t/api/scores?admin=1"))).status).toBe(403);
-    const ok = await del("Bearer t0k", { members: ["zed", "nobody"] });
-    expect(((await ok.json()) as { removed: string[] }).removed).toEqual(["zed"]);
+    const ok = await del("Bearer t0k", { members: ["a:browser-zed00000", "nobody"] });
+    expect(((await ok.json()) as { removed: string[] }).removed).toEqual(["a:browser-zed00000"]);
+    // Removing the row frees the name.
+    expect((await post({ name: "zed", anon: "browser-other000", ...(await played("zed-run")) })).status).toBe(201);
     delete process.env.ADMIN_TOKEN;
   });
 
@@ -71,15 +91,15 @@ describe("scores api (memory fallback)", () => {
     await submitScore({ name: "x", ...lo }, { discordId: "42", name: "Kube" });
     const res = await GET(new Request("http://t/api/scores"));
     const data = (await res.json()) as { top: Array<{ name: string; score: number; discord?: boolean }> };
-    const row = data.top.find((r) => r.discord);
+    const row = data.top.find((r) => r.discord && r.name === "Kube");
     expect(row).toMatchObject({ name: "Kube", score: hi.score, discord: true });
   });
 
   it("keeps only each player's best, verified, and orders the board", async () => {
     const runs = [await played("best-1"), await played("best-2"), await played("best-3")].sort((x, y) => y.score - x.score);
-    expect((await post({ name: "max", ...runs[1]! })).status).toBe(201);
-    expect((await post({ name: "max", ...runs[2]! })).status).toBe(201);
-    expect((await post({ name: "ana", ...runs[0]! })).status).toBe(201);
+    expect((await post({ name: "max", anon: "browser-max00000", ...runs[1]! })).status).toBe(201);
+    expect((await post({ name: "max", anon: "browser-max00000", ...runs[2]! })).status).toBe(201);
+    expect((await post({ name: "ana", anon: "browser-ana00000", ...runs[0]! })).status).toBe(201);
     const res = await GET(new Request("http://t/api/scores"));
     const data = (await res.json()) as { top: Array<{ name: string; score: number; verified: boolean; discord?: boolean }> };
     expect(data.top.filter((r) => !r.discord && (r.name === "ana" || r.name === "max"))).toEqual([

@@ -17,6 +17,7 @@ describe("main.ts wiring", () => {
     expect((main.match(/recordDrop\(meta\)/g) ?? []).length).toBeGreaterThanOrEqual(2);
     expect(main).toMatch(/metaStore\.save\(meta\)/);
     expect(main).toMatch(/rules: RULES_VERSION/);
+    expect(main).toMatch(/anon: anonId\(\)/);
     expect(main).toMatch(/run\.totalScore > bestBefore/); // auto-submit when signed in
     expect(main).toMatch(/ui\.showSignInCallout\(\)/);
     expect(main).toMatch(/tainted \? \{\} : \{ log: run\.log, pool: run\.pool \}/);
