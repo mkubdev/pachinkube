@@ -652,6 +652,12 @@ export class Run {
       this.resolveElement(ball, ev.peg, peg, fresh, ctx, out);
 
       if (t?.multEvery && ball.hits % t.multEvery === 0) ctx.addMult(t.multEveryAmount ?? 1, "pearl");
+      // Orbit: a sideways shove that alternates, so it zig-zags across the field
+      // instead of hugging one side (its old pull pinned it to the wall).
+      if (t?.swerve) {
+        const dir = ball.hits % 2 === 0 ? 1 : -1;
+        this.sim.kickBall(ball.id, peg.x - dir, peg.y, t.swerve);
+      }
       if (t?.blinkAt && ball.hits === t.blinkAt) {
         // Blink into the upper field, never straight onto a peg: aim between two top-row pegs.
         const H = this.sim.config.height;
@@ -748,6 +754,10 @@ export class Run {
     const cxLand = this.sim.bucketCenters[ev.bucket] ?? 0;
 
     const landTraits = BALL_TYPES[ball.type].traits;
+    if (landTraits?.edgeMult && (ev.bucket === 0 || ev.bucket === mults.length - 1)) {
+      bucketMult *= landTraits.edgeMult;
+      out.push({ type: "popup", x: cxLand, y: 0.9, text: `edge ×${landTraits.edgeMult}`, kind: "mult" });
+    }
     // Boomerang: back to the top above its pocket, state intact, scored on the next landing.
     if (landTraits?.relaunch && ball.revives < landTraits.relaunch && ev.bucket >= 0) {
       ball.revives++;

@@ -45,6 +45,10 @@ export interface BallTraits {
   /** Ricochet: chips per wall hit, and the kick (m/s) back toward the centre. */
   wallChips?: number;
   wallKick?: number;
+  /** Orbit: sideways kick (m/s) on every peg hit, alternating left/right. */
+  swerve?: number;
+  /** Orbit: pocket multiplier factor when it lands in an edge pocket. */
+  edgeMult?: number;
 }
 
 export interface BallType {
@@ -121,8 +125,8 @@ export const BALL_TYPES: Record<BallTypeId, BallType> = {
 
   // --- second wave -----------------------------------------------------------
   orbit: {
-    id: "orbit", name: "Orbit", desc: "Pushed toward the edges. ×1.3 chips; loves edge pockets.",
-    color: 0x9ad0ff, physics: { radius: 0.13, pull: -0.5 }, chipFactor: 1.3, shopWeight: 6,
+    id: "orbit", name: "Orbit", desc: "Swerves left, then right, off every peg and sweeps the whole board. Edge pockets pay ×2 for it.",
+    color: 0x9ad0ff, physics: { radius: 0.13, density: 6 }, chipFactor: 1.2, traits: { swerve: 1.5, edgeMult: 2 }, shopWeight: 6,
   },
   ember: {
     id: "ember", name: "Ember", desc: "Always Fire. Ignites bare pegs, flares on burning ones.",

@@ -6,4 +6,4 @@
  * on a different version the score is stored *unverified* rather than
  * rejected: a deploy mid-run must never eat a real run.
  */
-export const RULES_VERSION = 9; // 9: Ricochet replaces Magnet
+export const RULES_VERSION = 10; // 10: Orbit swerves instead of pulling outward

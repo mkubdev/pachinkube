@@ -37,7 +37,7 @@ a Blender cabinet, and server-side score verification. Balance is probe-tuned.
 | Mirror | lands in two pockets: its own and the one mirrored across the centre |
 | Comet | every 3rd peg it touches catches fire |
 | Glass | ×2 chips; shatters into three shards on its 6th hit |
-| Orbit | pushed toward the edges (negative pull), ×1.3 chips |
+| Orbit | swerves left/right off every peg (alternating sideways kick), sweeps the board; edge pockets pay ×2 for it (its old outward pull pinned it to the wall) |
 | Ember / Frost / Volt | permanently Fire / Ice / Storm, whatever charms you hold |
 | Cluster | three tiny balls from one slot, ×0.6 chips each |
 | Anchor | falls 1.8× faster; chips scale with impact speed |
