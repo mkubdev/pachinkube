@@ -57,17 +57,26 @@ describe("ball types", () => {
     expect(f2.vy).toBeGreaterThan(-3);
   });
 
-  it("magnet drifts toward the centre", async () => {
-    const a = await make("magnet-a");
-    a.bag[0] = "magnet";
-    a.drop(-2.4);
-    for (let i = 0; i < 25; i++) a.step();
-    const magnet = a.sim.snapshot().balls[0]!;
-    const b = await make("magnet-a");
-    b.drop(-2.4);
-    for (let i = 0; i < 25; i++) b.step();
-    const steel = b.sim.snapshot().balls[0]!;
-    expect(magnet.x).toBeGreaterThan(steel.x);
+  it("ricochet earns chips and a kick off the wall", async () => {
+    const run = await make("rico");
+    run.bag[0] = "ricochet";
+    run.drop(0);
+    const ball = [...run.balls.values()][0]!;
+    // Against the right wall; the sim reports the contact, the run pays and kicks.
+    run.sim.teleportBall(ball.id, run.sim.config.width / 2 - 0.2, 5);
+    const before = ball.chips;
+    const out: GameEvent[] = [];
+    (run as unknown as { handle(ev: unknown, out: GameEvent[]): void }).handle({ type: "wallHit", ball: ball.id }, out);
+    expect(out.some((e) => e.type === "popup" && e.text.includes("wall"))).toBe(true);
+    expect(ball.chips).toBe(before + 12);
+    const b = run.sim.snapshot().balls.find((x) => x.id === ball.id)!;
+    expect(b.vx).toBeLessThan(-1); // kicked back toward the centre
+    // A Steel ball gets nothing from the wall.
+    run.bag[0] = "steel";
+    run.drop(0);
+    const steel = [...run.balls.values()].find((x) => x.type === "steel")!;
+    (run as unknown as { handle(ev: unknown, out: GameEvent[]): void }).handle({ type: "wallHit", ball: steel.id }, []);
+    expect(steel.chips).toBe(0);
   });
 
   it("gold adds mult on landing", async () => {

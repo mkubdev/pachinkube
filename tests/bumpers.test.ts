@@ -132,9 +132,10 @@ describe("ball timers", () => {
     const { Sim, BALL_LIFETIME_TICKS, PULLED_LIFETIME_TICKS } = await import("../src/sim/world.js");
     const { BALL_TYPES } = await import("../src/game/balls.js");
     const sim = await Sim.create({ seed: "timer" });
+    void BALL_TYPES.feather;
     // Park a Magnet on top of a peg with zero velocity and a Feather beside it.
     const peg = sim.pegs[30]!;
-    const magnet = sim.spawnBall({ x: peg.x, y: peg.y + 0.3, ...BALL_TYPES.magnet.physics });
+    const magnet = sim.spawnBall({ x: peg.x, y: peg.y + 0.3, radius: 0.14, pull: 0.55 }); // a pulled ball, as Magnet Storm makes
     const feather = sim.spawnBall({ x: peg.x + 0.02, y: peg.y + 0.6, ...BALL_TYPES.feather.physics, gravityScale: 0.01 });
     const lost = new Map<number, number>();
     for (let t = 0; t <= BALL_LIFETIME_TICKS + 12 && lost.size < 2; t++) {

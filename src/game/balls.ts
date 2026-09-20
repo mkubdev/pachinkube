@@ -3,7 +3,7 @@ import type { Element } from "./elements.js";
 
 export type BallTypeId =
   | "steel" | "rubber" | "heavy" | "spark"
-  | "gold" | "feather" | "cannon" | "magnet" | "twin" | "prism" | "bomb"
+  | "gold" | "feather" | "cannon" | "ricochet" | "twin" | "prism" | "bomb"
   | "mirror" | "comet" | "glass"
   // second wave
   | "orbit" | "ember" | "frost" | "volt" | "cluster" | "anchor" | "pearl"
@@ -42,6 +42,9 @@ export interface BallTraits {
   blinkAt?: number;
   /** On landing: +1 mult per other ball still in flight (they were being dragged along). */
   collapse?: boolean;
+  /** Ricochet: chips per wall hit, and the kick (m/s) back toward the centre. */
+  wallChips?: number;
+  wallKick?: number;
 }
 
 export interface BallType {
@@ -87,9 +90,9 @@ export const BALL_TYPES: Record<BallTypeId, BallType> = {
     id: "cannon", name: "Cannon", desc: "Fired downward. Chips scale with impact speed.",
     color: 0xff4d4d, physics: { radius: 0.15, density: 12, vy: -9 }, chipFactor: 1.2, traits: { speedChips: 0.8 }, shopWeight: 7,
   },
-  magnet: {
-    id: "magnet", name: "Magnet", desc: "Pulled toward the centre pocket.",
-    color: 0xb46cff, physics: { radius: 0.14, pull: 0.55 }, chipFactor: 1, shopWeight: 7,
+  ricochet: {
+    id: "ricochet", name: "Ricochet", desc: "Slams off the walls: every wall hit pays +12 chips and kicks it back into the field.",
+    color: 0xb46cff, physics: { radius: 0.13, restitution: 0.8, density: 6 }, chipFactor: 1, traits: { wallChips: 12, wallKick: 2.6 }, shopWeight: 7,
   },
   twin: {
     id: "twin", name: "Twin", desc: "Drops as two small balls from one slot.",

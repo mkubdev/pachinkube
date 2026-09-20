@@ -88,7 +88,7 @@ export const UNLOCK_RULES: UnlockRule[] = [
   ...(
     [
       ["rubber", 400], ["heavy", 1_000], ["spark", 2_000], ["gold", 3_500], ["feather", 5_000],
-      ["cannon", 7_500], ["magnet", 10_000], ["orbit", 13_000], ["twin", 16_000], ["ember", 20_000],
+      ["cannon", 7_500], ["ricochet", 10_000], ["orbit", 13_000], ["twin", 16_000], ["ember", 20_000],
       ["prism", 24_000], ["frost", 28_000], ["bomb", 33_000], ["volt", 38_000], ["mirror", 44_000],
       ["cluster", 50_000], ["comet", 57_000], ["anchor", 65_000], ["glass", 75_000], ["pearl", 85_000],
       ["rainbow", 100_000], ["boomerang", 115_000], ["quantum", 130_000], ["abyss", 150_000],

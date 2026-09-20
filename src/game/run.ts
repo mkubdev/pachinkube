@@ -713,6 +713,18 @@ export class Run {
     }
 
     if (ev.type === "wallHit") {
+      // Ricochet: the wall is a scoring surface and a springboard.
+      const t = BALL_TYPES[ball.type].traits;
+      if (t?.wallChips) {
+        const p = this.sim.ballPosition(ball.id);
+        ball.chips += Math.round(t.wallChips * BALL_TYPES[ball.type].chipFactor);
+        if (p) {
+          const half = this.sim.config.width / 2;
+          this.sim.kickBall(ball.id, Math.sign(p.x || 1) * (half + 1), p.y, t.wallKick ?? 2);
+          out.push({ type: "popup", x: p.x, y: p.y, text: `+${t.wallChips} wall`, kind: "chips" });
+          out.push({ type: "fx", kind: "metal", x: p.x, y: p.y, strength: 0.5 });
+        }
+      }
       for (const id of this.charms) CHARMS[id].onWallHit?.(ctx);
       return;
     }

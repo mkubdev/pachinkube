@@ -6,4 +6,4 @@
  * on a different version the score is stored *unverified* rather than
  * rejected: a deploy mid-run must never eat a real run.
  */
-export const RULES_VERSION = 8; // 8: 15 s / 10 s ball timers, fins only on the top two odd rows // 5: magnet pull dead zone / rest skip
+export const RULES_VERSION = 9; // 9: Ricochet replaces Magnet

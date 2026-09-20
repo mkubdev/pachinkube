@@ -30,7 +30,7 @@ a Blender cabinet, and server-side score verification. Balance is probe-tuned.
 | Gold | ×2 chips, +1 mult on landing |
 | Feather | 45% gravity, drifts through the whole field |
 | Cannon | fired downward; chips scale with impact speed |
-| Magnet | pulled toward the centre pocket |
+| Ricochet | slams off the walls: +12 chips and a kick back into the field per wall hit (replaced Magnet, whose pull made it hover) |
 | Twin | two small balls from one bag slot |
 | Prism | each fresh peg also lights its nearest neighbour |
 | Bomb | 12th hit lights every peg within 1.3 |
@@ -49,7 +49,7 @@ a Blender cabinet, and server-side score verification. Balance is probe-tuned.
 
 Every ball except Steel sits on one **peg-hit ladder** (lifetime, 24 rungs):
 Rubber 400 → Heavy 1,000 → Spark 2,000 → Gold 3,500 → Feather 5,000 → Cannon
-7,500 → Magnet 10,000 → Orbit 13,000 → Twin 16,000 → Ember 20,000 → Prism
+7,500 → Ricochet 10,000 → Orbit 13,000 → Twin 16,000 → Ember 20,000 → Prism
 24,000 → Frost 28,000 → Bomb 33,000 → Volt 38,000 → Mirror 44,000 → Cluster
 50,000 → Comet 57,000 → Anchor 65,000 → Glass 75,000 → Pearl 85,000 → Rainbow
 100,000 → Boomerang 115,000 → Quantum 130,000 → Abyss 150,000.
