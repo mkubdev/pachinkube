@@ -99,12 +99,19 @@ per pop. Bumpers are part of the seeded layout, so replays verify.
 
 **No free fall.** The side channels used to let a ball drop from the top to an
 edge pocket without touching anything. Two fixes: drops are clamped to the
-outermost peg column (the aim marker shows the clamped spot), and every odd
-row has a **wall fin** on each side — a short neon ramp from the wall down and
-inward that throws a channel ball back into the pegs (`Sim.fins`, drawn by the
-renderer, counted as a wall hit for Bumper Kings). The fin tip stays a
-Heavy-width clear of the edge pegs so nothing wedges; `tests/bumpers.test.ts`
-drops Steel, Heavy and Cluster down both channels to prove it.
+outermost peg column (the aim marker shows the clamped spot), and the top two
+odd rows have a **wall fin** on each side — a short neon ramp from the wall
+down and inward that throws a channel ball back into the pegs (`Sim.fins`,
+drawn by the renderer, counted as a wall hit for Bumper Kings). Lower rows stay
+open so a ball that has bounced its way to the side can still reach the edge
+pockets. The fin tip stays a Heavy-width clear of the edge pegs so nothing
+wedges; `tests/bumpers.test.ts` drops Steel, Heavy and Cluster down both
+channels to prove it.
+
+**Ball timers.** Any ball still in play after **15 s** is pocketed where it is;
+a pulled ball (Magnet, Orbit, Magnet Storm) after **10 s**, and it also earns
+its unstick nudges sooner (2 s without a new low point instead of 3 s). It used
+to be 40 s, which Magnet found ways to use.
 
 **Streaming.** Hold the mouse button, a finger, or space and a ball leaves every
 0.4 s at the aim — the pachinko handle. A tap is still a single drop.

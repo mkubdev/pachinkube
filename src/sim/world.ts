@@ -34,6 +34,9 @@ import {
  * moving pegs honouring the same gap.
  */
 export const EDGE_GAP = 0.5;
+/** Hard timers (ticks at 120 Hz): any ball is pocketed where it is after this long. */
+export const BALL_LIFETIME_TICKS = 15 * 120;
+export const PULLED_LIFETIME_TICKS = 10 * 120;
 export const WELL_RADIUS = 2.4;
 /** Summed well pull on one ball, as a fraction of its weight. */
 export const WELL_MAX_PULL = 0.6;
@@ -182,12 +185,13 @@ export class Sim {
         this.pegRow.push(r);
         id++;
       }
-      // Wall fins on the odd rows (where the edge peg sits half a column in):
-      // a ramp from the wall down and inward, so nothing can fall the side
-      // channel to the bottom untouched. Its tip stays FIN_REACH from the
-      // wall, a Heavy-width clear of that row's edge peg, and short of the
-      // even rows' edge column above and below.
-      if (r % 2 === 1) {
+      // Wall fins on the top two odd rows (where the edge peg sits half a
+      // column in): a ramp from the wall down and inward, so nothing can fall
+      // the side channel from the top untouched. Lower rows stay open so a
+      // ball that has bounced its way to the side can still reach the edge
+      // pockets (Wide Net, Inversion, Phoenix depend on it). The tip stays
+      // FIN_REACH from the wall, a Heavy-width clear of that row's edge peg.
+      if (r % 2 === 1 && r < 4) {
         const y = top - r * rowGap;
         for (const sx of [-1, 1]) {
           const fin: Fin = { x1: sx * half, y1: y + FIN_DROP * 0.7, x2: sx * (half - FIN_REACH), y2: y - FIN_DROP * 0.3 };
@@ -478,8 +482,8 @@ export class Sim {
     const forced: Array<[number, number]> = [];
     if (this.tick % 6 !== 0) return forced;
     const stillTicks = 60;
-    const staleTicks = 480;
-    const maxAgeTicks = 40 * 120; // a ball gets 40 s, then it is pocketed where it is
+    const staleTicks = 360; // 3 s without a new low point
+    const staleTicksPulled = 240; // Magnet & co. hover; give them less rope
     const half = this.config.width / 2;
     for (const [id, body] of this.balls) {
       const meta = this.ballMeta.get(id);
@@ -497,11 +501,15 @@ export class Sim {
       const stillThreshold = nearWall ? 0.09 : 0.0025;
       if (v.x * v.x + v.y * v.y < stillThreshold) meta.still += 6;
       else meta.still = 0;
-      if (this.tick - meta.born > maxAgeTicks) {
-        forced.push([id, this.bucketAt(body.translation().x)]);
+      // Hard timer: a ball gets BALL_LIFETIME_TICKS, a pulled ball less, then it is
+      // pocketed where it is. Nothing should hold a round open for half a minute.
+      const lifetime = meta.pull !== 0 ? PULLED_LIFETIME_TICKS : BALL_LIFETIME_TICKS;
+      if (this.tick - meta.born > lifetime) {
+        forced.push([id, this.bucketAt(x)]);
         continue;
       }
-      if (meta.still < stillTicks && meta.stale < staleTicks) continue;
+      const staleLimit = meta.pull !== 0 ? staleTicksPulled : staleTicks;
+      if (meta.still < stillTicks && meta.stale < staleLimit) continue;
       meta.still = 0;
       meta.stale = 0;
       if (meta.nudges >= 3) {

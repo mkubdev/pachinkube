@@ -126,3 +126,31 @@ describe("wall fins", () => {
     }
   });
 });
+
+describe("ball timers", () => {
+  it("no ball outlives 15 s, a Magnet no more than 10 s, even when parked", async () => {
+    const { Sim, BALL_LIFETIME_TICKS, PULLED_LIFETIME_TICKS } = await import("../src/sim/world.js");
+    const { BALL_TYPES } = await import("../src/game/balls.js");
+    const sim = await Sim.create({ seed: "timer" });
+    // Park a Magnet on top of a peg with zero velocity and a Feather beside it.
+    const peg = sim.pegs[30]!;
+    const magnet = sim.spawnBall({ x: peg.x, y: peg.y + 0.3, ...BALL_TYPES.magnet.physics });
+    const feather = sim.spawnBall({ x: peg.x + 0.02, y: peg.y + 0.6, ...BALL_TYPES.feather.physics, gravityScale: 0.01 });
+    const lost = new Map<number, number>();
+    for (let t = 0; t <= BALL_LIFETIME_TICKS + 12 && lost.size < 2; t++) {
+      for (const e of sim.step()) if (e.type === "ballLost") lost.set(e.ball, t);
+    }
+    expect(lost.get(magnet)).toBeDefined();
+    expect(lost.get(magnet)!).toBeLessThanOrEqual(PULLED_LIFETIME_TICKS + 12);
+    expect(lost.get(feather)).toBeDefined();
+    expect(lost.get(feather)!).toBeLessThanOrEqual(BALL_LIFETIME_TICKS + 12);
+    sim.dispose();
+  });
+
+  it("only the top two odd rows carry fins, so the lower side channel reaches the edge pockets", async () => {
+    const run = await make("fins-open");
+    const H = run.sim.config.height;
+    expect(run.sim.fins.length).toBe(4);
+    for (const f of run.sim.fins) expect(f.y1).toBeGreaterThan(H * 0.55);
+  });
+});
