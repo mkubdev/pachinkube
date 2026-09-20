@@ -43,6 +43,8 @@ export interface MetaState {
   version: number;
   stats: MetaStats;
   discovered: { charms: CharmId[]; balls: BallTypeId[] };
+  /** Content actually taken from a shop at least once (the shop highlights the rest). */
+  used?: { charms: CharmId[]; balls: BallTypeId[] };
   feats: Partial<Record<string, string>>; // feat id -> ISO date achieved
   /** Unlock ids already announced, so the toast fires once. */
   announced: string[];
@@ -64,6 +66,7 @@ export function emptyMeta(): MetaState {
       reactions: 0, steams: 0, comboEvents: 0, portals: 0, bumperHits: 0,
     },
     discovered: { charms: [], balls: ["steel"] },
+    used: { charms: [], balls: [] },
     feats: {},
     announced: [],
   };
@@ -437,6 +440,18 @@ export function recordDrop(meta: MetaState): void {
   meta.stats.ballsDropped++;
 }
 
+/** Taking an offer marks it used; the shop stops highlighting it. */
+export function recordPick(meta: MetaState, offer: Offer): void {
+  meta.used ??= { charms: [], balls: [] };
+  const list = meta.used[offer.kind === "charm" ? "charms" : "balls"] as string[];
+  if (!list.includes(offer.id)) list.push(offer.id);
+}
+
+export function hasUsed(meta: MetaState, kind: "charm" | "ball", id: string): boolean {
+  const list = meta.used?.[kind === "charm" ? "charms" : "balls"] as string[] | undefined;
+  return !!list?.includes(id);
+}
+
 /** Seeing something in the shop counts as discovering it. */
 export function recordOffers(meta: MetaState, offers: Offer[]): MetaNotice[] {
   const out: MetaNotice[] = [];
@@ -467,6 +482,10 @@ export function mergeMeta(a: MetaState, b: MetaState): MetaState {
   for (const k of Object.keys(out.stats) as StatKey[]) out.stats[k] = Math.max(a.stats[k] ?? 0, b.stats[k] ?? 0);
   out.discovered.charms = [...new Set([...a.discovered.charms, ...b.discovered.charms])];
   out.discovered.balls = [...new Set([...a.discovered.balls, ...b.discovered.balls])];
+  out.used = {
+    charms: [...new Set([...(a.used?.charms ?? []), ...(b.used?.charms ?? [])])],
+    balls: [...new Set([...(a.used?.balls ?? []), ...(b.used?.balls ?? [])])],
+  };
   const featIds = new Set([...Object.keys(a.feats), ...Object.keys(b.feats)]) as Set<FeatId>;
   for (const id of featIds) {
     const x = a.feats[id];

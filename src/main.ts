@@ -17,6 +17,8 @@ import {
   recordDrop,
   recordEvents,
   recordOffers,
+  recordPick,
+  hasUsed,
   recordRunEnd,
   recordRunStart,
   unlockedPool,
@@ -80,6 +82,8 @@ const ui = new GameUI((x, y) => view.project(x, y));
 ui.setPockets(run.sim.bucketCenters, run.pocketMultipliers());
 view.setPocketMults(run.pocketMultipliers(), run.lotteryPocketIndex);
 ui.onPick = (i) => {
+  const offer = run.offers[i];
+  if (offer) recordPick(meta, offer);
   run.pick(i);
   ui.toasts(recordRunEnd(meta, run).filter((n) => n.kind !== "discover")); // charm discoveries → collection
   metaStore.save(meta);
@@ -143,10 +147,13 @@ async function submitRun(name: string): Promise<string> {
       ...(tainted ? {} : { log: run.log, pool: run.pool }),
     }),
   });
-  const data = (await res.json()) as { improved?: boolean; verified?: boolean; reason?: string; error?: string };
+  const data = (await res.json()) as { improved?: boolean; stored?: boolean; verified?: boolean; reason?: string; error?: string };
   if (!res.ok) return `error: ${data.error}`;
-  const v = data.verified ? "verified · " : data.reason === "rules_version" ? "unverified (game updated mid-run) · " : tainted ? "unverified (dev run) · " : "unverified · ";
-  return v + (data.improved ? "new personal best!" : "submitted (not your best)");
+  if (!data.stored) {
+    // Only replay-verified runs are kept; say why this one was not.
+    return data.reason === "rules_version" ? "not saved — the game updated mid-run (refresh and play again)" : tainted ? "not saved — dev run" : "not saved — could not be verified";
+  }
+  return "verified · " + (data.improved ? "new personal best!" : "submitted (not your best)");
 }
 ui.onSubmit = submitRun;
 
@@ -285,6 +292,8 @@ addEventListener("keydown", (e) => {
   if (e.code === "KeyM") music.toggle();
 });
 ui.onCollection = () => ui.toggleCollection(meta);
+// Shop: highlight what this player has never taken in any run.
+ui.isNew = (kind, id) => !hasUsed(meta, kind, id);
 ui.onResetMeta = () => metaStore.resetMine();
 // The server wiped progression while this tab was open: the profile object
 // was reset in place; tell the player and refresh what is on screen.

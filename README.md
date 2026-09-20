@@ -54,6 +54,15 @@ Rubber 400 → Heavy 1,000 → Spark 2,000 → Gold 3,500 → Feather 5,000 → 
 50,000 → Comet 57,000 → Anchor 65,000 → Glass 75,000 → Pearl 85,000 → Rainbow
 100,000 → Boomerang 115,000 → Quantum 130,000 → Abyss 150,000.
 
+**Stacking.** Picking a charm you already hold upgrades it: the shop keeps
+offering held charms (as *level N*) up to five copies, and every numeric
+effect stacks — sums, products, and the interval-based ones tighten by one per
+copy (Static Field, Ball Lightning) or lower their bar (Second Wind). A
+temporary charm re-picked extends its remaining rounds instead of doubling.
+Only pure flags and largest-wins charms are single-copy (Tinder, Lightning Rod,
+Restless Board, Aurora, Inversion). Offers you have **never taken in any run**
+glow cyan with a *never taken* badge.
+
 **Charms** (`src/game/charms.ts`) are trigger→effect data. Active: Magnet Coil,
 Neon Sign, Split Shot, Jackpot Lens, Rubber Soul, Heavy Metal, Chain Lightning,
 Bumper Kings, Overflow, Extra Ball, Phoenix, Golden Pocket. Passive (plain
@@ -323,6 +332,12 @@ After that the dock shows **sign in**; signed-in players' collections sync via
 `/api/meta` and their leaderboard entries are keyed by Discord id and named by
 their Discord username.
 
+**Verified only.** Since 2026-09-20 the leaderboard stores nothing it cannot
+replay: a run played across a deploy (rules mismatch), a dev-modified run, or a
+submission without a log is acknowledged with `stored: false` and a reason, and
+the client says so. `GET /api/scores?admin=1` with the admin token lists raw
+members for maintenance.
+
 **Progression reset** (owner): `curl -X DELETE -H "authorization: Bearer $ADMIN_TOKEN" https://pachinkube.vercel.app/api/meta`.
 This drops every server profile **and bumps the reset epoch**
 (`pachinkube:meta:epoch`). Every profile carries the epoch it was synced under;
@@ -378,6 +393,15 @@ NAT cannot reach the add-on's `localhost:9876`.
   aberration and flash strengths deserve a pass on a real GPU at 60 fps.
 
 ## Gotchas already paid for
+
+- **Rapier forces are persistent.** `RigidBody.addForce` accumulates until
+  `resetForces`; the sim never reset, so every pull (Magnet, Orbit's outward
+  pull, Magnet Storm, Abyss wells) grew step over step — 30 m/s balls in a
+  storm, and a ball pinned to the wall at zero speed by the leftover force once
+  the storm ended, the "stuck on the edge after a Magnet Storm" bug. `applyPulls`
+  now resets every ball's forces at the top of each step (`tests/sleep.test.ts`
+  caps the speed under a constant pull). Balls are also created with sleeping
+  disabled and woken when a global pull ends.
 
 - **Heavy wedged between wall and edge peg.** The edge pegs sat 0.37 units from
   the wall and Heavy is 0.40 wide, so it parked there until the 40 s cap. Edge

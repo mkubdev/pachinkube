@@ -1,6 +1,22 @@
 import { describe, expect, it } from "vitest";
 import { Sim } from "../src/sim/world.js";
 
+describe("pull forces do not accumulate", () => {
+  it("a ball under a constant centre pull never exceeds a sane speed, and stops being pushed when the pull ends", async () => {
+    const sim = await Sim.create({ seed: "force-acc" });
+    const id = sim.spawnBall({ x: 2.8, y: 9.5, radius: 0.14 });
+    sim.setGlobalPull(0.6);
+    let vmax = 0;
+    for (let t = 0; t < 240; t++) {
+      sim.step();
+      const b = sim.snapshot().balls.find((x) => x.id === id);
+      if (b) vmax = Math.max(vmax, Math.hypot(b.vx, b.vy));
+    }
+    expect(vmax).toBeLessThan(14); // free fall from the top is ~14 m/s; a 0.6 g pull cannot beat that
+    sim.dispose();
+  });
+});
+
 describe("balls never fall asleep", () => {
   it("a ball held against a peg by a pull falls as soon as the pull ends", async () => {
     const sim = await Sim.create({ seed: "sleepy" });

@@ -29,6 +29,10 @@ import { COMBO_EVENTS, COMBO_EVENT_COOLDOWN_TICKS, COMBO_EVENT_EVERY, COMBO_EVEN
 export const CLEAR_ROUND = 8;
 export const ROUNDS = Number.POSITIVE_INFINITY;
 export const BALLS_PER_ROUND = 6;
+/** Copies of one charm a run may hold. */
+export const MAX_STACK = 5;
+/** Flags and largest-wins charms: a second copy would change nothing. */
+export const NON_STACKABLE: ReadonlySet<CharmId> = new Set<CharmId>(["tinder", "lightning_rod", "restless_board", "aurora", "inversion"]);
 /** One extra ball per round every this many rounds. */
 export const BALL_EVERY_ROUNDS = 3;
 /** Pop bumpers: seeded pegs that shove the ball and count as several combo hits. */
@@ -247,6 +251,24 @@ export class Run {
     return true;
   }
 
+  /** How many copies of a charm the run holds. */
+  charmLevel(id: CharmId): number {
+    return this.charms.filter((c) => c === id).length;
+  }
+
+  /**
+   * Whether the shop may offer `id` again. Every numeric charm stacks by
+   * holding copies (sums, products, or the min-based fields below); a
+   * temporary charm re-picked extends its remaining rounds; only pure flags
+   * and "largest wins" charms are single-copy.
+   */
+  canStack(id: CharmId): boolean {
+    const level = this.charmLevel(id);
+    if (level === 0) return true;
+    if (NON_STACKABLE.has(id)) return false;
+    return level < MAX_STACK;
+  }
+
   /** Take shop offer `index`. */
   pick(index: number): boolean {
     if (this.phase !== "shop") return false;
@@ -254,10 +276,16 @@ export class Run {
     if (!offer) return false;
     this.log.push({ tick: this.sim.tick, action: { type: "pick", index } });
     if (offer.kind === "charm") {
-      this.charms.push(offer.id);
       const dur = CHARMS[offer.id].duration;
-      // Acquired after round N ends: lasts rounds N+1 .. N+dur.
-      if (dur) this.charmExpires.set(this.charms.length - 1, this.round + dur);
+      const held = this.charms.indexOf(offer.id);
+      if (dur && held >= 0 && this.charmExpires.has(held)) {
+        // Re-picking a temporary charm extends it instead of doubling it.
+        this.charmExpires.set(held, (this.charmExpires.get(held) ?? this.round) + dur);
+      } else {
+        this.charms.push(offer.id);
+        // Acquired after round N ends: lasts rounds N+1 .. N+dur.
+        if (dur) this.charmExpires.set(this.charms.length - 1, this.round + dur);
+      }
       CHARMS[offer.id].onAcquire?.(this.ctxBase());
     } else {
       for (let i = 0; i < offer.count; i++) this.ownedBalls.push(offer.id);
@@ -291,7 +319,9 @@ export class Run {
     if (this.combo > 0 && this.sim.tick - this.lastHitTick > this.comboWindow()) {
       out.push({ type: "comboEnd", count: this.combo });
       // Second Wind: a big combo ending buys one more ball this round.
-      const sw = Math.min(...this.charms.map((id) => CHARMS[id].secondWindAt ?? Infinity));
+      // Second Wind: each extra copy lowers the bar by 10 (never below 20).
+      const swAll = this.charms.map((id) => CHARMS[id].secondWindAt ?? 0).filter((n) => n > 0);
+      const sw = swAll.length ? Math.max(20, Math.min(...swAll) - 10 * (swAll.length - 1)) : Infinity;
       if (!this.secondWindUsed && this.combo >= sw) {
         this.secondWindUsed = true;
         this.ballsLeft++;
@@ -542,11 +572,8 @@ export class Run {
       }
       if (this.pool.charms.length === 0) break;
       const id = weightedPick(rng, this.pool.charms, (c) => RARITY_WEIGHT[CHARMS[c].rarity]);
-      // Stackable charms may repeat; the rest only appear if not owned.
-      const stackable =
-        id === "magnet_coil" || id === "neon_sign" || id === "extra_ball" ||
-        id === "warm_start" || id === "fresh_paint" || id === "echo" || id === "insurance";
-      if (seen.has(id) || (!stackable && this.charms.includes(id))) continue;
+      // Owned charms may be offered again as an upgrade (see canStack), up to MAX_STACK.
+      if (seen.has(id) || !this.canStack(id)) continue;
       seen.add(id);
       offers.push({ kind: "charm", id });
     }
@@ -700,7 +727,8 @@ export class Run {
 
       const zapEvery = this.charms.map((id) => CHARMS[id].zapEvery ?? 0).filter((n) => n > 0);
       if (zapEvery.length) {
-        const every = Math.min(...zapEvery);
+        // Stacked copies zap more often: every copy past the first shaves one hit off.
+        const every = Math.max(2, Math.min(...zapEvery) - (zapEvery.length - 1));
         if (ball.hits % every === 0) {
           const arcChips = 4 + this.sumCharm((c) => c.arcChips ?? 0);
           let count = 0;
@@ -1018,7 +1046,7 @@ export class Run {
         }
         ball.zaps++;
         const every = this.charms.map((id) => CHARMS[id].zapMultEvery ?? 0).filter((n) => n > 0);
-        if (every.length && ball.zaps % Math.min(...every) === 0) ctx.addMult(1, "ball lightning");
+        if (every.length && ball.zaps % Math.max(1, Math.min(...every) - (every.length - 1)) === 0) ctx.addMult(1, "ball lightning");
         emit("zap", "storm", count, chips);
         return;
       }

@@ -6,4 +6,4 @@
  * on a different version the score is stored *unverified* rather than
  * rejected: a deploy mid-run must never eat a real run.
  */
-export const RULES_VERSION = 11; // 11: balls never sleep, Magnet Storm 0.6, pulled timers during storms
+export const RULES_VERSION = 12; // 12: forces reset every step; charms stack on re-pick

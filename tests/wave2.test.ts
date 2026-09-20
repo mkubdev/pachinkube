@@ -146,12 +146,12 @@ describe("second-wave balls", () => {
     const withWell = await make("abyss-a");
     withWell.bag.splice(0, 2, "abyss", "steel");
     withWell.drop(0);
-    withWell.drop(2.2);
+    withWell.drop(1.4);
     const control = await make("abyss-a");
     control.bag.splice(0, 2, "steel", "steel");
     control.drop(0);
-    control.drop(2.2);
-    for (let i = 0; i < 40; i++) {
+    control.drop(1.4);
+    for (let i = 0; i < 60; i++) {
       withWell.step();
       control.step();
     }

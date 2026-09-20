@@ -36,6 +36,9 @@ export class GameUI {
   private submittedName: string | null = null;
   private live: Array<{ el: HTMLElement; x: number; y: number; born: number }> = [];
   onPick: ((index: number) => void) | null = null;
+  /** Shop highlight: true when this player has never taken the item in any run. */
+  isNew: ((kind: "charm" | "ball", id: string) => boolean) | null = null;
+  private shopRun: Run | null = null;
   onNewRun: (() => void) | null = null;
   onSubmit: ((name: string) => Promise<string>) | null = null;
   onCollection: (() => void) | null = null;
@@ -367,7 +370,7 @@ export class GameUI {
       if (e.type === "popup") this.popup(e.x, e.y, e.text, e.kind);
       else if (e.type === "ballScored") this.lastHash = run.sim.hash();
       else if (e.type === "phase") {
-        if (e.phase === "shop") this.showShop(run.offers);
+        if (e.phase === "shop") this.showShop(run.offers, run);
         else if (e.phase === "won" || e.phase === "lost") this.showEnd(run, e.phase);
       }
     }
@@ -445,7 +448,8 @@ export class GameUI {
     this.live = keep;
   }
 
-  private showShop(offers: Offer[]): void {
+  private showShop(offers: Offer[], run: Run | null = null): void {
+    this.shopRun = run;
     this.modal.hidden = false;
     this.modal.innerHTML = `
       <div class="panel">
@@ -462,14 +466,18 @@ export class GameUI {
   }
 
   private offerCard(o: Offer, i: number): string {
+    const fresh = this.isNew?.(o.kind, o.id) ? ' <span class="tag new">never taken</span>' : "";
+    const freshCls = fresh ? " fresh" : "";
     if (o.kind === "charm") {
       const c = CHARMS[o.id];
       const dur = c.duration ? `<span class="dur">${c.duration} round${c.duration === 1 ? "" : "s"}</span>` : "";
       const el = c.element ? ` el-${c.element}` : "";
-      return `<button data-i="${i}" class="offer ${c.rarity}${el}"><span class="tag">${c.rarity}${dur}</span><div class="ic">${charmIcon(o.id)}</div><b>${c.name}</b><p>${c.desc}</p></button>`;
+      const level = this.shopRun?.charmLevel(o.id) ?? 0;
+      const up = level > 0 ? (c.duration ? `<span class="lvl">+${c.duration} round${c.duration === 1 ? "" : "s"}</span>` : `<span class="lvl">level ${level + 1}</span>`) : "";
+      return `<button data-i="${i}" class="offer ${c.rarity}${el}${freshCls}${level > 0 ? " upgrade" : ""}"><span class="tag">${c.rarity}${dur}${up}${fresh}</span><div class="ic">${charmIcon(o.id)}</div><b>${c.name}</b><p>${c.desc}</p></button>`;
     }
     const b = BALL_TYPES[o.id];
-    return `<button data-i="${i}" class="offer ball"><span class="tag">ball ×${o.count}</span><div class="ic">${ballIcon(o.id)}</div><b style="color:#${b.color.toString(16).padStart(6, "0")}">${b.name}</b><p>${b.desc}</p></button>`;
+    return `<button data-i="${i}" class="offer ball${freshCls}"><span class="tag">ball ×${o.count}${fresh}</span><div class="ic">${ballIcon(o.id)}</div><b style="color:#${b.color.toString(16).padStart(6, "0")}">${b.name}</b><p>${b.desc}</p></button>`;
   }
 
   private showEnd(run: Run, phase: "won" | "lost"): void {

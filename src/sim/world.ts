@@ -39,7 +39,7 @@ export const BALL_LIFETIME_TICKS = 15 * 120;
 export const PULLED_LIFETIME_TICKS = 10 * 120;
 export const WELL_RADIUS = 2.4;
 /** Summed well pull on one ball, as a fraction of its weight. */
-export const WELL_MAX_PULL = 0.6;
+export const WELL_MAX_PULL = 0.85;
 
 let rapierReady: Promise<void> | null = null;
 function initRapier(): Promise<void> {
@@ -414,6 +414,10 @@ export class Sim {
   /** Balls with `pull` are nudged toward the centre line every step; wells drag the others. */
   private applyPulls(): void {
     const g = Math.abs(this.config.gravity);
+    // Rapier forces are persistent: addForce accumulates until reset. Without
+    // this every pull grew step over step (balls at 30 m/s in a Magnet Storm,
+    // then pinned to a wall by the leftover force once the storm ended).
+    for (const body of this.balls.values()) body.resetForces(false);
     this.applyWells(g);
     for (const [id, body] of this.balls) {
       const meta = this.ballMeta.get(id);

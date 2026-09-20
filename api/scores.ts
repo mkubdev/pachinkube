@@ -60,6 +60,8 @@ interface Store {
   submit(run: RunRecord): Promise<{ improved: boolean }>;
   detail(member: string): Promise<RunRecord | null>;
   remove(member: string): Promise<boolean>;
+  /** Owner maintenance: members with their stored record. */
+  topMembers(n: number): Promise<Array<{ member: string; score: number; verified?: boolean; name?: string }>>;
 }
 
 function redisStore(): Store | null {
@@ -95,6 +97,16 @@ function redisStore(): Store | null {
     },
     async detail(member) {
       return parseRecord(await redis.hget<string | RunRecord>(`${KEY}:runs`, member));
+    },
+    async topMembers(n) {
+      const flat = (await redis.zrange(KEY, 0, n - 1, { rev: true, withScores: true })) as Array<string | number>;
+      const rows: Array<{ member: string; score: number; verified?: boolean; name?: string }> = [];
+      for (let i = 0; i < flat.length; i += 2) {
+        const member = String(flat[i]);
+        const rec = parseRecord(await redis.hget<string | RunRecord>(`${KEY}:runs`, member));
+        rows.push({ member, score: Number(flat[i + 1]), verified: rec?.verified, name: rec?.name });
+      }
+      return rows;
     },
     async remove(member) {
       const n = await redis.zrem(KEY, member);
@@ -132,6 +144,9 @@ const memoryStore: Store = {
   async remove(member) {
     return memory.delete(member);
   },
+  async topMembers(n) {
+    return [...memory].sort((a, b) => b[1].score - a[1].score).slice(0, n).map(([member, r]) => ({ member, score: r.score, verified: r.verified, name: r.name }));
+  },
 };
 
 const store: Store = redisStore() ?? memoryStore;
@@ -162,10 +177,17 @@ function parseSubmission(body: unknown, sessionName?: string): (RunSubmission & 
 // --- handlers ------------------------------------------------------------------
 
 export async function GET(req: Request): Promise<Response> {
-  const name = new URL(req.url).searchParams.get("name");
+  const url = new URL(req.url);
+  const name = url.searchParams.get("name");
   if (name) {
     const run = await store.detail(name);
     return run ? json(run) : json({ error: "not found" }, 404);
+  }
+  // Owner view: the raw sorted-set members (typed name or d:<discordId>) for maintenance.
+  if (url.searchParams.has("admin")) {
+    const token = process.env.ADMIN_TOKEN;
+    if (!token || req.headers.get("authorization") !== `Bearer ${token}`) return json({ error: "forbidden" }, 403);
+    return json({ rows: await store.topMembers(TOP_N) });
   }
   return json({ top: await store.top(TOP_N), storage: usingRedis ? "redis" : "memory", rules: RULES_VERSION });
 }
@@ -211,19 +233,18 @@ export async function submitScore(body: unknown, user: { discordId: string; name
   const parsed = parseSubmission(body, user?.name);
   if (typeof parsed === "string") return json({ error: parsed }, 400);
   const { log, pool, rules, ...run } = parsed;
-  let verified = false;
-  let reason: string | undefined;
-  if (log && rules !== undefined && rules !== RULES_VERSION) {
-    // Played under other rules (a deploy happened mid-run): keep it, unverified.
-    reason = "rules_version";
-  } else if (log) {
-    // The pool the client played with shapes the shop, so the replay needs it.
-    const r = await replay(run.seed, log, pool);
-    if (r.score !== run.score) {
-      return json({ error: "score does not reproduce from log", replayed: r.score }, 422);
-    }
-    verified = true;
-  } else reason = "no_log";
-  const result = await store.submit({ ...run, verified, at: new Date().toISOString(), discordId: user?.discordId });
-  return json({ ok: true, verified, reason, name: run.name, rules: RULES_VERSION, ...result }, 201);
+  // Only replay-verified runs reach the board. Anything else (played under
+  // other rules after a mid-run deploy, dev-modified, no log) is acknowledged
+  // but not stored: the leaderboard is proof, not a claim.
+  if (!log) return json({ ok: false, stored: false, verified: false, reason: "no_log", rules: RULES_VERSION }, 200);
+  if (rules !== undefined && rules !== RULES_VERSION) {
+    return json({ ok: false, stored: false, verified: false, reason: "rules_version", rules: RULES_VERSION }, 200);
+  }
+  // The pool the client played with shapes the shop, so the replay needs it.
+  const r = await replay(run.seed, log, pool);
+  if (r.score !== run.score) {
+    return json({ error: "score does not reproduce from log", replayed: r.score }, 422);
+  }
+  const result = await store.submit({ ...run, verified: true, at: new Date().toISOString(), discordId: user?.discordId });
+  return json({ ok: true, stored: true, verified: true, name: run.name, rules: RULES_VERSION, ...result }, 201);
 }

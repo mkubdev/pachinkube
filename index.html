@@ -63,6 +63,11 @@
       .el-ice { background: linear-gradient(90deg, rgba(159,232,255,.18), rgba(10,10,20,.78)); }
       .el-storm { background: linear-gradient(90deg, rgba(125,249,255,.18), rgba(10,10,20,.78)); }
       .offer .dur { margin-left: 8px; color: var(--gold); font-family: var(--text); text-transform: none; letter-spacing: 0; }
+      .offer .lvl { margin-left: 8px; color: var(--magenta); }
+      .offer.upgrade { border-color: rgba(255,45,149,.55); }
+      .offer .tag.new { color: #000; background: var(--cyan); padding: 1px 6px; border-radius: 3px; margin-left: 8px; }
+      .offer.fresh { border-color: var(--cyan); box-shadow: 0 0 18px rgba(45,226,255,.28); animation: freshPulse 1.6s ease-in-out infinite alternate; }
+      @keyframes freshPulse { to { box-shadow: 0 0 30px rgba(45,226,255,.55); } }
       .offer.el-fire { border-color: rgba(255,106,0,.5); } .offer.el-ice { border-color: rgba(159,232,255,.5); } .offer.el-storm { border-color: rgba(125,249,255,.5); }
       #labels .pocket { position: fixed; transform: translate(-50%, 0); color: var(--cyan); font-size: 11px; font-weight: 700; pointer-events: none; text-shadow: 0 0 8px rgba(45,226,255,.6); }
       #labels .pocket.jackpot { color: var(--magenta); font-weight: 700; text-shadow: 0 0 10px rgba(255,45,149,.8); }

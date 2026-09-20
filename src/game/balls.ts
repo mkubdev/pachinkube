@@ -166,7 +166,7 @@ export const BALL_TYPES: Record<BallTypeId, BallType> = {
   },
   abyss: {
     id: "abyss", name: "Abyss", desc: "A black hole. Drags every nearby ball toward it; lands with +1 mult per ball still in flight. ×0.6 chips.",
-    color: 0x14091f, physics: { radius: 0.15, density: 22, well: 0.55 }, chipFactor: 0.6, traits: { collapse: true }, shopWeight: 2,
+    color: 0x14091f, physics: { radius: 0.15, density: 22, well: 0.9 }, chipFactor: 0.6, traits: { collapse: true }, shopWeight: 2,
   },
 };
 
