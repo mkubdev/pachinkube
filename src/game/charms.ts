@@ -8,8 +8,8 @@ import type { BallSpawn, Peg, SimEvent } from "../sim/types.js";
 import type { BallTypeId } from "./balls.js";
 import type { Element } from "./elements.js";
 
-export type Rarity = "common" | "uncommon" | "rare";
-export const RARITY_WEIGHT: Record<Rarity, number> = { common: 60, uncommon: 30, rare: 10 };
+export type Rarity = "common" | "uncommon" | "rare" | "legendary";
+export const RARITY_WEIGHT: Record<Rarity, number> = { common: 60, uncommon: 30, rare: 10, legendary: 3 };
 
 /** Per-ball scoring state the hooks can read and push. */
 export interface BallScoreState {
@@ -65,6 +65,8 @@ export interface Charm {
   // --- passive fields: no hooks, the run reads them directly ---------------
   /** Extra balls per round. */
   extraBalls?: number;
+  /** Extra balls per round, times the number of rounds the copy has been held. */
+  extraBallsGrowth?: number;
   /** Additive bonus to every pocket multiplier. */
   bucketBonus?: number;
   /** Additive bonus to the two edge pockets only. */
@@ -176,6 +178,7 @@ export type CharmId =
   | "bumper_kings"
   | "overflow"
   | "extra_ball"
+  | "snowball"
   | "phoenix"
   | "golden_pocket"
   | "loaded_dice"
@@ -355,9 +358,16 @@ export const CHARMS: Record<CharmId, Charm> = {
   extra_ball: {
     id: "extra_ball",
     name: "Extra Ball",
-    desc: "+1 ball every round.",
+    desc: "+1 ball for this run.",
     rarity: "common",
     extraBalls: 1,
+  },
+  snowball: {
+    id: "snowball",
+    name: "Snowball",
+    desc: "Extra balls that grow every round held: +1, then +2, then +3…",
+    rarity: "legendary",
+    extraBallsGrowth: 1,
   },
   phoenix: {
     id: "phoenix",

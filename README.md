@@ -6,7 +6,7 @@ rounds, ~20–30 minutes. Hosted on Vercel for a friend group, with a shared,
 **replay-verified** leaderboard.
 
 **Status: first playable.** Full loop — aim → drop → score → shop → next round →
-endless → submit — with 55 charms (incl. 8 temporary), 25 ball types, 7 combo
+endless → submit — with 56 charms (incl. 8 temporary), 25 ball types, 7 combo
 events, three
 elements with reactions, combos, meta-progression, effects, audio, lofi radio,
 a Blender cabinet, and server-side score verification. Balance is probe-tuned.
@@ -301,7 +301,7 @@ src/sim/         deterministic physics — pure TS + Rapier, runs in Node
   world.ts         board, pockets, balls, stuck-ball recovery → SimEvent[]
 src/game/        roguelite layer — also pure TS, runs in Node
   run.ts           rounds, bag, shop, scoring dispatch → GameEvent[]
-  charms.ts        55 charms as data     balls.ts  25 ball types
+  charms.ts        56 charms as data     balls.ts  25 ball types
   scoring.ts       chips × mult × pocket, round targets
   replay.ts        headless replay for verification
   ui.ts            DOM overlay (HUD, popups, shop, end screen, leaderboard)

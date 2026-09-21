@@ -145,6 +145,7 @@ export const UNLOCK_RULES: UnlockRule[] = [
   { kind: "charm", id: "second_wind", stat: "bestCombo", value: 80, hint: "Reach an 80 combo" },
   { kind: "charm", id: "overclock", stat: "bestRound", value: 10, hint: "Reach round 10" },
   { kind: "charm", id: "restless_board", stat: "roundsCleared", value: 40, hint: "Clear 40 rounds (lifetime)" },
+  { kind: "charm", id: "snowball", stat: "bestRound", value: 12, hint: "Reach round 12" },
 ];
 
 export function ruleFor(kind: "charm" | "ball", id: string): UnlockRule | undefined {

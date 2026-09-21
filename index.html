@@ -30,7 +30,7 @@
          big scores, pocket multipliers. Space Grotesk for everything you read —
          HUD rows, charm cards, shop, leaderboard. Mono stays for seed/hash. */
       :root { --display: "Orbitron", "Space Grotesk", sans-serif; --text: "Space Grotesk", system-ui, sans-serif; --mono: ui-monospace, SFMono-Regular, Menlo, monospace; }
-      :root { color-scheme: dark; --magenta: #ff2d95; --cyan: #2de2ff; --gold: #ffd34d; --bg: #07070c; }
+      :root { color-scheme: dark; --magenta: #ff2d95; --cyan: #2de2ff; --gold: #ffd34d; --violet: #b26bff; --bg: #07070c; }
       * { margin: 0; padding: 0; box-sizing: border-box; }
       html, body { height: 100%; background: var(--bg); overflow: hidden; overscroll-behavior: none; }
       body { font: 14px/1.45 var(--text); color: #c8d0d8; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; position: fixed; inset: 0; }
@@ -74,7 +74,7 @@
       .toast { display: flex; gap: 10px; align-items: center; } .toast .ic { margin: 0; } .toast .ic svg.px { width: 28px; height: 28px; }
       .card .ic svg.px { width: 32px; height: 32px; } .card.locked .ic svg.px { filter: none; }
       .offer .ic svg.px { width: 40px; height: 40px; filter: drop-shadow(0 0 8px rgba(255,255,255,.25)); }
-      .charm.uncommon { border-left-color: var(--cyan); } .charm.rare { border-left-color: var(--gold); }
+      .charm.uncommon { border-left-color: var(--cyan); } .charm.rare { border-left-color: var(--gold); } .charm.legendary { border-left-color: var(--violet); }
       .charm.temp { border-left-style: dashed; display: flex; justify-content: space-between; gap: 8px; }
       .charm .left { color: #9aa4b0; font-size: 11px; white-space: nowrap; }
       .el-fire { background: linear-gradient(90deg, rgba(255,106,0,.18), rgba(10,10,20,.78)); }
@@ -169,7 +169,7 @@
       .offer { text-align: left; padding: 14px; background: #12121f; border: 1px solid #2a2440; border-radius: 8px; color: inherit; font: inherit; cursor: pointer; transition: transform .1s, border-color .1s; }
       .offer:hover { transform: translateY(-2px); border-color: var(--cyan); }
       .offer .tag { display: inline-block; font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: #6b7783; margin-bottom: 6px; font-family: var(--display); }
-      .offer.uncommon .tag { color: var(--cyan); } .offer.rare .tag { color: var(--gold); } .offer.ball .tag { color: var(--magenta); }
+      .offer.uncommon .tag { color: var(--cyan); } .offer.rare .tag { color: var(--gold); } .offer.legendary .tag { color: var(--violet); } .offer.ball .tag { color: var(--magenta); }
       .offer b { display: block; color: #fff; margin-bottom: 6px; }
       .offer p { color: #9aa4b0; }
       form#submit { display: flex; gap: 8px; margin: 8px 0; }
@@ -209,7 +209,7 @@
       .card { padding: 10px 12px; background: #12121f; border: 1px solid #2a2440; border-radius: 8px; }
       .card b { display: block; color: #fff; margin: 4px 0; } .card p { color: #9aa4b0; font-size: 12px; }
       .card .tag { font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: #6b7783; }
-      .card .tag.uncommon { color: var(--cyan); } .card .tag.rare { color: var(--gold); } .card .tag.ball { color: var(--magenta); }
+      .card .tag.uncommon { color: var(--cyan); } .card .tag.rare { color: var(--gold); } .card .tag.legendary { color: var(--violet); } .card .tag.ball { color: var(--magenta); }
       .card.locked { opacity: .55; border-style: dashed; } .card.fresh { border-color: var(--cyan); }
       .card .tag.new { color: var(--cyan); margin-left: 6px; }
       .card.feat { border-left: 3px solid var(--gold); } .card.feat.locked { border-left-color: #2a2440; }

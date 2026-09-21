@@ -35,7 +35,7 @@ const G: Record<string, string[]> = {
 
 const CHARM_GLYPH: Record<CharmId, keyof typeof G> = {
   magnet_coil: "magnet", neon_sign: "star", split_shot: "split", jackpot_lens: "eye", rubber_soul: "wave",
-  heavy_metal: "gear", chain_lightning: "bolt", bumper_kings: "shield", overflow: "wave", extra_ball: "ball",
+  heavy_metal: "gear", chain_lightning: "bolt", bumper_kings: "shield", overflow: "wave", extra_ball: "ball", snowball: "snow",
   phoenix: "flame", golden_pocket: "coin", loaded_dice: "dice", wide_net: "wave", warm_start: "sun",
   momentum: "arrow", grand_finale: "trophy", fresh_paint: "star", echo: "wave", long_fuse: "clock",
   milestone_maker: "star", insurance: "heart", duplicator: "split", compound: "coin", sharpshooter: "eye",
@@ -70,6 +70,7 @@ const RARITY: Record<string, Palette> = {
   common: { primary: "#8a93a3", secondary: "#c8d0d8", highlight: "#ffffff" },
   uncommon: { primary: "#1aa6bf", secondary: "#2de2ff", highlight: "#d7f7ff" },
   rare: { primary: "#c9962a", secondary: "#ffd34d", highlight: "#fff1a8" },
+  legendary: { primary: "#7a3bd6", secondary: "#b26bff", highlight: "#ecdcff" },
   feat: { primary: "#c9962a", secondary: "#ffd34d", highlight: "#ffffff" },
   locked: { primary: "#2a2f3a", secondary: "#3a4150", highlight: "#4a5262" },
 };

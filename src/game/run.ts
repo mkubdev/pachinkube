@@ -133,6 +133,8 @@ export class Run {
   readonly ballElements = new Map<number, Element>();
   /** Round on which each temporary charm (by index in `charms`) expires. */
   private readonly charmExpires = new Map<number, number>();
+  /** Round on which each charm (by index in `charms`) was bought; growth charms read it. */
+  private readonly charmAcquired = new Map<number, number>();
   // Dynamic pocket state (per round unless noted).
   private pocketRotation = 0;
   private pocketHot: number[] = [];
@@ -283,6 +285,7 @@ export class Run {
         this.charmExpires.set(held, (this.charmExpires.get(held) ?? this.round) + dur);
       } else {
         this.charms.push(offer.id);
+        this.charmAcquired.set(this.charms.length - 1, this.round);
         // Acquired after round N ends: lasts rounds N+1 .. N+dur.
         if (dur) this.charmExpires.set(this.charms.length - 1, this.round + dur);
       }
@@ -354,12 +357,14 @@ export class Run {
       if (until !== undefined && this.round > until) {
         gone.push(this.charms[i]!);
         this.charms.splice(i, 1);
-        this.charmExpires.delete(i);
-        // Re-key expiries above the removed index.
-        for (const [k, v] of [...this.charmExpires]) {
-          if (k > i) {
-            this.charmExpires.delete(k);
-            this.charmExpires.set(k - 1, v);
+        // Re-key the per-index charm maps above the removed index.
+        for (const map of [this.charmExpires, this.charmAcquired]) {
+          map.delete(i);
+          for (const [k, v] of [...map]) {
+            if (k > i) {
+              map.delete(k);
+              map.set(k - 1, v);
+            }
           }
         }
       }
@@ -511,7 +516,7 @@ export class Run {
     this.ballExtra.clear();
     this.phase = "drop";
     // One more ball every few rounds, so deep runs keep widening.
-    this.ballsLeft = this.ballsPerRound + Math.floor((this.round - 1) / BALL_EVERY_ROUNDS) + this.sumCharm((c) => c.extraBalls ?? 0);
+    this.ballsLeft = this.ballsPerRound + Math.floor((this.round - 1) / BALL_EVERY_ROUNDS) + this.sumCharm((c) => c.extraBalls ?? 0) + this.growthBalls();
     this.activeEffects.clear();
     this.secondWindUsed = false;
     this.sim.setGravityScaleAll(1);
@@ -1118,6 +1123,16 @@ export class Run {
 
   private sumCharm(f: (c: Charm) => number): number {
     return this.charms.reduce((acc, id) => acc + f(CHARMS[id]), 0);
+  }
+
+  /** Growth charms (Snowball): each copy pays its growth once per round held. */
+  private growthBalls(): number {
+    let n = 0;
+    for (let i = 0; i < this.charms.length; i++) {
+      const g = CHARMS[this.charms[i]!].extraBallsGrowth ?? 0;
+      if (g) n += g * Math.max(0, this.round - (this.charmAcquired.get(i) ?? 0));
+    }
+    return n;
   }
 
   private nearestUnlit(x: number, y: number, n: number, excludePeg: number) {
