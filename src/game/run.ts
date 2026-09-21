@@ -516,9 +516,12 @@ export class Run {
     this.sim.setGlobalPull(0);
     this.sim.armPortals(0);
     this.applyBoardMotion();
-    // Shuffle the owned balls with the shop stream so the order is seeded.
-    this.bag = shuffle([...this.ownedBalls], this.sim.streams.shop).slice(0, this.ballsLeft);
+    // Custom balls always make the bag; steel is only filler. Shuffled with the
+    // shop stream so the draw order is seeded.
+    const custom = this.ownedBalls.filter((t) => t !== "steel");
+    this.bag = custom.slice(0, this.ballsLeft);
     while (this.bag.length < this.ballsLeft) this.bag.push("steel");
+    this.bag = shuffle(this.bag, this.sim.streams.shop);
     for (const id of this.charms) CHARMS[id].onRoundStart?.(this.ctxBase());
   }
 

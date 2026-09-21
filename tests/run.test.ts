@@ -44,6 +44,30 @@ describe("run", () => {
     expect(a.run.log).toEqual(b.run.log);
   });
 
+  it("puts every owned custom ball in the bag; steel only fills the rest", async () => {
+    const run = await Run.create("bag-priority");
+    runs.push(run);
+    run.ownedBalls.push("heavy", "heavy", "rubber", "rubber");
+    // Rebuild the bag many rounds in a row: the customs must survive every time.
+    for (let round = 1; round <= 5; round++) {
+      run.round = round;
+      (run as unknown as { startRound(): void }).startRound();
+      expect(run.bag.length).toBe(run.ballsLeft);
+      const custom = run.bag.filter((t) => t !== "steel").sort();
+      expect(custom).toEqual(["heavy", "heavy", "rubber", "rubber"]);
+    }
+  });
+
+  it("caps the bag at ballsLeft even when customs alone overflow it", async () => {
+    const run = await Run.create("bag-overflow");
+    runs.push(run);
+    for (let i = 0; i < 10; i++) run.ownedBalls.push("rubber");
+    (run as unknown as { startRound(): void }).startRound();
+    expect(run.bag.length).toBe(run.ballsLeft);
+    // With more customs than slots, the whole bag is custom.
+    expect(run.bag.every((t) => t === "rubber")).toBe(true);
+  });
+
   it("plays through rounds, scores balls, and ends in won or lost", async () => {
     const { run, events } = await play("run-flow");
     expect(["won", "lost"]).toContain(run.phase);
