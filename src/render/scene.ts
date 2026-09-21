@@ -21,6 +21,13 @@ import {
 } from "postprocessing";
 import { FxSystem } from "./fx.js";
 import { ELEMENTS, type Element } from "../game/elements.js";
+import type { Quality } from "../game/gfx.js";
+
+/** Render resolution per quality; phones default to medium via gfx defaults. */
+function pixelRatioFor(q: Quality): number {
+  if (q === "low") return 1;
+  return Math.min(devicePixelRatio, q === "medium" ? 1.5 : 2);
+}
 
 /**
  * Pegs: one instanced draw with a custom shader. Per instance we carry the
@@ -218,6 +225,7 @@ export class BoardRenderer {
   private pegLit: Uint8Array = new Uint8Array(0);
   private pegPulse: Float32Array = new Float32Array(0);
   private readonly pulsing = new Set<number>();
+  private quality: Quality;
   /** 0..1 "how wild is it right now": drives bloom, aberration, vignette. */
   private heat = 0;
   private heatTarget = 0;
@@ -235,11 +243,10 @@ export class BoardRenderer {
   private shake = 0;
   private readonly tmp = new THREE.Vector3();
 
-  constructor(canvas: HTMLCanvasElement, private readonly board: BoardDims) {
+  constructor(canvas: HTMLCanvasElement, private readonly board: BoardDims, quality: Quality = "high") {
+    this.quality = quality;
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: "high-performance" });
-    // Phones: bloom + chroma at 3× DPR is too much for a mobile GPU; 1.5 is plenty on a 6" screen.
-    const coarse = typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches;
-    this.renderer.setPixelRatio(Math.min(devicePixelRatio, coarse ? 1.5 : 2));
+    this.renderer.setPixelRatio(pixelRatioFor(quality));
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.1;
 
@@ -324,17 +331,43 @@ export class BoardRenderer {
     this.fx = new FxSystem(this.scene);
 
     this.composer = new EffectComposer(this.renderer);
-    this.composer.addPass(new RenderPass(this.scene, this.camera));
     this.bloom = new BloomEffect({ intensity: 1.35, luminanceThreshold: 0.55, luminanceSmoothing: 0.2, mipmapBlur: true });
     this.chroma = new ChromaticAberrationEffect({ offset: new THREE.Vector2(0.0004, 0.0004), radialModulation: true, modulationOffset: 0.25 });
     this.vignette = new VignetteEffect({ offset: 0.32, darkness: 0.45 });
     this.shockwave = new ShockWaveEffect(this.camera, this.shockPos, { speed: 2.2, maxRadius: 0.9, waveSize: 0.18, amplitude: 0.06 });
+    this.buildPasses();
+    this.resize();
+    addEventListener("resize", () => this.resize());
+  }
+
+  /**
+   * (Re)build the postprocessing chain for the current quality. Medium drops
+   * the chromatic aberration; low bypasses the composer entirely (see render).
+   * The effect objects themselves live on: heat/kicks keep driving them.
+   */
+  private buildPasses(): void {
+    // removeAllPasses without dispose: EffectPass.dispose would take the shared
+    // effects down with it. A rebuild is a rare, user-driven event.
+    this.composer.removeAllPasses();
+    if (this.quality === "low") return;
+    this.composer.addPass(new RenderPass(this.scene, this.camera));
     // The shockwave distorts UVs, which postprocessing refuses to combine with a
     // convolution (bloom) in one pass; it gets its own pass, applied first.
     this.composer.addPass(new EffectPass(this.camera, this.shockwave));
-    this.composer.addPass(new EffectPass(this.camera, this.bloom, this.chroma, this.vignette));
+    this.composer.addPass(
+      this.quality === "high"
+        ? new EffectPass(this.camera, this.bloom, this.chroma, this.vignette)
+        : new EffectPass(this.camera, this.bloom, this.vignette),
+    );
+  }
+
+  /** Switch render quality live: adjusts resolution and rebuilds the post chain. */
+  setQuality(q: Quality): void {
+    if (q === this.quality) return;
+    this.quality = q;
+    this.renderer.setPixelRatio(pixelRatioFor(q));
+    this.buildPasses();
     this.resize();
-    addEventListener("resize", () => this.resize());
   }
 
   private buildBackdrop(): void {
@@ -800,7 +833,8 @@ export class BoardRenderer {
     } else {
       this.camera.position.copy(this.camBase);
     }
-    this.composer.render(dt);
+    if (this.quality === "low") this.renderer.render(this.scene, this.camera);
+    else this.composer.render(dt);
   }
 
   /**

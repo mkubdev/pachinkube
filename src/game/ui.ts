@@ -11,6 +11,7 @@ import { FEATS, UNLOCK_RULES, isUnlocked, ruleFor, unlockProgress, type MetaNoti
 import { ballIcon, charmIcon, featIcon } from "./icons.js";
 import type { CharmId } from "./charms.js";
 import type { BallTypeId } from "./balls.js";
+import type { GfxSettings } from "./gfx.js";
 
 type Projector = (x: number, y: number) => { x: number; y: number };
 
@@ -51,6 +52,8 @@ export class GameUI {
   authAvailable = true;
   signInUrl = "/api/auth/signin";
   onMusic: (() => void) | null = null;
+  onFps: (() => void) | null = null;
+  onQuality: (() => void) | null = null;
   /** "Reset my collection" in the collection panel (confirmed by the player). */
   onResetMeta: (() => Promise<void>) | null = null;
   onStation: ((id: string) => void) | null = null;
@@ -74,6 +77,8 @@ export class GameUI {
         <input id="music-vol" type="range" min="0" max="100" title="music volume" />
         <span id="stations"><button data-station="lofi" title="lofi girl radio">lofi</button><button data-station="dnb" title="drum &amp; bass radio">dnb</button></span>
         <button id="music-btn" title="music on/off (M)">♪</button>
+        <button id="fps-btn" title="frame rate: 60fps runs cooler, 120+ uses your display's full refresh"></button>
+        <button id="gfx-btn" title="graphics quality: low runs coolest, high has all the glow"></button>
         <button id="board-btn" title="Scoreboard (L)">◇ scores</button>
         <button id="collection-btn" title="Collection (C)">◈ collection</button>
         <span id="account"></span>
@@ -89,6 +94,8 @@ export class GameUI {
     this.root.querySelector("#collection-btn")!.addEventListener("click", () => this.onCollection?.());
     this.root.querySelector("#board-btn")!.addEventListener("click", () => this.onBoard?.());
     this.root.querySelector("#music-btn")!.addEventListener("click", () => this.onMusic?.());
+    this.root.querySelector("#fps-btn")!.addEventListener("click", () => this.onFps?.());
+    this.root.querySelector("#gfx-btn")!.addEventListener("click", () => this.onQuality?.());
     this.root.querySelectorAll<HTMLButtonElement>("#stations button").forEach((b) =>
       b.addEventListener("click", () => this.onStation?.(b.dataset.station!)),
     );
@@ -308,6 +315,12 @@ export class GameUI {
   }
 
   /** Reflect music state on the dock. */
+  /** Reflect the graphics settings on the dock buttons. */
+  setGfx(gfx: GfxSettings): void {
+    this.root.querySelector("#fps-btn")!.textContent = gfx.fps === 60 ? "60fps" : "120+fps";
+    this.root.querySelector("#gfx-btn")!.textContent = `gfx: ${gfx.quality === "medium" ? "med" : gfx.quality}`;
+  }
+
   setMusic(playing: boolean, volume: number, station: string): void {
     const dock = this.root.querySelector("#dock")!;
     const btn = this.root.querySelector("#music-btn")!;

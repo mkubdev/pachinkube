@@ -11,6 +11,7 @@ import { ELEMENTS } from "./game/elements.js";
 import { SyncedMetaStore } from "./game/metaSync.js";
 import { RULES_VERSION } from "./game/version.js";
 import { getSession, signInUrl, signOutUrl } from "./game/auth.js";
+import { cycleQuality, loadGfx, renderInterval, saveGfx, toggleFps } from "./game/gfx.js";
 import {
   LocalMetaStore,
   newTracker,
@@ -68,7 +69,11 @@ if (devCharms.length || devBag.length) {
 const music = new Music();
 music.onChange = () => ui.setMusic(music.playing, music.volume, music.station);
 const dims = { width: run.sim.config.width, height: run.sim.config.height, buckets: run.sim.config.buckets };
-const view = new BoardRenderer(canvas, dims);
+// Bloom + chroma at full DPR is too much for a mobile GPU: coarse pointers
+// default to medium quality (the player can change it from the dock).
+const coarse = typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches;
+const gfx = loadGfx(localStorage, coarse);
+const view = new BoardRenderer(canvas, dims, gfx.quality);
 view.setPegs(run.sim.pegs);
 view.setFins(run.sim.fins);
 void view.loadCabinet("assets/models/cabinet.glb");
@@ -92,6 +97,18 @@ ui.onPick = (i) => {
   ui.updateCharms(run);
 };
 ui.onNewRun = () => void newRun(`run-${Date.now().toString(36)}`);
+ui.setGfx(gfx);
+ui.onFps = () => {
+  gfx.fps = toggleFps(gfx.fps);
+  saveGfx(localStorage, gfx);
+  ui.setGfx(gfx);
+};
+ui.onQuality = () => {
+  gfx.quality = cycleQuality(gfx.quality);
+  view.setQuality(gfx.quality);
+  saveGfx(localStorage, gfx);
+  ui.setGfx(gfx);
+};
 
 // If the server's rules moved under this tab, the next run can only verify
 // after a refresh: say so once, when the board is fetched.
@@ -622,6 +639,7 @@ function simStep(): void {
 }
 
 let last = performance.now();
+let lastDraw = -1e9;
 let frame = 0;
 function loop(now: number): void {
   const dtSec = Math.min((now - last) / 1000, 0.1);
@@ -635,11 +653,19 @@ function loop(now: number): void {
   const alpha = stepper.advance(dtSec * timeScale, simStep);
 
   streamTick(now);
-  view.setAim(run.phase === "drop" ? aimX : null);
-  view.render(prev, curr, alpha, dtSec);
-  ui.tickPopups(now);
-  // First frame too: on a slow GPU the sixth frame can be a second away.
-  if (++frame === 1 || frame % 6 === 0) ui.updateHud(run, seed, auto);
+  // Frame pacing: the sim above steps on every rAF regardless; only drawing is
+  // capped (60fps setting, 30fps on the shop/end screens). The 1ms tolerance
+  // keeps vsync jitter from skipping a frame and landing at 40fps.
+  const idle = run.phase !== "drop";
+  if (now - lastDraw >= renderInterval(gfx.fps, idle) - 1) {
+    const drawDt = Math.min((now - lastDraw) / 1000, 0.1);
+    lastDraw = now;
+    view.setAim(run.phase === "drop" ? aimX : null);
+    view.render(prev, curr, alpha, drawDt);
+    ui.tickPopups(now);
+    // First frame too: on a slow GPU the sixth frame can be a second away.
+    if (++frame === 1 || frame % 6 === 0) ui.updateHud(run, seed, auto);
+  }
   requestAnimationFrame(loop);
 }
 ui.updateCharms(run);
