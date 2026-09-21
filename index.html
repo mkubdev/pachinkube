@@ -61,7 +61,11 @@
       #hud .bar { height: 5px; margin: 6px 0; background: #1a1d2a; border-radius: 3px; overflow: hidden; }
       #hud .bar div { height: 100%; background: linear-gradient(90deg, var(--cyan), var(--magenta)); transition: width .2s; }
       #charms { top: 12px; right: 12px; width: min(220px, 18vw); display: flex; flex-direction: column; gap: 4px; pointer-events: none; }
-      .charm { padding: 5px 9px; border-radius: 4px; background: rgba(10,10,20,.78); border-left: 3px solid #556; display: flex; align-items: center; gap: 8px; }
+      /* The column ignores the pointer so it never blocks aiming, but each charm
+         card catches hover to show its description again. */
+      .charm { position: relative; pointer-events: auto; padding: 5px 9px; border-radius: 4px; background: rgba(10,10,20,.78); border-left: 3px solid #556; display: flex; align-items: center; gap: 8px; }
+      .charm::after { content: attr(data-desc); position: absolute; right: calc(100% + 10px); top: 50%; width: max-content; max-width: 250px; padding: 7px 11px; background: rgba(10,10,20,.96); border: 1px solid #2a2440; border-left: 3px solid var(--cyan); border-radius: 6px; color: #c8d0d8; font-size: 12px; line-height: 1.45; white-space: normal; opacity: 0; transform: translateY(-50%) translateX(4px); transition: opacity .12s, transform .12s; pointer-events: none; z-index: 3; }
+      .charm:hover::after { opacity: 1; transform: translateY(-50%) translateX(0); }
       .charm span:first-of-type { flex: 1; }
       svg.px { width: 24px; height: 24px; image-rendering: pixelated; flex: none; filter: drop-shadow(0 0 4px rgba(255,255,255,.15)); }
       .charm svg.px { width: 18px; height: 18px; }
@@ -112,7 +116,7 @@
       @keyframes bannerIn { 0% { opacity: 0; transform: translate(-50%, -50%) scale(2.2); letter-spacing: .6em; } 18% { opacity: 1; transform: translate(-50%, -50%) scale(1); letter-spacing: .12em; } 80% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, -60%) scale(1.05); } }
       #flash { inset: 0; pointer-events: none; opacity: 0; mix-blend-mode: screen; z-index: 1; }
       #hud, #charms, #combo, #toasts, #dock, #hint, #labels { z-index: 2; }
-      #modal, #collection, #board-panel { z-index: 3; }
+      #modal, #collection, #board-panel, #lexicon { z-index: 3; }
       #modal { inset: 0; display: grid; place-items: center; background: rgba(4,4,10,.72); backdrop-filter: blur(3px); }
       #modal[hidden] { display: none; }
       .panel { width: min(920px, 92vw); padding: 24px 28px; background: #0d0d18; border: 1px solid #2a2440; border-radius: 10px; box-shadow: 0 0 60px rgba(255,45,149,.15); }
@@ -195,8 +199,9 @@
       #dock.music-on input[type=range] { display: inline-block; }
       #board-panel { inset: 0; display: grid; place-items: center; background: rgba(4,4,10,.72); backdrop-filter: blur(3px); }
       #board-panel[hidden] { display: none; }
-      #collection { inset: 0; display: grid; place-items: start center; overflow: auto; padding: 4vh 0; background: rgba(4,4,10,.82); backdrop-filter: blur(3px); }
-      #collection[hidden] { display: none; }
+      #collection, #lexicon { inset: 0; display: grid; place-items: start center; overflow: auto; padding: 4vh 0; background: rgba(4,4,10,.82); backdrop-filter: blur(3px); }
+      #collection[hidden], #lexicon[hidden] { display: none; }
+      #lexicon .card b { color: var(--cyan); }
       .panel.wide { width: min(1100px, 94vw); }
       .panel .row { display: flex; justify-content: space-between; align-items: center; }
       .panel h3 { color: #fff; margin: 16px 0 8px; letter-spacing: .08em; font-size: 13px; }
@@ -243,6 +248,7 @@
         #charms { top: calc(var(--hud-bottom) + 4px); left: 0; right: 0; width: auto; flex-direction: row; gap: 4px; padding: 0 6px; overflow-x: auto; scrollbar-width: none; pointer-events: auto; }
         #charms::-webkit-scrollbar { display: none; }
         .charm { padding: 3px 6px; flex: none; border-left-width: 2px; } .charm span:first-of-type { display: none; } .charm .left { font-size: 10px; }
+        .charm::after { display: none; } /* no hover on touch; the lexicon covers it */
         /* Combo on the right, toasts on the left: they never fight for the centre. */
         #combo { top: calc(var(--hud-bottom) + 40px); left: auto; right: 12px; transform: none; text-align: right; }
         #combo .n { font-size: 44px; } #combo.t2 .n { font-size: 52px; } #combo.t3 .n { font-size: 60px; }
@@ -265,7 +271,7 @@
         .popup.chips { font-size: 11px; } .popup.mult { font-size: 13px; } .popup.score { font-size: 17px; }
         #labels .pocket { font-size: 10px; }
         /* Overlays: full width, scroll inside, big enough to tap. */
-        #modal, #board-panel, #collection { place-items: start center; overflow: auto; padding: calc(8px + env(safe-area-inset-top, 0px)) 8px calc(8px + env(safe-area-inset-bottom, 0px)); }
+        #modal, #board-panel, #collection, #lexicon { place-items: start center; overflow: auto; padding: calc(8px + env(safe-area-inset-top, 0px)) 8px calc(8px + env(safe-area-inset-bottom, 0px)); }
         .panel, .panel.wide, .panel.end { width: 100%; padding: 16px 14px; max-height: none; }
         .panel .score { font-size: 32px; }
         .panel.end { padding: 22px 14px 18px; } .panel.end .score { font-size: clamp(40px, 13vw, 56px); } .panel.end .stats { gap: 14px; }

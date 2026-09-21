@@ -110,4 +110,18 @@ describe("new unlockables", () => {
     run.step();
     expect(run.ballsLeft).toBe(left + 1); // once per round
   });
+
+  it("second wind fires on the round's last ball and keeps the round alive", async () => {
+    const run = await make("sw-finale", "second_wind");
+    const priv = run as unknown as { combo: number; lastHitTick: number };
+    // The last ball just pocketed: no balls left, none in flight, and the big
+    // combo it built is still inside its window when the round would end.
+    run.ballsLeft = 0;
+    priv.combo = 65;
+    priv.lastHitTick = run.sim.tick;
+    const events = run.step();
+    expect(events.some((e) => e.type === "popup" && e.text.startsWith("SECOND WIND"))).toBe(true);
+    expect(run.ballsLeft).toBe(1);
+    expect(run.phase).toBe("drop"); // the granted ball is immediately usable
+  });
 });

@@ -317,32 +317,34 @@ export class Run {
       }
     }
     if (this.combo > 0 && this.sim.tick - this.lastHitTick > this.comboWindow()) {
-      out.push({ type: "comboEnd", count: this.combo });
-      // Second Wind: a big combo ending buys one more ball this round.
-      // Second Wind: each extra copy lowers the bar by 10 (never below 20).
-      const swAll = this.charms.map((id) => CHARMS[id].secondWindAt ?? 0).filter((n) => n > 0);
-      const sw = swAll.length ? Math.max(20, Math.min(...swAll) - 10 * (swAll.length - 1)) : Infinity;
-      if (!this.secondWindUsed && this.combo >= sw) {
-        this.secondWindUsed = true;
-        this.ballsLeft++;
-        this.bag.push("steel");
-        out.push({ type: "popup", x: 0, y: this.sim.config.height * 0.5, text: "SECOND WIND · +1 ball", kind: "mult" });
-      }
-      this.combo = 0;
+      this.closeCombo(out);
     }
     if (this.ballsLeft === 0 && this.sim.ballCount === 0) {
       // The last ball often pockets inside the combo window: close the combo
-      // here or the counter and heat would hang over the shop.
-      if (this.combo > 0) {
-        out.push({ type: "comboEnd", count: this.combo });
-        this.combo = 0;
-      }
-      this.endRound(out);
+      // here or the counter and heat would hang over the shop. Second Wind can
+      // still fire off this close, and the granted ball keeps the round alive.
+      if (this.combo > 0) this.closeCombo(out);
+      if (this.ballsLeft === 0) this.endRound(out);
     }
     return out;
   }
 
   // --- internals -----------------------------------------------------------------
+
+  /** Close the running combo. Second Wind: a big combo ending buys one more ball
+   *  this round; each extra copy lowers the bar by 10 (never below 20). */
+  private closeCombo(out: GameEvent[]): void {
+    out.push({ type: "comboEnd", count: this.combo });
+    const swAll = this.charms.map((id) => CHARMS[id].secondWindAt ?? 0).filter((n) => n > 0);
+    const sw = swAll.length ? Math.max(20, Math.min(...swAll) - 10 * (swAll.length - 1)) : Infinity;
+    if (!this.secondWindUsed && this.combo >= sw) {
+      this.secondWindUsed = true;
+      this.ballsLeft++;
+      this.bag.push("steel");
+      out.push({ type: "popup", x: 0, y: this.sim.config.height * 0.5, text: "SECOND WIND · +1 ball", kind: "mult" });
+    }
+    this.combo = 0;
+  }
 
   /** Remove temporary charms whose last round has passed. Returns their ids. */
   private expireCharms(): CharmId[] {

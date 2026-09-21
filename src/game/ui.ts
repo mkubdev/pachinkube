@@ -17,6 +17,22 @@ type Projector = (x: number, y: number) => { x: number; y: number };
 
 const POPUP_POOL = 48;
 
+/** Term → definition, in reading order for a new player. */
+const LEXICON: Array<[string, string]> = [
+  ["Chips", "What a ball collects on the way down: 10 chips for a peg it hasn't hit yet, 3 for a repeat hit. Elements and charms add more."],
+  ["Mult", "The multiplier a ball carries. When it lands: score = chips × mult × pocket multiplier."],
+  ["Pegs", "The pins on the board. Fresh hits pay more than repeats, and a peg can hold an element state: burning, frozen or charged."],
+  ["Bumpers", "Oversized, extra-bouncy pegs that shove the ball away. One bump counts as several combo hits."],
+  ["Pockets", "The slots at the bottom; each one multiplies the score of the balls it catches. The glowing pocket is the jackpot — the centre, unless a charm moved it."],
+  ["Charms", "Passive relics picked after each cleared round. Solid border: permanent, and copies stack. Dashed border: temporary, gone after the shown rounds."],
+  ["Rarity", "common · uncommon · rare. Rarer charms are stronger and show up less often in the shop."],
+  ["Elements", "Fire, Ice and Storm. An elemental ball ignites, freezes or charges the pegs it touches."],
+  ["Reactions", "Hitting an elemental peg pays out: burning pegs give bonus chips, frozen pegs shatter for chips, charged pegs zap lightning to their neighbours. Mixing elements goes further — steam, wildfire, chain shatters."],
+  ["Combo", "Peg hits chained close together, counted across every ball in flight. Big combos trigger machine-wide combo events."],
+  ["Round & target", "Each round asks for a target score with a limited bag of balls. Clear it to reach the shop; after the machine is cleared the climb keeps going."],
+  ["Seed & hash", "Runs are deterministic: the seed replays the same run, the hash proves a replay was honest."],
+];
+
 export class GameUI {
   private readonly root: HTMLElement;
   private readonly hud: HTMLElement;
@@ -73,12 +89,14 @@ export class GameUI {
       <div id="modal" hidden></div>
       <div id="collection" hidden></div>
       <div id="board-panel" hidden></div>
+      <div id="lexicon" hidden></div>
       <div id="dock">
         <input id="music-vol" type="range" min="0" max="100" title="music volume" />
         <span id="stations"><button data-station="lofi" title="lofi girl radio">lofi</button><button data-station="dnb" title="drum &amp; bass radio">dnb</button></span>
         <button id="music-btn" title="music on/off (M)">♪</button>
         <button id="fps-btn" title="frame rate: 60fps runs cooler, 120+ uses your display's full refresh"></button>
         <button id="gfx-btn" title="graphics quality: low runs coolest, high has all the glow"></button>
+        <button id="lexicon-btn" title="Lexicon: what chips, mult, pegs, charms… mean">? lexicon</button>
         <button id="board-btn" title="Scoreboard (L)">◇ scores</button>
         <button id="collection-btn" title="Collection (C)">◈ collection</button>
         <span id="account"></span>
@@ -93,6 +111,7 @@ export class GameUI {
     this.flashEl = this.root.querySelector("#flash")!;
     this.root.querySelector("#collection-btn")!.addEventListener("click", () => this.onCollection?.());
     this.root.querySelector("#board-btn")!.addEventListener("click", () => this.onBoard?.());
+    this.root.querySelector("#lexicon-btn")!.addEventListener("click", () => this.toggleLexicon());
     this.root.querySelector("#music-btn")!.addEventListener("click", () => this.onMusic?.());
     this.root.querySelector("#fps-btn")!.addEventListener("click", () => this.onFps?.());
     this.root.querySelector("#gfx-btn")!.addEventListener("click", () => this.onQuality?.());
@@ -207,6 +226,7 @@ export class GameUI {
     this.modal.hidden = true;
     this.root.querySelector<HTMLElement>("#collection")!.hidden = true;
     this.root.querySelector<HTMLElement>("#board-panel")!.hidden = true;
+    this.root.querySelector<HTMLElement>("#lexicon")!.hidden = true;
     this.comboEl.hidden = true;
     this.comboHideAt = 0;
     for (const el of this.popups) el.hidden = true;
@@ -301,6 +321,24 @@ export class GameUI {
     });
   }
 
+  /** Static glossary of the machine's vocabulary; content built once, then toggled. */
+  toggleLexicon(): void {
+    const el = this.root.querySelector<HTMLElement>("#lexicon")!;
+    if (!el.hidden) {
+      el.hidden = true;
+      return;
+    }
+    el.hidden = false;
+    if (el.innerHTML) return;
+    el.innerHTML = `
+      <div class="panel wide">
+        <div class="row"><h2>Lexicon</h2><button id="lexicon-close">close</button></div>
+        <p class="dim">What the words on the machine mean.</p>
+        <div class="grid">${LEXICON.map(([term, def]) => `<div class="card"><b>${term}</b><p>${def}</p></div>`).join("")}</div>
+      </div>`;
+    el.querySelector("#lexicon-close")!.addEventListener("click", () => (el.hidden = true));
+  }
+
   /** Dock account chip: sign-in link, or name + sign-out. Hidden when auth is off. */
   setAccount(state: { signIn: string } | { name: string; signOut: string } | null): void {
     const el = this.root.querySelector<HTMLElement>("#account")!;
@@ -371,12 +409,12 @@ export class GameUI {
     const perm = [...counts].map(([id, n]) => {
       const c = CHARMS[id as CharmId];
       const el = c.element ? ` el-${c.element}` : "";
-      return `<div class="charm ${c.rarity}${el}" title="${c.desc}">${charmIcon(id as CharmId)}<span>${c.name}${n > 1 ? ` ×${n}` : ""}</span></div>`;
+      return `<div class="charm ${c.rarity}${el}" data-desc="${escapeHtml(c.desc)}">${charmIcon(id as CharmId)}<span>${c.name}${n > 1 ? ` ×${n}` : ""}</span></div>`;
     });
     const temp = temps.map(({ id, left }) => {
       const c = CHARMS[id as CharmId];
       const el = c.element ? ` el-${c.element}` : "";
-      return `<div class="charm temp${el}" title="${c.desc}">${charmIcon(id as CharmId)}<span>${c.name}</span><span class="left">${left} round${left === 1 ? "" : "s"}</span></div>`;
+      return `<div class="charm temp${el}" data-desc="${escapeHtml(c.desc)}">${charmIcon(id as CharmId)}<span>${c.name}</span><span class="left">${left} round${left === 1 ? "" : "s"}</span></div>`;
     });
     this.charmsEl.innerHTML = [...temp, ...perm].join("");
   }
