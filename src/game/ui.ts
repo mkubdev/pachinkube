@@ -459,7 +459,15 @@ export class GameUI {
   /** Fever readout under the combo count; hidden while cold (×1). */
   setFever(value: number): void {
     this.comboF.hidden = value <= 1;
-    this.comboF.textContent = `FEVER ×${value.toFixed(1)}`;
+    if (value <= 1) return;
+    // Tier colours: white-hot → orange → magenta → cyan as the fever climbs.
+    const tier = value < 2 ? 1 : value < 5 ? 2 : value < 20 ? 3 : 4;
+    this.comboF.className = `f f${tier}`;
+    this.comboF.textContent = `×${value < 10 ? value.toFixed(1) : formatScore(Math.round(value))} FEVER`;
+    // Re-trigger the pulse; fever events are already throttled to 0.1 steps.
+    this.comboF.style.animation = "none";
+    void this.comboF.offsetWidth;
+    this.comboF.style.animation = "";
   }
 
   /** Combo counter: grows and shifts colour tier with the count. */
