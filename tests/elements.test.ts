@@ -22,7 +22,7 @@ async function make(seed: string) {
 
 /** Drive a reaction directly at peg `pegId` with a ball carrying `el`. */
 function hit(run: Run, el: "fire" | "ice" | "storm" | null, pegId: number, fresh = true) {
-  const ball: BallScoreState = { id: 999, type: "steel", chips: 0, mult: 1, hits: 1, freshHits: 1, revives: 0, zaps: 0 };
+  const ball: BallScoreState = { id: 999, type: "steel", chips: 0, mult: 1, hits: 1, freshHits: 1, revives: 0, zaps: 0, shard: false };
   run.balls.set(ball.id, ball);
   if (el) run.ballElements.set(ball.id, el);
   else run.ballElements.delete(ball.id);

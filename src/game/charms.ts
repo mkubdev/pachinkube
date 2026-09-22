@@ -21,6 +21,8 @@ export interface BallScoreState {
   freshHits: number;
   /** How many times Phoenix-style revives have fired for this ball. */
   revives: number;
+  /** Spawned by a split/shatter. Shards never split again, or Split Shot + Phoenix chains forever. */
+  shard: boolean;
   /** Zap reactions this ball has triggered (Ball Lightning). */
   zaps: number;
 }
@@ -272,10 +274,10 @@ export const CHARMS: Record<CharmId, Charm> = {
   split_shot: {
     id: "split_shot",
     name: "Split Shot",
-    desc: "On its 8th peg hit a ball splits into two shards.",
+    desc: "On its 8th peg hit a ball splits into two shards. Shards never split.",
     rarity: "uncommon",
     onPegHit(ctx, ev) {
-      if (ctx.ball.hits !== 8) return;
+      if (ctx.ball.shard || ctx.ball.hits !== 8) return;
       const peg = ctx.pegs[ev.peg];
       if (!peg) return;
       ctx.fx("split", peg.x, peg.y, 1);

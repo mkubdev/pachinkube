@@ -74,7 +74,7 @@ describe("charm stacking", () => {
 
   it("min-based fields tighten with copies: Static Field zaps every 5th hit when doubled", async () => {
     const run = await make("stack-zap", "static_field", "static_field");
-    const b = { id: 77, type: "steel" as const, chips: 0, mult: 1, hits: 0, freshHits: 0, revives: 0, zaps: 0 };
+    const b = { id: 77, type: "steel" as const, chips: 0, mult: 1, hits: 0, freshHits: 0, revives: 0, zaps: 0, shard: false };
     run.balls.set(b.id, b);
     let zaps = 0;
     for (let h = 1; h <= 12; h++) {

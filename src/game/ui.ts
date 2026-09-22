@@ -533,7 +533,10 @@ export class GameUI {
       return `<button data-i="${i}" class="offer ${c.rarity}${el}${freshCls}${level > 0 ? " upgrade" : ""}"><span class="tag">${c.rarity}${dur}${up}${fresh}</span><div class="ic">${charmIcon(o.id)}</div><b>${c.name}</b><p>${c.desc}</p>${stack}</button>`;
     }
     const b = BALL_TYPES[o.id];
-    return `<button data-i="${i}" class="offer ball${freshCls}"><span class="tag">ball ×${o.count}${fresh}</span><div class="ic">${ballIcon(o.id)}</div><b style="color:#${b.color.toString(16).padStart(6, "0")}">${b.name}</b><p>${b.desc}</p></button>`;
+    const run = this.shopRun;
+    const customs = run ? run.ownedBalls.filter((t) => t !== "steel").length : 0;
+    const full = run && customs + o.count > run.bagCapacity(run.round + 1) ? `<p class="stack">Bag full — replaces your oldest balls</p>` : "";
+    return `<button data-i="${i}" class="offer ball${freshCls}"><span class="tag">ball ×${o.count}${fresh}</span><div class="ic">${ballIcon(o.id)}</div><b style="color:#${b.color.toString(16).padStart(6, "0")}">${b.name}</b><p>${b.desc}</p>${full}</button>`;
   }
 
   private showEnd(run: Run, phase: "won" | "lost"): void {

@@ -516,17 +516,18 @@ export class Run {
     this.ballExtra.clear();
     this.phase = "drop";
     // One more ball every few rounds, so deep runs keep widening.
-    this.ballsLeft = this.ballsPerRound + Math.floor((this.round - 1) / BALL_EVERY_ROUNDS) + this.sumCharm((c) => c.extraBalls ?? 0) + this.growthBalls();
+    this.ballsLeft = this.bagCapacity();
     this.activeEffects.clear();
     this.secondWindUsed = false;
     this.sim.setGravityScaleAll(1);
     this.sim.setGlobalPull(0);
     this.sim.armPortals(0);
     this.applyBoardMotion();
-    // Custom balls always make the bag; steel is only filler. Shuffled with the
-    // shop stream so the draw order is seeded.
+    // Custom balls always make the bag; steel is only filler. When customs
+    // overflow the bag, the newest purchases win — a shop pick must never be a
+    // no-op. Shuffled with the shop stream so the draw order is seeded.
     const custom = this.ownedBalls.filter((t) => t !== "steel");
-    this.bag = custom.slice(0, this.ballsLeft);
+    this.bag = custom.slice(-this.ballsLeft);
     while (this.bag.length < this.ballsLeft) this.bag.push("steel");
     this.bag = shuffle(this.bag, this.sim.streams.shop);
     for (const id of this.charms) CHARMS[id].onRoundStart?.(this.ctxBase());
@@ -612,6 +613,8 @@ export class Run {
       freshHits: carry ? carry.freshHits : 0,
       revives: carry ? carry.revives : 0,
       zaps: carry ? carry.zaps : 0,
+      // Relaunches (Phoenix, ricochet) drop the tag, so the flag rides the carry.
+      shard: spawn.tag === "shard" || (carry?.shard ?? false),
     });
     return ballId;
   }
@@ -1126,11 +1129,16 @@ export class Run {
   }
 
   /** Growth charms (Snowball): each copy pays its growth once per round held. */
-  private growthBalls(): number {
+  /** Bag slots for `round` (default: current). The shop asks about round+1 to warn when a ball offer will evict old customs. */
+  bagCapacity(round = this.round): number {
+    return this.ballsPerRound + Math.floor((round - 1) / BALL_EVERY_ROUNDS) + this.sumCharm((c) => c.extraBalls ?? 0) + this.growthBalls(round);
+  }
+
+  private growthBalls(round: number): number {
     let n = 0;
     for (let i = 0; i < this.charms.length; i++) {
       const g = CHARMS[this.charms[i]!].extraBallsGrowth ?? 0;
-      if (g) n += g * Math.max(0, this.round - (this.charmAcquired.get(i) ?? 0));
+      if (g) n += g * Math.max(0, round - (this.charmAcquired.get(i) ?? 0));
     }
     return n;
   }

@@ -19,7 +19,7 @@ async function make(seed: string, ...charms: string[]) {
 /** Simulate a ball landing in `bucket` without physics. */
 function land(run: Run, bucket: number, chips = 100): GameEvent[] {
   const id = 900 + Math.floor(Math.random() * 1e6);
-  run.balls.set(id, { id, type: "steel", chips, mult: 1, hits: 1, freshHits: 1, revives: 0, zaps: 0 });
+  run.balls.set(id, { id, type: "steel", chips, mult: 1, hits: 1, freshHits: 1, revives: 0, zaps: 0, shard: false });
   const out: GameEvent[] = [];
   (run as unknown as Priv).handle({ type: "ballLost", ball: id, bucket }, out);
   return out;

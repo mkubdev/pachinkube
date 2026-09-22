@@ -6,4 +6,4 @@
  * on a different version the score is stored *unverified* rather than
  * rejected: a deploy mid-run must never eat a real run.
  */
-export const RULES_VERSION = 13; // 13: Second Wind fires on the round's last ball too
+export const RULES_VERSION = 14; // 14: newest customs win the bag; shards never split (Split Shot + Phoenix loop)

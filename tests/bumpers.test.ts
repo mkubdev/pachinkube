@@ -64,7 +64,7 @@ describe("bumper pegs", () => {
 
   it("Super Bumpers and Bumper Crown stack onto the pop", async () => {
     const run = await make("bump-charms", "super_bumpers", "bumper_crown");
-    const b: BallScoreState = { id: 4242, type: "steel", chips: 0, mult: 1, hits: 0, freshHits: 0, revives: 0, zaps: 0 };
+    const b: BallScoreState = { id: 4242, type: "steel", chips: 0, mult: 1, hits: 0, freshHits: 0, revives: 0, zaps: 0, shard: false };
     run.balls.set(b.id, b);
     const bumper = [...run.bumpers][0]!;
     const out: GameEvent[] = [];
@@ -75,7 +75,7 @@ describe("bumper pegs", () => {
 
   it("a plain peg is not a bumper: one combo, no pop", async () => {
     const run = await make("bump-plain");
-    const b: BallScoreState = { id: 4243, type: "steel", chips: 0, mult: 1, hits: 0, freshHits: 0, revives: 0, zaps: 0 };
+    const b: BallScoreState = { id: 4243, type: "steel", chips: 0, mult: 1, hits: 0, freshHits: 0, revives: 0, zaps: 0, shard: false };
     run.balls.set(b.id, b);
     const plain = run.sim.pegs.find((p) => !run.bumpers.has(p.id))!.id;
     const out: GameEvent[] = [];

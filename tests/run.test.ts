@@ -68,6 +68,16 @@ describe("run", () => {
     expect(run.bag.every((t) => t === "rubber")).toBe(true);
   });
 
+  it("a purchase past a full bag still makes the next bag (newest customs win)", async () => {
+    const run = await Run.create("bag-newest");
+    runs.push(run);
+    for (let i = 0; i < 10; i++) run.ownedBalls.push("rubber");
+    run.ownedBalls.push("heavy", "heavy");
+    (run as unknown as { startRound(): void }).startRound();
+    expect(run.bag.length).toBe(run.ballsLeft);
+    expect(run.bag.filter((t) => t === "heavy").length).toBe(2);
+  });
+
   it("plays through rounds, scores balls, and ends in won or lost", async () => {
     const { run, events } = await play("run-flow");
     expect(["won", "lost"]).toContain(run.phase);
@@ -104,6 +114,50 @@ describe("run", () => {
     } else {
       expect(run.phase).toBe("lost");
     }
+  });
+
+  it("shards are flagged, the flag survives a revive carry, and Split Shot ignores them", async () => {
+    const run = await Run.create("shard-flag");
+    runs.push(run);
+    const priv = run as unknown as {
+      spawn(req: { type: string; x?: number; tag?: string; carry?: unknown }, fromBag: boolean): number;
+    };
+    const shardId = priv.spawn({ type: "steel", x: 0, tag: "shard" }, false);
+    const shard = run.balls.get(shardId)!;
+    expect(shard.shard).toBe(true);
+    // A Phoenix-style relaunch carries the flag even though it spawns with no tag.
+    const revivedId = priv.spawn({ type: "steel", x: 0, carry: shard }, false);
+    expect(run.balls.get(revivedId)!.shard).toBe(true);
+    // A normal bag ball is not a shard.
+    const normalId = priv.spawn({ type: "steel", x: 0 }, true);
+    expect(run.balls.get(normalId)!.shard).toBe(false);
+
+    // Split Shot: a shard on its 8th hit must NOT split again (infinite loop with Phoenix).
+    const spawned: unknown[] = [];
+    const mkCtx = (isShard: boolean) =>
+      ({
+        ball: { id: 1, type: "steel", chips: 0, mult: 1, hits: 8, freshHits: 0, revives: 0, zaps: 0, shard: isShard },
+        pegs: [{ id: 0, x: 0, y: 5, radius: 0.08 }],
+        spawnBall: (s: unknown) => spawned.push(s),
+        fx: () => {},
+      }) as unknown as Parameters<NonNullable<(typeof CHARMS)["split_shot"]["onPegHit"]>>[0];
+    const ev = { type: "pegHit", ball: 1, peg: 0, speed: 1 } as Parameters<NonNullable<(typeof CHARMS)["split_shot"]["onPegHit"]>>[1];
+    CHARMS.split_shot.onPegHit!(mkCtx(true), ev, true);
+    expect(spawned.length).toBe(0);
+    CHARMS.split_shot.onPegHit!(mkCtx(false), ev, true);
+    expect(spawned.length).toBe(2);
+  });
+
+  it("Split Shot + Phoenix + Boomerang terminates (shards can't split, so multiball is bounded)", async () => {
+    const run = await Run.create("no-infinite", { rounds: 1, ballsPerRound: 1 });
+    runs.push(run);
+    run.charms.push("split_shot", "phoenix");
+    run.ownedBalls.push("boomerang");
+    (run as unknown as { startRound(): void }).startRound();
+    expect(run.bag).toEqual(["boomerang"]);
+    run.drop(0);
+    for (let t = 0; t < 40000 && run.phase === "drop"; t++) run.step();
+    expect(run.phase).not.toBe("drop");
   });
 
   it("every charm has consistent metadata", () => {
