@@ -517,7 +517,8 @@ export class Run {
         this.lit.clear();
         break;
     }
-    if (ticks > 0) this.activeEffects.set(kind, this.sim.tick + ticks);
+    // A retrigger must never shorten a running effect: keep the later expiry.
+    if (ticks > 0) this.activeEffects.set(kind, Math.max(this.activeEffects.get(kind) ?? 0, this.sim.tick + ticks));
     out.push({ type: "comboEvent", kind, x, y, ticks, label: def.name, tier });
   }
 

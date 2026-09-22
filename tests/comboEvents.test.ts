@@ -154,4 +154,14 @@ describe("fever tiers", () => {
     run.triggerComboEvent("rain", out);
     expect(run.sim.ballCount - before).toBe(9);
   });
+  it("a cooled retrigger never shortens a running effect", async () => {
+    const run = await make("tier-retrigger");
+    run.combo = 400; // tier 7 → quake 1080 ticks
+    const out: GameEvent[] = [];
+    run.triggerComboEvent("quake", out);
+    const hotUntil = (run as unknown as { activeEffects: Map<string, number> }).activeEffects.get("quake")!;
+    run.combo = 0; // cooled to tier 1 → quake 360 ticks
+    run.triggerComboEvent("quake", out);
+    expect((run as unknown as { activeEffects: Map<string, number> }).activeEffects.get("quake")).toBe(hotUntil);
+  });
 });
