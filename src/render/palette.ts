@@ -31,9 +31,9 @@ export const REACTION_FX: Partial<Record<ElementFxKind, ReactionFx>> = {
 };
 
 /** Combo counter hue journey: white → gold → orange → magenta → violet. */
-export function comboTier(count: number): 0 | 1 | 2 | 3 | 4 {
-  return count >= 80 ? 4 : count >= 40 ? 3 : count >= 20 ? 2 : count >= 10 ? 1 : 0;
+export function comboTier(count: number): 0 | 1 | 2 | 3 | 4 | 5 {
+  return count >= 160 ? 5 : count >= 80 ? 4 : count >= 40 ? 3 : count >= 20 ? 2 : count >= 10 ? 1 : 0;
 }
 
 /** Milestone flash per tier (index = tier). */
-export const COMBO_TIER_FLASH = ["#ffffff", "#ffd34d", "#ff8c1a", "#ff2d95", "#b44bff"] as const;
+export const COMBO_TIER_FLASH = ["#ffffff", "#ffd34d", "#ff8c1a", "#ff2d95", "#b44bff", "#fff6e0"] as const;

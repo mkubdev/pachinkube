@@ -23,7 +23,7 @@ describe("reaction palette", () => {
 });
 
 describe("combo hue journey", () => {
-  it("climbs white → gold → orange → magenta → violet", () => {
+  it("climbs white → gold → orange → magenta → violet → white-hot", () => {
     expect(comboTier(0)).toBe(0);
     expect(comboTier(9)).toBe(0);
     expect(comboTier(10)).toBe(1);
@@ -33,10 +33,12 @@ describe("combo hue journey", () => {
     expect(comboTier(40)).toBe(3);
     expect(comboTier(79)).toBe(3);
     expect(comboTier(80)).toBe(4);
-    expect(comboTier(500)).toBe(4);
+    expect(comboTier(159)).toBe(4);
+    expect(comboTier(160)).toBe(5);
+    expect(comboTier(500)).toBe(5);
   });
 
   it("has one flash colour per tier", () => {
-    expect(COMBO_TIER_FLASH).toHaveLength(5);
+    expect(COMBO_TIER_FLASH).toHaveLength(6);
   });
 });

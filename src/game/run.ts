@@ -374,10 +374,12 @@ export class Run {
    *  this round; each extra copy lowers the bar by 10 (never below 20). */
   private closeCombo(out: GameEvent[]): void {
     out.push({ type: "comboEnd", count: this.combo });
+    const boardLive = this.ballsLeft > 0 || this.sim.ballCount > 0;
     // Afterglow: hold the fever and fade it, so late landings still cash out.
+    // Pointless on a dead board — and arming it there would strand the renderer hot through the shop.
     const glow = this.sumCharm((c) => c.afterglowTicks ?? 0);
     const fever = feverMultiplier(this.combo, this.feverIgnition(), this.feverRamp());
-    if (glow > 0 && fever > 1) this.afterglow = { from: fever, until: this.sim.tick + glow, ticks: glow };
+    if (glow > 0 && fever > 1 && boardLive) this.afterglow = { from: fever, until: this.sim.tick + glow, ticks: glow };
     const swAll = this.charms.map((id) => CHARMS[id].secondWindAt ?? 0).filter((n) => n > 0);
     const sw = swAll.length ? Math.max(20, Math.min(...swAll) - 10 * (swAll.length - 1)) : Infinity;
     if (!this.secondWindUsed && this.combo >= sw) {
@@ -388,7 +390,6 @@ export class Run {
     }
     // Thermal Mass: a lapsed combo keeps a fraction — pointless once the board is empty.
     const carry = Math.min(0.75, this.sumCharm((c) => c.comboCarry ?? 0));
-    const boardLive = this.ballsLeft > 0 || this.sim.ballCount > 0;
     this.combo = carry > 0 && boardLive ? Math.floor(this.combo * carry) : 0;
     if (this.combo > 0) {
       this.lastHitTick = this.sim.tick;

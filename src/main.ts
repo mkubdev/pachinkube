@@ -609,11 +609,17 @@ function simStep(): void {
         ui.endCombo(e.count);
         view.setHeat(feverHot ? 1 : 0);
         break;
-      case "fever":
-        ui.setFever(e.value);
+      case "fever": {
+        const wasHot = feverHot;
         feverHot = e.value > 1;
+        if (feverHot && !wasHot) {
+          view.kickBloom(1.2);
+          ui.flash("#ffb02d", 0.35);
+        }
+        ui.setFever(e.value);
         view.setHeat(feverHot ? 1 : Math.min(1, run.combo / 45));
         break;
+      }
       case "ballScored": {
         const cx = run.sim.bucketCenters[e.bucket] ?? 0;
         const mag = Math.min(1, Math.log10(e.score + 1) / 6);
@@ -646,7 +652,13 @@ function simStep(): void {
   if (events.length) {
     ui.toasts(recordEvents(meta, events, run, tracker));
     for (const e of events) {
-      if (e.type === "phase" && e.phase === "shop") ui.toasts(recordOffers(meta, run.offers));
+      if (e.type === "phase" && e.phase === "shop") {
+        ui.toasts(recordOffers(meta, run.offers));
+        // Belt-and-braces: the shop step()s early, so a stale hot flag would
+        // otherwise pin heat at max for the whole next round (see Fix 1).
+        feverHot = false;
+        view.setHeat(0);
+      }
       if (e.type === "phase" && (e.phase === "won" || e.phase === "lost") && !runEnded) {
         runEnded = true;
         // Signed in: every finished run posts itself. The server keeps only the

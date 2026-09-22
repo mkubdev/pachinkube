@@ -127,6 +127,14 @@ describe("fever in a run", () => {
     // fresh peg: base 10 chips × fever 2 = 20 (steel has chipFactor 1, no bonuses)
     expect(run.balls.get(id)!.chips).toBe(20);
   });
+  it("afterglow never arms on a dead board (round end)", async () => {
+    const run = await make("fv-glow-dead", "afterglow");
+    run.combo = 150;
+    run.ballsLeft = 0; // dead board: no balls left, none in flight
+    const out: GameEvent[] = [];
+    (run as unknown as Priv).closeCombo(out);
+    expect(run.feverValue()).toBe(1);
+  });
 });
 
 describe("fever determinism", () => {
