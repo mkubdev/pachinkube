@@ -16,7 +16,7 @@ export interface PegElementState {
 export const ELEMENTS: Record<Element, { name: string; color: number; verb: string }> = {
   fire: { name: "Fire", color: 0xff6a00, verb: "ignite" },
   ice: { name: "Ice", color: 0x9fe8ff, verb: "freeze" },
-  storm: { name: "Storm", color: 0x7df9ff, verb: "charge" },
+  storm: { name: "Storm", color: 0xb44bff, verb: "charge" },
 };
 
 /** What happens when a ball of `ball` element hits a peg in `peg` state. */
