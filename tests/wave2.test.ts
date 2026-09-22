@@ -286,7 +286,7 @@ describe("second-wave progression", () => {
     const run = { totalScore: 0, charms: [], inFlight: 0, ownedBalls: [], sim: { config: { buckets: 7 } } } as unknown as Run;
     const tracker = newTracker();
     const ev = (kind: string): GameEvent => ({ type: "comboEvent", kind: kind as never, x: 0, y: 5, ticks: 0, label: kind });
-    const land = (bucket: number, score: number): GameEvent => ({ type: "ballScored", ball: 1, score, bucket, chips: 1, mult: 1 });
+    const land = (bucket: number, score: number): GameEvent => ({ type: "ballScored", ball: 1, score, bucket, chips: 1, mult: 1, fever: 1 });
     let n = recordEvents(meta, [ev("laser"), ev("rain"), ev("quake")], run, tracker, () => "t");
     expect(n.some((x) => x.kind === "feat" && x.id === "hat_trick")).toBe(true);
     n = recordEvents(meta, [0, 1, 2, 3, 4, 5, 6].map((b) => land(b, 100)), run, tracker, () => "t");

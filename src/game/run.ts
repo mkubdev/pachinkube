@@ -23,6 +23,7 @@ import {
 import { BASE_CHIPS_FRESH, BASE_CHIPS_REPEAT, ballScore, bucketMultipliers, roundTarget } from "./scoring.js";
 import { ICE_RESTITUTION, react, type Element, type PegElementState, type Reaction } from "./elements.js";
 import { COMBO_EVENTS, COMBO_EVENT_COOLDOWN_TICKS, COMBO_EVENT_EVERY, COMBO_EVENT_KINDS, type ComboEventKind } from "./comboEvents.js";
+import { FEVER_IGNITION, FEVER_RAMP, feverMultiplier } from "./fever.js";
 
 /** Runs are endless: targets keep climbing until you miss one. Round 8 is the
  *  "machine cleared" milestone, not the end. Tests pass a finite `rounds`. */
@@ -32,7 +33,7 @@ export const BALLS_PER_ROUND = 6;
 /** Copies of one charm a run may hold. */
 export const MAX_STACK = 5;
 /** Flags and largest-wins charms: a second copy would change nothing. */
-export const NON_STACKABLE: ReadonlySet<CharmId> = new Set<CharmId>(["tinder", "lightning_rod", "restless_board", "aurora", "inversion"]);
+export const NON_STACKABLE: ReadonlySet<CharmId> = new Set<CharmId>(["tinder", "lightning_rod", "restless_board", "aurora", "inversion", "inferno_engine"]);
 /** One extra ball per round every this many rounds. */
 export const BALL_EVERY_ROUNDS = 3;
 /** Pop bumpers: seeded pegs that shove the ball and count as several combo hits. */
@@ -84,10 +85,12 @@ export type GameEvent =
   | { type: "bumpers"; pegs: number[] }
   /** A ball popped off a bumper. */
   | { type: "bumper"; peg: number; x: number; y: number; combo: number; ball: number }
-  | { type: "ballScored"; ball: number; score: number; bucket: number; chips: number; mult: number }
+  | { type: "ballScored"; ball: number; score: number; bucket: number; chips: number; mult: number; fever: number }
   | { type: "roundEnd"; round: number; passed: boolean; roundScore: number; target: number }
   | { type: "phase"; phase: Phase }
-  | { type: "shake"; strength: number };
+  | { type: "shake"; strength: number }
+  /** Displayed fever multiplier changed (0.1 steps). ×1 = cold. */
+  | { type: "fever"; value: number };
 
 export interface RunInput {
   tick: number;
@@ -147,6 +150,9 @@ export class Run {
   private readonly activeEffects = new Map<ComboEventKind, number>();
   private lastComboEventTick = -1_000_000;
   private secondWindUsed = false;
+  /** Afterglow: fever fades from `from` to ×1 by `until` (over `ticks`). */
+  private afterglow: { from: number; until: number; ticks: number } | null = null;
+  private lastFeverShown = 1;
 
   private readonly rounds: number;
   private readonly ballsPerRound: number;
@@ -215,6 +221,32 @@ export class Run {
 
   comboWindow(): number {
     return COMBO_WINDOW_TICKS + this.sumCharm((c) => c.comboWindowBonus ?? 0);
+  }
+
+  feverIgnition(): number {
+    return Math.max(10, FEVER_IGNITION + this.sumCharm((c) => c.feverIgnitionDelta ?? 0));
+  }
+
+  feverRamp(): number {
+    return Math.max(20, FEVER_RAMP + this.sumCharm((c) => c.feverRampDelta ?? 0));
+  }
+
+  /** Live fever multiplier: from the running combo, or the afterglow fade. */
+  feverValue(): number {
+    const live = feverMultiplier(this.combo, this.feverIgnition(), this.feverRamp());
+    if (this.afterglow && this.sim.tick < this.afterglow.until) {
+      const k = (this.afterglow.until - this.sim.tick) / this.afterglow.ticks;
+      return Math.max(live, 1 + (this.afterglow.from - 1) * k);
+    }
+    return live;
+  }
+
+  private emitFever(out: GameEvent[]): void {
+    const v = Math.round(this.feverValue() * 10) / 10;
+    if (v !== this.lastFeverShown) {
+      this.lastFeverShown = v;
+      out.push({ type: "fever", value: v });
+    }
   }
 
   comboMilestone(): number {
@@ -319,6 +351,10 @@ export class Run {
         out.push({ type: "comboEventEnd", kind });
       }
     }
+    if (this.afterglow) {
+      this.emitFever(out);
+      if (this.sim.tick >= this.afterglow.until) this.afterglow = null;
+    }
     if (this.combo > 0 && this.sim.tick - this.lastHitTick > this.comboWindow()) {
       this.closeCombo(out);
     }
@@ -338,6 +374,10 @@ export class Run {
    *  this round; each extra copy lowers the bar by 10 (never below 20). */
   private closeCombo(out: GameEvent[]): void {
     out.push({ type: "comboEnd", count: this.combo });
+    // Afterglow: hold the fever and fade it, so late landings still cash out.
+    const glow = this.sumCharm((c) => c.afterglowTicks ?? 0);
+    const fever = feverMultiplier(this.combo, this.feverIgnition(), this.feverRamp());
+    if (glow > 0 && fever > 1) this.afterglow = { from: fever, until: this.sim.tick + glow, ticks: glow };
     const swAll = this.charms.map((id) => CHARMS[id].secondWindAt ?? 0).filter((n) => n > 0);
     const sw = swAll.length ? Math.max(20, Math.min(...swAll) - 10 * (swAll.length - 1)) : Infinity;
     if (!this.secondWindUsed && this.combo >= sw) {
@@ -346,7 +386,15 @@ export class Run {
       this.bag.push("steel");
       out.push({ type: "popup", x: 0, y: this.sim.config.height * 0.5, text: "SECOND WIND · +1 ball", kind: "mult" });
     }
-    this.combo = 0;
+    // Thermal Mass: a lapsed combo keeps a fraction — pointless once the board is empty.
+    const carry = Math.min(0.75, this.sumCharm((c) => c.comboCarry ?? 0));
+    const boardLive = this.ballsLeft > 0 || this.sim.ballCount > 0;
+    this.combo = carry > 0 && boardLive ? Math.floor(this.combo * carry) : 0;
+    if (this.combo > 0) {
+      this.lastHitTick = this.sim.tick;
+      out.push({ type: "combo", count: this.combo, milestone: false });
+    }
+    this.emitFever(out);
   }
 
   /** Remove temporary charms whose last round has passed. Returns their ids. */
@@ -511,6 +559,8 @@ export class Run {
     pending.push({ type: "bumpers", pegs: [...this.bumpers].sort((a, b) => a - b) });
     this.pendingRoundEvents = pending;
     this.combo = 0;
+    this.afterglow = null;
+    this.lastFeverShown = 1;
     this.lastHitTick = -1;
     this.landedThisRound = 0;
     this.ballExtra.clear();
@@ -637,7 +687,9 @@ export class Run {
       const type = BALL_TYPES[ball.type];
       const bonus = fresh ? this.sumCharm((c) => c.freshChipBonus ?? 0) : this.sumCharm((c) => c.repeatChipBonus ?? 0);
       const speedChips = (type.traits?.speedChips ?? 0) * ev.speed;
-      const base = Math.round(((fresh ? BASE_CHIPS_FRESH : BASE_CHIPS_REPEAT) + bonus) * type.chipFactor + speedChips);
+      const feverNow = this.feverValue();
+      const inferno = feverNow >= 2 && this.charms.some((id) => CHARMS[id].infernoEngine);
+      const base = Math.round((((fresh ? BASE_CHIPS_FRESH : BASE_CHIPS_REPEAT) + bonus) * type.chipFactor + speedChips) * (inferno ? feverNow : 1));
       ball.chips += base;
       out.push({ type: "pegHit", peg: ev.peg, x: peg.x, y: peg.y, fresh, tag: ball.type, speed: ev.speed });
       out.push({ type: "popup", x: peg.x, y: peg.y, text: `+${Math.round(base)}`, kind: "chips", hits: ball.hits, fresh, tag: ball.type });
@@ -655,6 +707,7 @@ export class Run {
       const m = this.comboMilestone();
       const milestones = Math.floor(this.combo / m) - Math.floor(prevCombo / m);
       out.push({ type: "combo", count: this.combo, milestone: milestones > 0 });
+      this.emitFever(out);
       // Combo events: every 50th hit, but never two within the cooldown.
       const every = Math.max(20, COMBO_EVENT_EVERY + this.sumCharm((c) => c.eventEveryDelta ?? 0));
       const crossedEvent = Math.floor(this.combo / every) > Math.floor(prevCombo / every);
@@ -842,11 +895,12 @@ export class Run {
     this.ballElements.delete(ev.ball);
     if (!scored) return;
     this.landedThisRound++;
-    const score = ballScore(ball.chips, ball.mult, bucketMult);
+    const fever = this.feverValue();
+    const score = Math.floor(ballScore(ball.chips, ball.mult, bucketMult) * fever);
     this.roundScore += score;
     this.totalScore += score;
     const cx = this.sim.bucketCenters[ev.bucket] ?? 0;
-    out.push({ type: "ballScored", ball: ev.ball, score, bucket: ev.bucket, chips: ball.chips, mult: ball.mult });
+    out.push({ type: "ballScored", ball: ev.ball, score, bucket: ev.bucket, chips: ball.chips, mult: ball.mult, fever });
     // Pocket dynamics after the landing: hot pockets and roulette.
     let changed = false;
     const hot = this.sumCharm((c) => c.hotPocket ?? 0);

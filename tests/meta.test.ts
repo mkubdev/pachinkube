@@ -67,7 +67,7 @@ describe("meta progression", () => {
     const meta = emptyMeta();
     const run = { totalScore: 0, charms: [], inFlight: 0, sim: { config: { buckets: 7 } } } as unknown as Run;
     const tracker = newTracker();
-    const centre = (b: number): GameEvent => ({ type: "ballScored", ball: 1, score: 10, bucket: b, chips: 1, mult: 1 });
+    const centre = (b: number): GameEvent => ({ type: "ballScored", ball: 1, score: 10, bucket: b, chips: 1, mult: 1, fever: 1 });
     recordEvents(meta, [centre(3), centre(3), centre(0)], run, tracker);
     expect(meta.feats.jackpot_streak).toBeUndefined();
     const n = recordEvents(meta, [centre(3), centre(3), centre(3)], run, tracker);
