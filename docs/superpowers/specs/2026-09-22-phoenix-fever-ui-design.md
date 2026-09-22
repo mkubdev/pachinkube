@@ -72,8 +72,9 @@ must not verify against the new rules.
 
 ## Testing
 
-- New test: Phoenix expires 10 rounds after purchase and stops reviving;
-  re-picking it extends the timer.
+- New tests: Phoenix carries `duration: 10` and expires (with `charmExpired`)
+  once its window lapses. Re-pick extension is the pre-existing generic
+  `pick()` machinery, unchanged by this work.
 - Split Shot: assert `CHARMS.split_shot.rarity === "rare"` (guards the shop
   weight).
 - Existing determinism/replay suites and `npm run typecheck` must pass.
