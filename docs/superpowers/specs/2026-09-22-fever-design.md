@@ -69,10 +69,13 @@ tick, Thermal Mass on combo close).
 Events gain a **fever tier**: `tier = max(1, floor(sqrt(fever)))`, evaluated
 when the event fires.
 
-- Tier scales each event's duration (`ticks × tier`, capped per event) and any
-  reward it pays (+mult grants × tier).
-- Physical strength scaling (quake amplitude, magnet force) is per-event and
-  capped so the board stays playable.
+- Tier scales each event's duration (`ticks × tier`, capped at 3× base; the
+  chain feeders have their own gentler curves — see below) and its reward:
+  laser chips × tier, rain shards `3 × tier` (cap 9), portal arms `2 × tier`
+  balls (cap 6) at the flat +2 mult — ball count scales instead of the mult
+  itself, deliberately, to avoid mult inflation.
+- Quake/magnet scale duration only, never amplitude/force, so the board stays
+  playable at high tiers.
 - Tier is carried on the `comboEvent` GameEvent so the renderer can scale FX.
 
 ### New event kinds — chain feeders
