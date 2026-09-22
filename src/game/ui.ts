@@ -41,6 +41,7 @@ export class GameUI {
   private readonly modal: HTMLElement;
   private readonly comboEl: HTMLElement;
   private readonly comboN: HTMLElement;
+  private readonly comboF: HTMLElement;
   private readonly flashEl: HTMLElement;
   private comboHideAt = 0;
   private readonly labels: HTMLElement[] = [];
@@ -84,7 +85,7 @@ export class GameUI {
       <div id="charms"></div>
       <div id="labels"></div>
       <div id="popups"></div>
-      <div id="combo" hidden><div class="n"></div><div class="l">COMBO</div></div>
+      <div id="combo" hidden><div class="n"></div><div class="f" hidden></div><div class="l">COMBO</div></div>
       <div id="flash"></div>
       <div id="toasts"></div>
       <div id="modal" hidden></div>
@@ -109,6 +110,7 @@ export class GameUI {
     this.modal = this.root.querySelector("#modal")!;
     this.comboEl = this.root.querySelector("#combo")!;
     this.comboN = this.comboEl.querySelector(".n")!;
+    this.comboF = this.comboEl.querySelector(".f")!;
     this.flashEl = this.root.querySelector("#flash")!;
     this.root.querySelector("#collection-btn")!.addEventListener("click", () => this.onCollection?.());
     this.root.querySelector("#board-btn")!.addEventListener("click", () => this.onBoard?.());
@@ -229,6 +231,7 @@ export class GameUI {
     this.root.querySelector<HTMLElement>("#board-panel")!.hidden = true;
     this.root.querySelector<HTMLElement>("#lexicon")!.hidden = true;
     this.comboEl.hidden = true;
+    this.comboF.hidden = true;
     this.comboHideAt = 0;
     for (const el of this.popups) el.hidden = true;
     this.live = [];
@@ -448,6 +451,17 @@ export class GameUI {
     this.popup(x, y, formatScore(score), "score", 1.2 + mag * 0.45);
   }
 
+  /** Landing popup for a fever-boosted score, alongside the score popup. */
+  feverPopup(x: number, y: number, value: number): void {
+    this.popup(x, y, `×${value.toFixed(1)} FEVER`, "mult");
+  }
+
+  /** Fever readout under the combo count; hidden while cold (×1). */
+  setFever(value: number): void {
+    this.comboF.hidden = value <= 1;
+    this.comboF.textContent = `FEVER ×${value.toFixed(1)}`;
+  }
+
   /** Combo counter: grows and shifts colour tier with the count. */
   setCombo(count: number, milestone: boolean): void {
     this.comboEl.hidden = false;
@@ -462,6 +476,7 @@ export class GameUI {
   }
 
   endCombo(count: number): void {
+    this.comboF.hidden = true;
     if (count >= 5) {
       this.comboEl.className += " out";
       this.comboHideAt = performance.now() + 700;

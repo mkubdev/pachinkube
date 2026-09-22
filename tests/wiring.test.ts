@@ -28,13 +28,13 @@ describe("main.ts wiring", () => {
   });
 
   it("handles every presentation-relevant game event", () => {
-    for (const c of ["pegLit", "pegHit", "zap", "fx", "combo", "comboEnd", "ballScored", "shake", "popup", "retry", "cleared", "pegElement", "element", "charmExpired", "pockets", "comboEvent", "comboEventEnd", "portal"]) {
+    for (const c of ["pegLit", "pegHit", "zap", "fx", "combo", "comboEnd", "fever", "ballScored", "shake", "popup", "retry", "cleared", "pegElement", "element", "charmExpired", "pockets", "comboEvent", "comboEventEnd", "portal"]) {
       expect(main, `case "${c}"`).toMatch(new RegExp(`case "${c}"`));
     }
     for (const k of ["bomb", "bullseye", "prism", "finale", "split", "revive", "overflow", "metal"]) {
       expect(main, `fx kind ${k}`).toMatch(new RegExp(`e\\.kind === "${k}"`));
     }
-    for (const k of ["laser", "quake", "rain", "gravity_flip", "magnet_storm", "slowmo"]) {
+    for (const k of ["laser", "quake", "rain", "gravity_flip", "magnet_storm", "slowmo", "overdrive", "time_lock", "fresh_coat"]) {
       expect(main, `combo event ${k}`).toMatch(new RegExp(`case "${k}"`));
     }
     for (const k of ["ignite", "freeze", "charge", "burn", "shatter", "steam", "zap", "wildfire", "shatter_chain"]) {

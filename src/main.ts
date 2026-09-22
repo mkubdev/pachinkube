@@ -491,6 +491,19 @@ function simStep(): void {
             view.setHeat(1);
             ui.flash("#ffffff", 0.2);
             break;
+          case "overdrive":
+            view.setTint(0xffb02d, 0.6);
+            ui.flash("#ffb02d", 0.3);
+            break;
+          case "time_lock":
+            view.setTint(0x9ad7ff, 0.6);
+            ui.flash("#9ad7ff", 0.3);
+            break;
+          case "fresh_coat":
+            view.resetPegs();
+            view.shock(0, run.sim.config.height * 0.5, 0.8);
+            ui.flash("#ffffff", 0.25);
+            break;
           default:
             break;
         }
@@ -594,6 +607,10 @@ function simStep(): void {
         ui.endCombo(e.count);
         view.setHeat(0);
         break;
+      case "fever":
+        ui.setFever(e.value);
+        if (e.value > 1) view.setHeat(1);
+        break;
       case "ballScored": {
         const cx = run.sim.bucketCenters[e.bucket] ?? 0;
         const mag = Math.min(1, Math.log10(e.score + 1) / 6);
@@ -602,6 +619,7 @@ function simStep(): void {
         view.kickBloom(0.4 + mag * 1.2);
         if (mag > 0.45) ui.flash("#ff2d95", 0.15 + mag * 0.35);
         ui.scorePopup(cx, 1.2, e.score);
+        if (e.fever > 1) ui.feverPopup(cx, 1.7, e.fever);
         break;
       }
       case "shake":
