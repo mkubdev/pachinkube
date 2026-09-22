@@ -29,7 +29,7 @@ a Blender cabinet, and server-side score verification. Balance is probe-tuned.
 | Spark | 25% chance of +1 mult per hit |
 | Gold | ×2 chips, +1 mult on landing |
 | Feather | 45% gravity, drifts through the whole field |
-| Cannon | fired downward; chips scale with impact speed |
+| Cannon | fired downward; every peg hit counts as 2 combo hits |
 | Ricochet | slams off the walls: +12 chips and a kick back into the field per wall hit (replaced Magnet, whose pull made it hover) |
 | Twin | two small balls from one bag slot |
 | Prism | each fresh peg also lights its nearest neighbour |

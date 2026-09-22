@@ -6,4 +6,4 @@
  * on a different version the score is stored *unverified* rather than
  * rejected: a deploy mid-run must never eat a real run.
  */
-export const RULES_VERSION = 14; // 14: newest customs win the bag; shards never split (Split Shot + Phoenix loop)
+export const RULES_VERSION = 15; // 15: FEVER — combo-depth multiplier, heat charms, Cannon rework, chain-feeder events

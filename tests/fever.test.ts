@@ -129,6 +129,25 @@ describe("fever in a run", () => {
   });
 });
 
+describe("fever determinism", () => {
+  it("two identical seeded runs with heat charms score identically", async () => {
+    const play = async () => {
+      const run = await Run.create("fever-replay");
+      run.charms.push("fever_pitch" as never, "afterglow" as never, "thermal_mass" as never);
+      (run as unknown as Priv).startRound();
+      run.drop(0);
+      for (let i = 0; i < 4000 && run.phase === "drop"; i++) run.step();
+      const score = run.totalScore;
+      run.dispose();
+      return score;
+    };
+    const a = await play();
+    const b = await play();
+    expect(a).toBe(b);
+    expect(a).toBeGreaterThan(0);
+  });
+});
+
 describe("cannon rework", () => {
   it("counts double toward the combo and lost its speed chips", () => {
     expect(BALL_TYPES.cannon.traits?.comboHits).toBe(2);
