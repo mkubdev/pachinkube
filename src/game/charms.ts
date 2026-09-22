@@ -461,7 +461,7 @@ export const CHARMS: Record<CharmId, Charm> = {
 
   // --- pockets -------------------------------------------------------------
   roulette: { id: "roulette", name: "Roulette", desc: "The pocket multipliers rotate one slot after every landing.", rarity: "uncommon", pocketRotate: 1 },
-  hot_pocket: { id: "hot_pocket", name: "Hot Pocket", desc: "The pocket you land in gains +1 for the round (up to +5).", rarity: "common", hotPocket: 1, hotPocketCap: 5 },
+  hot_pocket: { id: "hot_pocket", name: "Hot Pocket", desc: "The pocket you land in gains +1 for the round (up to +5).", rarity: "common", hotPocket: 1, hotPocketCap: 5, stackNote: (level) => `×${level}: +${level} per landing (cap stays +5)` },
   groove: { id: "groove", name: "Groove", desc: "Land in the same pocket again: ×1.5 mult, then ×2, ×2.5…", rarity: "uncommon", groove: 0.5 },
   jackpot_growth: { id: "jackpot_growth", name: "Jackpot Growth", desc: "Centre pocket +1 for every round you clear this run.", rarity: "rare", jackpotGrowth: 1 },
   pocket_lottery: { id: "pocket_lottery", name: "Pocket Lottery", desc: "Each round one pocket is drawn and carries +3.", rarity: "common", lottery: 3 },
