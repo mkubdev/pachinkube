@@ -122,3 +122,36 @@ describe("chain feeders", () => {
     expect(run.lit.size).toBe(0);
   });
 });
+
+describe("fever tiers", () => {
+  it("cold events fire at tier 1 with base duration", async () => {
+    const run = await make("tier-1");
+    const out: GameEvent[] = [];
+    run.triggerComboEvent("quake", out);
+    const ev = out.find((e) => e.type === "comboEvent") as Extract<GameEvent, { type: "comboEvent" }>;
+    expect(ev.tier).toBe(1);
+    expect(ev.ticks).toBe(360);
+  });
+  it("hot events scale duration, capped", async () => {
+    const run = await make("tier-hot");
+    run.combo = 400; // fever ×50 → tier 7
+    const out: GameEvent[] = [];
+    run.triggerComboEvent("quake", out);
+    const q = out.find((e) => e.type === "comboEvent") as Extract<GameEvent, { type: "comboEvent" }>;
+    expect(q.ticks).toBe(1080); // 360 × 3 cap
+    run.triggerComboEvent("overdrive", out);
+    const o = out.filter((e) => e.type === "comboEvent").at(-1) as Extract<GameEvent, { type: "comboEvent" }>;
+    expect(o.ticks).toBe(720); // 360 + 120·(tier−1), cap 720
+    run.triggerComboEvent("time_lock", out);
+    const t = out.filter((e) => e.type === "comboEvent").at(-1) as Extract<GameEvent, { type: "comboEvent" }>;
+    expect(t.ticks).toBe(600); // 300 + 60·(tier−1), cap 600
+  });
+  it("hot rain drops more shards, capped at 9", async () => {
+    const run = await make("tier-rain");
+    run.combo = 400;
+    const before = run.sim.ballCount;
+    const out: GameEvent[] = [];
+    run.triggerComboEvent("rain", out);
+    expect(run.sim.ballCount - before).toBe(9);
+  });
+});

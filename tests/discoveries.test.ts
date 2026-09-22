@@ -35,7 +35,7 @@ describe("discoveries", () => {
     const meta = emptyMeta();
     const run = { totalScore: 0, charms: [], inFlight: 0, sim: { config: { buckets: 7 } } } as unknown as Run;
     const events: GameEvent[] = [
-      { type: "comboEvent", kind: "laser", x: 0, y: 5, ticks: 0, label: "LASER" },
+      { type: "comboEvent", kind: "laser", x: 0, y: 5, ticks: 0, label: "LASER", tier: 1 },
       { type: "portal", ball: 1, from: { x: 0, y: 0 }, to: { x: 0, y: 10 } },
     ];
     const n = recordEvents(meta, events, run, newTracker(), () => "t");

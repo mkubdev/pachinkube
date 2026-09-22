@@ -73,7 +73,7 @@ export type GameEvent =
   /** Pocket multipliers changed; `lottery` is the highlighted pocket or -1. */
   | { type: "pockets"; mults: number[]; lottery: number }
   /** A combo event fired. Laser: `y` is the beam height. */
-  | { type: "comboEvent"; kind: ComboEventKind; x: number; y: number; ticks: number; label: string }
+  | { type: "comboEvent"; kind: ComboEventKind; x: number; y: number; ticks: number; label: string; tier: number }
   /** A physical combo effect ended (quake, gravity flip, magnet storm). */
   | { type: "comboEventEnd"; kind: ComboEventKind }
   /** A portal sent a ball back to the top. */
@@ -458,6 +458,14 @@ export class Run {
   /** Fire a combo event; exported for tests and dev tooling. */
   triggerComboEvent(kind: ComboEventKind, out: GameEvent[]): void {
     const def = COMBO_EVENTS[kind];
+    // Fever tier: events grow with heat — longer, stronger, richer, capped per kind.
+    const tier = Math.max(1, Math.floor(Math.sqrt(this.feverValue())));
+    let ticks = def.ticks;
+    if (ticks > 0) {
+      if (kind === "overdrive") ticks = Math.min(360 + (tier - 1) * 120, 720);
+      else if (kind === "time_lock") ticks = Math.min(300 + (tier - 1) * 60, 600);
+      else ticks = Math.min(def.ticks * tier, def.ticks * 3);
+    }
     const H = this.sim.config.height;
     let x = 0;
     let y = H * 0.55;
@@ -474,20 +482,20 @@ export class Run {
             lit++;
           }
         }
-        const chips = lit * 6;
+        const chips = lit * 6 * tier;
         for (const b of this.balls.values()) b.chips += chips;
         if (chips) out.push({ type: "popup", x: 0, y, text: `+${chips} laser · all balls`, kind: "chips" });
         break;
       }
       case "portal":
-        this.sim.armPortals(this.sim.portalsArmedCount + 2);
+        this.sim.armPortals(this.sim.portalsArmedCount + Math.min(2 * tier, 6));
         y = 0.6;
         break;
       case "quake":
         this.sim.setPegMotion({ amplitude: 0.55, omega: (2 * Math.PI) / (0.9 / this.sim.config.dt) });
         break;
       case "rain": {
-        for (let i = 0; i < 3; i++) {
+        for (let i = 0; i < Math.min(3 * tier, 9); i++) {
           x = this.sim.streams.fx.range(-2.2, 2.2);
           this.spawn({ x, type: "steel", radius: 0.09, density: 4, tag: "shard", element: this.activeElement() }, false);
         }
@@ -509,8 +517,8 @@ export class Run {
         this.lit.clear();
         break;
     }
-    if (def.ticks > 0) this.activeEffects.set(kind, this.sim.tick + def.ticks);
-    out.push({ type: "comboEvent", kind, x, y, ticks: def.ticks, label: def.name });
+    if (ticks > 0) this.activeEffects.set(kind, this.sim.tick + ticks);
+    out.push({ type: "comboEvent", kind, x, y, ticks, label: def.name, tier });
   }
 
   private endEffect(kind: ComboEventKind): void {
