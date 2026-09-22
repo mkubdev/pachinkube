@@ -8,6 +8,7 @@ import { Music } from "./game/music.js";
 import type { CharmId } from "./game/charms.js";
 import { BALL_TYPES, type BallTypeId } from "./game/balls.js";
 import { ELEMENTS } from "./game/elements.js";
+import { COMBO_TIER_FLASH, comboTier, REACTION_FX } from "./render/palette.js";
 import { SyncedMetaStore } from "./game/metaSync.js";
 import { RULES_VERSION } from "./game/version.js";
 import { getSession, signInUrl, signOutUrl } from "./game/auth.js";
@@ -373,10 +374,13 @@ function simStep(): void {
         if (e.fresh) view.fx.ring(e.x, e.y, c, 0.45, 0.3);
         break;
       }
-      case "zap":
-        view.fx.zap(e.from, e.to, NEON_CYAN);
-        view.fx.burst(e.to.x, e.to.y, NEON_CYAN, 12, 3.5, 0.12, 0.4);
+      case "zap": {
+        const zp = REACTION_FX.zap!;
+        view.fx.zap(e.from, e.to, zp.primary);
+        view.fx.zap(e.from, e.to, zp.secondary, 0.18, false); // white-hot core
+        view.fx.burst2(e.to.x, e.to.y, zp.primary, zp.secondary, 12, 3.5, 0.12, 0.4);
         break;
+      }
       case "fx":
         if (e.kind === "split") {
           view.fx.burst(e.x, e.y, GOLD, 60, 5, 0.2, 0.7);
@@ -516,60 +520,62 @@ function simStep(): void {
         break;
       case "element": {
         const c = ELEMENTS[e.el].color;
+        const p = REACTION_FX[e.kind];
         switch (e.kind) {
           case "ignite":
-            view.fx.burst(e.x, e.y, c, 14, 2.5, 0.16, 0.5, -2);
+            view.fx.burst2(e.x, e.y, p!.primary, p!.secondary, 14, 2.5, 0.16, 0.5, -2);
             break;
           case "freeze":
             view.fx.ring(e.x, e.y, c, 0.5, 0.3);
-            view.fx.burst(e.x, e.y, 0xffffff, 6, 1.5, 0.1, 0.4, 0);
+            view.fx.burst2(e.x, e.y, p!.secondary, p!.primary, 6, 1.5, 0.1, 0.4, 0);
             break;
           case "charge":
-            view.fx.burst(e.x, e.y, c, 10, 4, 0.1, 0.25, 0);
+            view.fx.burst2(e.x, e.y, p!.primary, p!.secondary, 10, 4, 0.1, 0.25, 0);
             break;
           case "thicken":
-            view.fx.ring(e.x, e.y, 0x9fe8ff, 0.4 + e.count * 0.15, 0.3);
-            view.fx.burst(e.x, e.y, 0xffffff, 8 + e.count * 3, 1.5, 0.1, 0.4, 0);
+            view.fx.ring(e.x, e.y, p!.primary, 0.4 + e.count * 0.15, 0.3);
+            view.fx.burst2(e.x, e.y, p!.secondary, p!.primary, 8 + e.count * 3, 1.5, 0.1, 0.4, 0);
             break;
           case "flare":
             view.shock(e.x, e.y, 0.35);
-            view.fx.burst(e.x, e.y, 0xffd34d, 20 + e.count * 8, 4.5, 0.2, 0.6, -3);
-            view.fx.ring(e.x, e.y, 0xff6a00, 1.0, 0.35);
+            view.fx.burst2(e.x, e.y, p!.primary, p!.secondary, 20 + e.count * 8, 4.5, 0.2, 0.6, -3);
+            view.fx.ring(e.x, e.y, p!.accent!, 1.0, 0.35);
             view.kickBloom(0.5);
+            ui.flash(p!.flash!, 0.12);
             break;
           case "burn":
-            view.fx.burst(e.x, e.y, c, 8 + e.count * 6, 3, 0.18, 0.55, -3);
+            view.fx.burst2(e.x, e.y, p!.primary, p!.secondary, 8 + e.count * 6, 3, 0.18, 0.55, -3);
             break;
           case "shatter":
-            view.fx.burst(e.x, e.y, 0xdff6ff, 30 + e.count * 10, 5, 0.14, 0.6, -6);
-            view.fx.ring(e.x, e.y, c, 0.9, 0.35);
+            view.fx.burst2(e.x, e.y, p!.primary, p!.secondary, 30 + e.count * 10, 5, 0.14, 0.6, -6);
+            view.fx.ring(e.x, e.y, p!.accent!, 0.9, 0.35);
             break;
           case "steam":
             view.shock(e.x, e.y, 0.6);
-            view.fx.burst(e.x, e.y, 0xffffff, 70, 3.5, 0.28, 1.0, 2.5); // rises
-            view.fx.ring(e.x, e.y, 0xff6a00, 1.2, 0.4);
-            view.fx.ring(e.x, e.y, 0x9fe8ff, 1.8, 0.5);
+            view.fx.burst2(e.x, e.y, p!.primary, p!.secondary, 70, 3.5, 0.28, 1.0, 2.5); // rises
+            view.fx.ring(e.x, e.y, p!.accent!, 1.2, 0.4);
+            view.fx.ring(e.x, e.y, p!.primary, 1.8, 0.5);
             view.kickBloom(0.8);
-            ui.flash("#dff6ff", 0.14);
+            ui.flash(p!.flash!, 0.14);
             break;
           case "zap":
-            view.fx.burst(e.x, e.y, c, 16, 5, 0.1, 0.3, 0);
+            view.fx.burst2(e.x, e.y, p!.primary, p!.secondary, 16, 5, 0.1, 0.3, 0);
             view.kickBloom(0.3);
             break;
           case "wildfire":
             view.shock(e.x, e.y, 0.8);
-            view.fx.burst(e.x, e.y, 0xff6a00, 40 + e.count * 12, 6, 0.22, 0.8, -4);
-            view.fx.ring(e.x, e.y, 0xff6a00, 2.2, 0.5);
+            view.fx.burst2(e.x, e.y, p!.primary, p!.secondary, 40 + e.count * 12, 6, 0.22, 0.8, -4);
+            view.fx.ring(e.x, e.y, p!.accent!, 2.2, 0.5);
             view.kickBloom(1.0);
-            ui.flash("#ff6a00", 0.3);
+            ui.flash(p!.flash!, 0.3);
             break;
           case "shatter_chain":
             view.shock(e.x, e.y, Math.min(1, 0.4 + e.count * 0.1));
-            view.fx.burst(e.x, e.y, 0xdff6ff, 40 + e.count * 14, 7, 0.16, 0.8, -6);
-            view.fx.ring(e.x, e.y, 0x7df9ff, 1.4 + e.count * 0.3, 0.55);
+            view.fx.burstPrism(e.x, e.y, 40 + e.count * 14, 7, 0.16, 0.8, -6);
+            view.fx.ring(e.x, e.y, p!.accent!, 1.4 + e.count * 0.3, 0.55);
             view.kickBloom(0.6 + e.count * 0.1);
             view.addShake(0.3 + e.count * 0.05);
-            ui.flash("#7df9ff", 0.2 + e.count * 0.03);
+            ui.flash(p!.flash!, 0.2 + e.count * 0.03);
             break;
           default:
             break;
