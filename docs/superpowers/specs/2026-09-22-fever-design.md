@@ -50,11 +50,15 @@ Rules:
 | `thermal_mass` | Thermal Mass | rare | Combo resets to 25% of its value instead of 0 (per-copy: +25%, cap 75%). Applies on window lapse only, not on round end. |
 | `inferno_engine` | Inferno Engine | legendary | While fever ≥ ×2, peg-hit chip gains are also multiplied by the current fever. The compounding 1B enabler: chips grow under fever *and* the total is fever-multiplied at landing. Non-stackable (add to `NON_STACKABLE`). |
 
-New ball type:
+Ball rework (no new ball — 25 stays 25):
 
-| id | Name | Effect |
+| id | Name | Change |
 |---|---|---|
-| `comet` | Comet | Every peg hit counts as 2 combo hits (like a mini-bumper, no kick). Cost: low `chipFactor` (~0.6). |
+| `cannon` | Cannon | Reworked into the fever ball. Keeps its fired-downward physics (`vy: -9`, dense). Loses `speedChips` (imperceptible, never picked); instead **every peg hit counts as 2 combo hits**. `chipFactor` 1.2 → 0.8 as the cost. New desc: "Fired downward. Every peg hit counts as 2 combo hits." |
+
+Anchor also carries `speedChips`; it keeps it for now (distinct identity:
+gravity 1.8, chipFactor 1.4). If speed-chips still feels dead after FEVER
+ships, rework Anchor in a follow-up.
 
 All numeric effects go through existing passive-field / `sumCharm` patterns in
 `charms.ts` where possible; hooks only where state is needed (Afterglow decay
@@ -94,7 +98,7 @@ when the event fires.
 - Unit tests: fever formula (below/at/past ignition), fever applied at landing,
   reset on comboEnd, Afterglow decay window, Thermal Mass partial reset,
   Fever Pitch / Heat Sink stacking math, Inferno Engine chip amplification,
-  Comet double-count, event tier scaling.
+  Cannon double combo count, event tier scaling.
 - Replay determinism: a seeded run with fever charms replays to the same score.
 - `BALANCE=1` probe after implementation: pass rates for rounds 1–8 expected
   ~unchanged (dumb policy rarely sustains 50+ combos); investigate if not.
