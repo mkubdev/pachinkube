@@ -195,6 +195,7 @@ const stepper = new FixedStepper(run.sim.config.dt);
 // before it reaches the fixed stepper, so the simulation itself is untouched.
 let timeScale = 1;
 let slowmoUntil = 0;
+let feverHot = false; // fever > 1: heat pinned to max regardless of combo count
 let prev: Snapshot = run.sim.snapshot();
 let curr: Snapshot = prev;
 let aimX: number | null = 0;
@@ -595,7 +596,7 @@ function simStep(): void {
       }
       case "combo":
         ui.setCombo(e.count, e.milestone);
-        view.setHeat(Math.min(1, e.count / 45));
+        view.setHeat(feverHot ? 1 : Math.min(1, e.count / 45));
         if (e.milestone) {
           view.kickBloom(0.7);
           ui.flash(COMBO_TIER_FLASH[comboTier(e.count)], 0.3);
@@ -605,11 +606,12 @@ function simStep(): void {
         break;
       case "comboEnd":
         ui.endCombo(e.count);
-        view.setHeat(0);
+        view.setHeat(feverHot ? 1 : 0);
         break;
       case "fever":
         ui.setFever(e.value);
-        if (e.value > 1) view.setHeat(1);
+        feverHot = e.value > 1;
+        if (feverHot) view.setHeat(1);
         break;
       case "ballScored": {
         const cx = run.sim.bucketCenters[e.bucket] ?? 0;
