@@ -75,6 +75,24 @@ when the event fires.
   capped so the board stays playable.
 - Tier is carried on the `comboEvent` GameEvent so the renderer can scale FX.
 
+### New event kinds — chain feeders
+
+Today's seven events pay points or bend physics, but none feed the combo
+itself; that makes deep chains (400+) nearly impossible to sustain. Three new
+kinds close the loop (added to `COMBO_EVENTS`, weights rebalanced so total
+feel stays similar):
+
+| kind | Name | Effect | ticks |
+|---|---|---|---|
+| `overdrive` | OVERDRIVE | Every peg hit counts double toward the combo for 3 s (stacks with Cannon/bumpers). Tier: +1 s per tier, cap 6 s. | 360 |
+| `time_lock` | TIME LOCK | The combo window cannot lapse for 2.5 s — the chain is unkillable while it runs. Tier: +0.5 s per tier, cap 5 s. | 300 |
+| `fresh_coat` | FRESH COAT | All lit pegs go dark again — the whole board pays fresh chips (10) instead of repeat (3). Instant. Tier: no scaling (already board-wide). | 0 |
+
+All three are deterministic game-layer state (a flag + end tick, same pattern
+as quake/magnet_storm); `fresh_coat` reuses the existing peg-lighting path.
+Weights: overdrive 14, time_lock 10, fresh_coat 12; existing weights trimmed
+proportionally so events stay roughly as frequent per kind.
+
 ## UI / FX
 
 - Combo counter gains a FEVER state at ignition: `FEVER ×N.N` line under the
@@ -98,7 +116,9 @@ when the event fires.
 - Unit tests: fever formula (below/at/past ignition), fever applied at landing,
   reset on comboEnd, Afterglow decay window, Thermal Mass partial reset,
   Fever Pitch / Heat Sink stacking math, Inferno Engine chip amplification,
-  Cannon double combo count, event tier scaling.
+  Cannon double combo count, event tier scaling, overdrive double-count
+  window, time_lock keeping a chain alive past the window, fresh_coat
+  relighting economy.
 - Replay determinism: a seeded run with fever charms replays to the same score.
 - `BALANCE=1` probe after implementation: pass rates for rounds 1–8 expected
   ~unchanged (dumb policy rarely sustains 50+ combos); investigate if not.
@@ -107,4 +127,3 @@ when the event fires.
 
 - Round target retune.
 - Number formatting changes (1B fits current display).
-- New combo event kinds (existing kinds scale; new kinds are a follow-up).
