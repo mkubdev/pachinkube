@@ -585,7 +585,7 @@ function simStep(): void {
         view.setHeat(Math.min(1, e.count / 45));
         if (e.milestone) {
           view.kickBloom(0.7);
-          ui.flash(e.count >= 30 ? "#ff2d95" : "#ffd34d", 0.3);
+          ui.flash(COMBO_TIER_FLASH[comboTier(e.count)], 0.3);
           view.fx.ring(0, run.sim.config.height * 0.55, GOLD, 2.0, 0.45);
           audio.mult();
         }

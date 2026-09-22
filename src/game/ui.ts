@@ -3,6 +3,7 @@
  * Roguelite menus are far easier in HTML than in-canvas, and it stays crisp
  * at any resolution.
  */
+import { comboTier } from "../render/palette.js";
 import { CHARMS, CHARM_IDS } from "./charms.js";
 import { BALL_IDS, BALL_TYPES } from "./balls.js";
 import { formatMult, formatScore } from "./format.js";
@@ -451,7 +452,7 @@ export class GameUI {
   setCombo(count: number, milestone: boolean): void {
     this.comboEl.hidden = false;
     this.comboN.textContent = String(count);
-    const tier = count >= 40 ? 3 : count >= 20 ? 2 : count >= 10 ? 1 : 0;
+    const tier = comboTier(count);
     this.comboEl.className = `t${tier}${milestone ? " hit" : ""}`;
     // Re-trigger the pop animation.
     this.comboEl.style.animation = "none";

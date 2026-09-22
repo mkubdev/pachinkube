@@ -104,9 +104,10 @@
       #combo[hidden] { display: none; }
       #combo .n { font-size: 64px; font-weight: 900; line-height: 1; color: #fff; text-shadow: 0 0 18px rgba(255,255,255,.55); }
       #combo .l { font-size: 11px; font-weight: 700; letter-spacing: .4em; color: #9aa4b0; margin-top: 4px; }
-      #combo.t1 .n { color: var(--cyan); text-shadow: 0 0 22px rgba(45,226,255,.9); }
-      #combo.t2 .n { color: var(--gold); text-shadow: 0 0 26px rgba(255,211,77,.95); font-size: 76px; }
+      #combo.t1 .n { color: var(--gold); text-shadow: 0 0 22px rgba(255,211,77,.9); }
+      #combo.t2 .n { color: #ff8c1a; text-shadow: 0 0 26px rgba(255,140,26,.95); font-size: 76px; }
       #combo.t3 .n { color: var(--magenta); text-shadow: 0 0 32px rgba(255,45,149,1), 0 0 60px rgba(255,45,149,.6); font-size: 92px; }
+      #combo.t4 .n { color: #b44bff; text-shadow: 0 0 36px rgba(180,75,255,1), 0 0 70px rgba(180,75,255,.65); font-size: 104px; }
       #combo.hit .n { animation: comboHit .35s ease-out both; }
       #combo.out { animation: comboOut .7s ease-in both; }
       @keyframes comboPop { from { transform: translateX(-50%) scale(1.35); } to { transform: translateX(-50%) scale(1); } }
@@ -251,7 +252,7 @@
         .charm::after { display: none; } /* no hover on touch; the lexicon covers it */
         /* Combo on the right, toasts on the left: they never fight for the centre. */
         #combo { top: calc(var(--hud-bottom) + 40px); left: auto; right: 12px; transform: none; text-align: right; }
-        #combo .n { font-size: 44px; } #combo.t2 .n { font-size: 52px; } #combo.t3 .n { font-size: 60px; }
+        #combo .n { font-size: 44px; } #combo.t2 .n { font-size: 52px; } #combo.t3 .n { font-size: 60px; } #combo.t4 .n { font-size: 68px; }
         @keyframes comboPop { from { transform: scale(1.35); transform-origin: right top; } to { transform: scale(1); } }
         @keyframes comboOut { to { opacity: 0; transform: translateY(-30px) scale(1.15); } }
         .banner { font-size: clamp(22px, 9vw, 40px); letter-spacing: .08em; white-space: normal; text-align: center; width: 90vw; }
