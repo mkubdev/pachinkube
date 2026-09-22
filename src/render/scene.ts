@@ -73,10 +73,10 @@ const pegFrag = /* glsl */ `
     // Cheap rim so pegs read as cylinders, not flat discs.
     float rim = 1.0 - abs(vNormalW.z);
     if (vElement > 2.5) {
-      // storm: electric crackle, white-blue flashes
+      // storm: electric crackle, white-violet flashes
       float n = noise(vLocal.xy * 12.0 + uTime * 9.0);
       float spark = step(0.82, noise(vLocal.yx * 30.0 + uTime * 23.0));
-      c = mix(vec3(0.25, 0.8, 1.0), vec3(1.0), spark) * (1.1 + 0.9 * n) + rim * vec3(0.4, 0.7, 0.9);
+      c = mix(vec3(0.71, 0.29, 1.0), vec3(1.0), spark) * (1.1 + 0.9 * n) + rim * vec3(0.55, 0.35, 0.9);
     } else if (vElement > 1.5) {
       // ice: pale, faceted glints that drift
       float f = step(0.9, noise(vLocal.xy * 8.0 + floor(uTime * 2.0)));
@@ -152,7 +152,7 @@ const auraFrag = /* glsl */ `
       // storm: three rotating arcs
       float arc = smoothstep(0.35, 0.0, abs(fract((a / 6.2831 + t * 0.9) * 3.0) - 0.5) - 0.28) * smoothstep(1.0, 0.55, r) * smoothstep(0.35, 0.6, r);
       float spark = step(0.94, hash(floor(vUv * 9.0) + floor(t * 12.0)));
-      c = vec3(0.5, 0.95, 1.0) * 2.2; alpha = arc * 0.9 + spark * 0.8;
+      c = vec3(0.71, 0.29, 1.0) * 2.2; alpha = arc * 0.9 + spark * 0.8;
     } else if (vElement > 1.5) {
       // ice: six slow crystal spokes
       float spokes = pow(abs(cos(a * 3.0 + t * 0.6)), 24.0) * smoothstep(1.0, 0.3, r);

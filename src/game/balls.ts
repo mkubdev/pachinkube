@@ -138,7 +138,7 @@ export const BALL_TYPES: Record<BallTypeId, BallType> = {
   },
   volt: {
     id: "volt", name: "Volt", desc: "Always Storm. Charges pegs and zaps charged ones.",
-    color: 0x7df9ff, physics: { radius: 0.12, density: 5 }, chipFactor: 1, traits: { element: "storm" }, shopWeight: 6,
+    color: 0xb44bff, physics: { radius: 0.12, density: 5 }, chipFactor: 1, traits: { element: "storm" }, shopWeight: 6,
   },
   cluster: {
     id: "cluster", name: "Cluster", desc: "Three tiny balls from one slot. ×0.6 chips each.",

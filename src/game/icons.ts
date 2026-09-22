@@ -77,7 +77,7 @@ const RARITY: Record<string, Palette> = {
 const ELEMENT: Record<string, Palette> = {
   fire: { primary: "#c23a00", secondary: "#ff6a00", highlight: "#ffd34d" },
   ice: { primary: "#3aa5c9", secondary: "#9fe8ff", highlight: "#ffffff" },
-  storm: { primary: "#2d8fb0", secondary: "#7df9ff", highlight: "#ffffff" },
+  storm: { primary: "#7a2fc9", secondary: "#b44bff", highlight: "#ffffff" },
 };
 
 function shade(hex: number, f: number): string {
