@@ -7,7 +7,6 @@ import { GameAudio } from "./game/audio.js";
 import { Music } from "./game/music.js";
 import type { CharmId } from "./game/charms.js";
 import { BALL_TYPES, type BallTypeId } from "./game/balls.js";
-import { ELEMENTS } from "./game/elements.js";
 import { COMBO_TIER_FLASH, comboTier, REACTION_FX } from "./render/palette.js";
 import { SyncedMetaStore } from "./game/metaSync.js";
 import { RULES_VERSION } from "./game/version.js";
@@ -519,14 +518,13 @@ function simStep(): void {
         ui.updateCharms(run);
         break;
       case "element": {
-        const c = ELEMENTS[e.el].color;
         const p = REACTION_FX[e.kind];
         switch (e.kind) {
           case "ignite":
             view.fx.burst2(e.x, e.y, p!.primary, p!.secondary, 14, 2.5, 0.16, 0.5, -2);
             break;
           case "freeze":
-            view.fx.ring(e.x, e.y, c, 0.5, 0.3);
+            view.fx.ring(e.x, e.y, p!.primary, 0.5, 0.3);
             view.fx.burst2(e.x, e.y, p!.secondary, p!.primary, 6, 1.5, 0.1, 0.4, 0);
             break;
           case "charge":

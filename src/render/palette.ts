@@ -10,7 +10,7 @@ export interface ReactionFx {
   primary: number;
   /** burst2 lerps each particle between primary and secondary. */
   secondary: number;
-  /** Ring / arc colour where a reaction draws one (defaults to primary). */
+  /** Ring / arc colour where a reaction draws one. */
   accent?: number;
   /** Full-screen flash as a CSS colour; absent = no flash. */
   flash?: string;
