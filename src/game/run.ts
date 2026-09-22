@@ -506,7 +506,7 @@ export class Run {
         break;
       }
       case "gravity_flip":
-        this.sim.setGravityScaleAll(-0.55);
+        this.sim.setGravityScaleAll(-1.1);
         break;
       case "magnet_storm":
         this.sim.setGlobalPull(0.6); // 0.9 pressed balls into the edge peg columns
