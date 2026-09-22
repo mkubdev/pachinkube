@@ -293,7 +293,7 @@ export const CHARMS: Record<CharmId, Charm> = {
     id: "split_shot",
     name: "Split Shot",
     desc: "On its 8th peg hit a ball splits into two shards. Shards never split.",
-    rarity: "uncommon",
+    rarity: "rare",
     onPegHit(ctx, ev) {
       if (ctx.ball.shard || ctx.ball.hits !== 8) return;
       const peg = ctx.pegs[ev.peg];
@@ -400,8 +400,9 @@ export const CHARMS: Record<CharmId, Charm> = {
   phoenix: {
     id: "phoenix",
     name: "Phoenix",
-    desc: "A ball lost in an edge pocket is relaunched once (50%).",
+    desc: "For the next 10 rounds, a ball lost in an edge pocket is relaunched once (50%).",
     rarity: "rare",
+    duration: 10,
     onBallLost(ctx, bucket) {
       const edge = bucket === 0 || bucket === ctx.buckets - 1;
       if (!edge || ctx.ball.revives > 0 || ctx.rng.next() >= 0.5) return;

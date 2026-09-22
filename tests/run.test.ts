@@ -160,6 +160,27 @@ describe("run", () => {
     expect(run.phase).not.toBe("drop");
   });
 
+  it("Phoenix is a 10-round temporary charm and Split Shot is rare", () => {
+    // Balance pass 2026-09-22: permanent Phoenix was oppressive, Split Shot too frequent.
+    expect(CHARMS.phoenix.duration).toBe(10);
+    expect(CHARMS.phoenix.desc).toContain("next 10 rounds");
+    expect(CHARMS.split_shot.rarity).toBe("rare");
+  });
+
+  it("Phoenix expires after its 10-round window", async () => {
+    const run = await Run.create("phx-window", { rounds: 30 });
+    runs.push(run);
+    // Simulate taking Phoenix from the shop (pick() sets charmExpires from duration).
+    run.charms.push("phoenix");
+    (run as unknown as { charmExpires: Map<number, number> }).charmExpires.set(0, run.round + CHARMS.phoenix.duration!);
+    // Advance past the window; expireCharms runs at round start.
+    (run as unknown as { round: number }).round += 11;
+    (run as unknown as { startRound(): void }).startRound();
+    const events = run.step();
+    expect(run.charms).not.toContain("phoenix");
+    expect(events.some((e) => e.type === "charmExpired" && e.id === "phoenix")).toBe(true);
+  });
+
   it("every charm has consistent metadata", () => {
     for (const id of CHARM_IDS) {
       const c = CHARMS[id];
