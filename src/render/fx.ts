@@ -68,6 +68,7 @@ export class FxSystem {
 
   private readonly dummy = new THREE.Object3D();
   private readonly tmpColor = new THREE.Color();
+  private readonly tmpColor2 = new THREE.Color();
   private readonly hidden = new THREE.Matrix4().makeScale(0, 0, 0);
 
   constructor(scene: THREE.Scene) {
@@ -128,28 +129,55 @@ export class FxSystem {
 
   /** Radial burst of `count` sparks. `spread` < 1 biases upward. */
   burst(x: number, y: number, color: THREE.Color | number, count: number, speed = 3, size = 0.16, life = 0.5, gravity = -9): void {
-    const c = this.tmpColor.set(color);
+    this.burst2(x, y, color, color, count, speed, size, life, gravity);
+  }
+
+  /** Radial burst whose particles each blend between two colours. */
+  burst2(x: number, y: number, colorA: THREE.Color | number, colorB: THREE.Color | number, count: number, speed = 3, size = 0.16, life = 0.5, gravity = -9): void {
+    const ca = this.tmpColor.set(colorA);
+    const cb = this.tmpColor2.set(colorB);
     for (let n = 0; n < count; n++) {
       const i = this.free.pop();
       if (i === undefined) return;
-      const a = Math.random() * Math.PI * 2;
-      const s = speed * (0.35 + Math.random() * 0.85);
-      this.pos[i * 3] = x;
-      this.pos[i * 3 + 1] = y;
-      this.pos[i * 3 + 2] = 0.15 + Math.random() * 0.2;
-      this.vel[i * 3] = Math.cos(a) * s;
-      this.vel[i * 3 + 1] = Math.sin(a) * s + speed * 0.25;
-      this.vel[i * 3 + 2] = (Math.random() - 0.5) * s * 0.4;
+      const mix = Math.random();
       const tint = 0.75 + Math.random() * 0.5;
-      this.col[i * 3] = c.r * tint;
-      this.col[i * 3 + 1] = c.g * tint;
-      this.col[i * 3 + 2] = c.b * tint;
-      this.size[i] = size * (0.6 + Math.random() * 0.8);
-      this.life[i] = 1;
-      this.decay[i] = 1 / (life * (0.6 + Math.random() * 0.8));
-      this.gravity[i] = gravity;
-      this.alive.push(i);
+      this.spawnAt(
+        i, x, y, speed, size, life, gravity,
+        (ca.r + (cb.r - ca.r) * mix) * tint,
+        (ca.g + (cb.g - ca.g) * mix) * tint,
+        (ca.b + (cb.b - ca.b) * mix) * tint,
+      );
     }
+  }
+
+  /** Prismatic burst: every particle gets its own hue around the wheel. */
+  burstPrism(x: number, y: number, count: number, speed = 3, size = 0.16, life = 0.5, gravity = -9): void {
+    for (let n = 0; n < count; n++) {
+      const i = this.free.pop();
+      if (i === undefined) return;
+      const c = this.tmpColor.setHSL(Math.random(), 1, 0.65);
+      this.spawnAt(i, x, y, speed, size, life, gravity, c.r, c.g, c.b);
+    }
+  }
+
+  /** Shared particle kinematics: one slot, one radial spark. */
+  private spawnAt(i: number, x: number, y: number, speed: number, size: number, life: number, gravity: number, r: number, g: number, b: number): void {
+    const a = Math.random() * Math.PI * 2;
+    const s = speed * (0.35 + Math.random() * 0.85);
+    this.pos[i * 3] = x;
+    this.pos[i * 3 + 1] = y;
+    this.pos[i * 3 + 2] = 0.15 + Math.random() * 0.2;
+    this.vel[i * 3] = Math.cos(a) * s;
+    this.vel[i * 3 + 1] = Math.sin(a) * s + speed * 0.25;
+    this.vel[i * 3 + 2] = (Math.random() - 0.5) * s * 0.4;
+    this.col[i * 3] = r;
+    this.col[i * 3 + 1] = g;
+    this.col[i * 3 + 2] = b;
+    this.size[i] = size * (0.6 + Math.random() * 0.8);
+    this.life[i] = 1;
+    this.decay[i] = 1 / (life * (0.6 + Math.random() * 0.8));
+    this.gravity[i] = gravity;
+    this.alive.push(i);
   }
 
   /** One slow, short-lived spark: called per frame behind fast balls. */
