@@ -136,6 +136,9 @@ export class FxSystem {
   burst2(x: number, y: number, colorA: THREE.Color | number, colorB: THREE.Color | number, count: number, speed = 3, size = 0.16, life = 0.5, gravity = -9): void {
     const ca = this.tmpColor.set(colorA);
     const cb = this.tmpColor2.set(colorB);
+    const dr = cb.r - ca.r;
+    const dg = cb.g - ca.g;
+    const db = cb.b - ca.b;
     for (let n = 0; n < count; n++) {
       const i = this.free.pop();
       if (i === undefined) return;
@@ -143,9 +146,9 @@ export class FxSystem {
       const tint = 0.75 + Math.random() * 0.5;
       this.spawnAt(
         i, x, y, speed, size, life, gravity,
-        (ca.r + (cb.r - ca.r) * mix) * tint,
-        (ca.g + (cb.g - ca.g) * mix) * tint,
-        (ca.b + (cb.b - ca.b) * mix) * tint,
+        (ca.r + dr * mix) * tint,
+        (ca.g + dg * mix) * tint,
+        (ca.b + db * mix) * tint,
       );
     }
   }
