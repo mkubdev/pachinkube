@@ -701,7 +701,8 @@ export class Run {
       const prevCombo = this.combo;
       const isBumper = this.bumpers.has(ev.peg);
       const bumperCombo = isBumper ? BUMPER_COMBO + this.sumCharm((c) => c.bumperCombo ?? 0) : 0;
-      this.combo += 1 + bumperCombo;
+      const traitCombo = (type.traits?.comboHits ?? 1) - 1;
+      this.combo += 1 + bumperCombo + traitCombo;
       this.bestCombo = Math.max(this.bestCombo, this.combo);
       this.lastHitTick = this.sim.tick;
       const m = this.comboMilestone();

@@ -17,6 +17,8 @@ export interface BallTraits {
   multOnLand?: number;
   /** Extra chips per hit = impact speed × this. */
   speedChips?: number;
+  /** Combo hits per peg hit (1 by default — Cannon counts double). */
+  comboHits?: number;
   /** On a fresh hit, also light this many nearest unlit pegs. */
   lightNeighbor?: number;
   /** On this hit number, light every unlit peg within `detonateRadius`. */
@@ -91,8 +93,8 @@ export const BALL_TYPES: Record<BallTypeId, BallType> = {
     color: 0xd7f7ff, physics: { radius: 0.11, restitution: 0.7, density: 0.8, gravityScale: 0.45 }, chipFactor: 0.7, shopWeight: 8,
   },
   cannon: {
-    id: "cannon", name: "Cannon", desc: "Fired downward. Chips scale with impact speed.",
-    color: 0xff4d4d, physics: { radius: 0.15, density: 12, vy: -9 }, chipFactor: 1.2, traits: { speedChips: 0.8 }, shopWeight: 7,
+    id: "cannon", name: "Cannon", desc: "Fired downward. Every peg hit counts as 2 combo hits.",
+    color: 0xff4d4d, physics: { radius: 0.15, density: 12, vy: -9 }, chipFactor: 0.8, traits: { comboHits: 2 }, shopWeight: 7,
   },
   ricochet: {
     id: "ricochet", name: "Ricochet", desc: "Slams off the walls: every wall hit pays +12 chips and kicks it back into the field.",

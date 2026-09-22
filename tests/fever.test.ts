@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { FEVER_IGNITION, FEVER_RAMP, feverMultiplier } from "../src/game/fever.js";
 import { CHARMS } from "../src/game/charms.js";
 import { Run, type GameEvent } from "../src/game/run.js";
+import { BALL_TYPES } from "../src/game/balls.js";
 
 describe("fever formula", () => {
   it("is ×1 below ignition", () => {
@@ -125,5 +126,22 @@ describe("fever in a run", () => {
     (run as unknown as Priv).handle({ type: "pegHit", ball: id, peg: peg.id, speed: 0 }, out);
     // fresh peg: base 10 chips × fever 2 = 20 (steel has chipFactor 1, no bonuses)
     expect(run.balls.get(id)!.chips).toBe(20);
+  });
+});
+
+describe("cannon rework", () => {
+  it("counts double toward the combo and lost its speed chips", () => {
+    expect(BALL_TYPES.cannon.traits?.comboHits).toBe(2);
+    expect(BALL_TYPES.cannon.traits?.speedChips).toBeUndefined();
+    expect(BALL_TYPES.cannon.chipFactor).toBe(0.8);
+  });
+  it("a cannon peg hit advances the combo by 2", async () => {
+    const run = await make("fv-cannon");
+    const id = 5151;
+    run.balls.set(id, { id, type: "cannon", chips: 0, mult: 1, hits: 0, freshHits: 0, revives: 0, zaps: 0, shard: false } as never);
+    const peg = run.sim.pegs[0]!;
+    const out: GameEvent[] = [];
+    (run as unknown as Priv).handle({ type: "pegHit", ball: id, peg: peg.id, speed: 0 }, out);
+    expect(run.combo).toBe(2);
   });
 });
