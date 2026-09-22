@@ -414,7 +414,11 @@ NAT cannot reach the add-on's `localhost:9876`.
   hangs synchronously since the pool/endless changes. The tamper-rejection and
   stall tests still cover the verifier.
 - **Effects tuning** was done from headless SwiftShader screenshots; ring sizes,
-  aberration and flash strengths deserve a pass on a real GPU at 60 fps.
+  aberration and flash strengths deserve a pass on a real GPU at 60 fps. Same
+  for the 2026-09 reaction palette (`src/render/palette.ts`: violet storm arcs,
+  steam pinks, prismatic shatter chains, `burstPrism` lightness 0.65) — combo
+  tier colours were verified headlessly, but arcs/steam were not caught
+  mid-flight under SwiftShader.
 
 ## Gotchas already paid for
 
