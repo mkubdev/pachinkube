@@ -374,6 +374,8 @@ export class Run {
    *  this round; each extra copy lowers the bar by 10 (never below 20). */
   private closeCombo(out: GameEvent[]): void {
     out.push({ type: "comboEnd", count: this.combo });
+    // Read deliberately before Second Wind's ballsLeft++: a revived round-end
+    // close is not a window lapse, so it earns neither afterglow nor carry.
     const boardLive = this.ballsLeft > 0 || this.sim.ballCount > 0;
     // Afterglow: hold the fever and fade it, so late landings still cash out.
     // Pointless on a dead board — and arming it there would strand the renderer hot through the shop.
