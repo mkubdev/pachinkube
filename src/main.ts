@@ -134,6 +134,7 @@ async function newRun(nextSeed: string): Promise<void> {
   old.dispose();
   runEnded = false;
   tainted = false; // a fresh in-place run has no dev modifications
+  feverHot = false;
   auto = false;
   Object.assign(tracker, newTracker());
   recordRunStart(meta);
@@ -611,7 +612,7 @@ function simStep(): void {
       case "fever":
         ui.setFever(e.value);
         feverHot = e.value > 1;
-        if (feverHot) view.setHeat(1);
+        view.setHeat(feverHot ? 1 : Math.min(1, run.combo / 45));
         break;
       case "ballScored": {
         const cx = run.sim.bucketCenters[e.bucket] ?? 0;
@@ -672,7 +673,7 @@ function loop(now: number): void {
   if (slowmoUntil && now > slowmoUntil) {
     slowmoUntil = 0;
     timeScale = 1;
-    view.setHeat(Math.min(1, run.combo / 45));
+    view.setHeat(feverHot ? 1 : Math.min(1, run.combo / 45));
   }
   const alpha = stepper.advance(dtSec * timeScale, simStep);
 
