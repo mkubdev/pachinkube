@@ -355,7 +355,7 @@ export class Run {
       this.emitFever(out);
       if (this.sim.tick >= this.afterglow.until) this.afterglow = null;
     }
-    if (this.combo > 0 && this.sim.tick - this.lastHitTick > this.comboWindow()) {
+    if (this.combo > 0 && !this.activeEffects.has("time_lock") && this.sim.tick - this.lastHitTick > this.comboWindow()) {
       this.closeCombo(out);
     }
     if (this.ballsLeft === 0 && this.sim.ballCount === 0) {
@@ -502,6 +502,12 @@ export class Run {
         break;
       case "slowmo":
         break;
+      case "overdrive":
+      case "time_lock":
+        break; // pure state: the flag in activeEffects does the work
+      case "fresh_coat":
+        this.lit.clear();
+        break;
     }
     if (def.ticks > 0) this.activeEffects.set(kind, this.sim.tick + def.ticks);
     out.push({ type: "comboEvent", kind, x, y, ticks: def.ticks, label: def.name });
@@ -511,6 +517,7 @@ export class Run {
     if (kind === "quake") this.applyBoardMotion();
     else if (kind === "gravity_flip") this.sim.setGravityScaleAll(1);
     else if (kind === "magnet_storm") this.sim.setGlobalPull(0);
+    else if (kind === "time_lock") this.lastHitTick = this.sim.tick; // grace: the chain restarts its window
   }
 
   private setPegElement(peg: number, state: PegElementState | null, out: GameEvent[]): void {
@@ -702,7 +709,8 @@ export class Run {
       const isBumper = this.bumpers.has(ev.peg);
       const bumperCombo = isBumper ? BUMPER_COMBO + this.sumCharm((c) => c.bumperCombo ?? 0) : 0;
       const traitCombo = (type.traits?.comboHits ?? 1) - 1;
-      this.combo += 1 + bumperCombo + traitCombo;
+      const overdrive = this.activeEffects.has("overdrive") ? 2 : 1;
+      this.combo += (1 + bumperCombo + traitCombo) * overdrive;
       this.bestCombo = Math.max(this.bestCombo, this.combo);
       this.lastHitTick = this.sim.tick;
       const m = this.comboMilestone();

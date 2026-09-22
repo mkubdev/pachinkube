@@ -94,3 +94,31 @@ describe("combo events", () => {
     expect(a).toEqual(b);
   });
 });
+
+describe("chain feeders", () => {
+  it("overdrive doubles combo gain while active", async () => {
+    const run = await make("cf-overdrive");
+    const out: GameEvent[] = [];
+    run.triggerComboEvent("overdrive", out);
+    const id = 6001;
+    run.balls.set(id, { id, type: "steel", chips: 0, mult: 1, hits: 0, freshHits: 0, revives: 0, zaps: 0, shard: false } as never);
+    const peg = run.sim.pegs[0]!;
+    (run as unknown as { handle(ev: unknown, out: GameEvent[]): void }).handle({ type: "pegHit", ball: id, peg: peg.id, speed: 0 }, out);
+    expect(run.combo).toBe(2);
+  });
+  it("time_lock keeps the chain alive past the window, with a grace restart", async () => {
+    const run = await make("cf-lock");
+    run.combo = 30;
+    const out: GameEvent[] = [];
+    run.triggerComboEvent("time_lock", out);
+    for (let i = 0; i < 320; i++) run.step(); // window 54 ticks; lock 300, grace restarts lastHitTick at lock end
+    expect(run.combo).toBe(30);
+  });
+  it("fresh_coat unlights every peg", async () => {
+    const run = await make("cf-coat");
+    run.lit.add(run.sim.pegs[0]!.id).add(run.sim.pegs[1]!.id);
+    const out: GameEvent[] = [];
+    run.triggerComboEvent("fresh_coat", out);
+    expect(run.lit.size).toBe(0);
+  });
+});
