@@ -146,6 +146,12 @@ export const UNLOCK_RULES: UnlockRule[] = [
   { kind: "charm", id: "overclock", stat: "bestRound", value: 10, hint: "Reach round 10" },
   { kind: "charm", id: "restless_board", stat: "roundsCleared", value: 40, hint: "Clear 40 rounds (lifetime)" },
   { kind: "charm", id: "snowball", stat: "bestRound", value: 12, hint: "Reach round 12" },
+  // fever
+  { kind: "charm", id: "afterglow", stat: "bestCombo", value: 100, hint: "Reach a 100 combo" },
+  { kind: "charm", id: "fever_pitch", stat: "bestCombo", value: 120, hint: "Reach a 120 combo" },
+  { kind: "charm", id: "thermal_mass", stat: "bestCombo", value: 150, hint: "Reach a 150 combo" },
+  { kind: "charm", id: "heat_sink", stat: "bestCombo", value: 200, hint: "Reach a 200 combo" },
+  { kind: "charm", id: "inferno_engine", stat: "bestCombo", value: 300, hint: "Reach a 300 combo" },
 ];
 
 export function ruleFor(kind: "charm" | "ball", id: string): UnlockRule | undefined {

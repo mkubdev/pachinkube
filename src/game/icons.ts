@@ -47,6 +47,7 @@ const CHARM_GLYPH: Record<CharmId, keyof typeof G> = {
   pop_bumpers: "gear", super_bumpers: "star", bumper_crown: "trophy",
   roulette: "dice", hot_pocket: "flame", groove: "arrow", jackpot_growth: "coin", pocket_lottery: "star", inversion: "split",
   echo_chamber: "wave", second_wind: "heart", overclock: "clock",
+  fever_pitch: "flame", heat_sink: "sun", afterglow: "star", thermal_mass: "gear", inferno_engine: "flame",
 };
 
 const FEAT_GLYPH: Record<string, keyof typeof G> = {

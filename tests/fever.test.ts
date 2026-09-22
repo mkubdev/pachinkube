@@ -21,3 +21,20 @@ describe("fever formula", () => {
     expect(FEVER_RAMP).toBe(50);
   });
 });
+
+import { CHARMS } from "../src/game/charms.js";
+
+describe("heat charms", () => {
+  it("are defined with the spec'd fields", () => {
+    expect(CHARMS.fever_pitch).toMatchObject({ rarity: "rare", feverIgnitionDelta: -10 });
+    expect(CHARMS.heat_sink).toMatchObject({ rarity: "rare", feverRampDelta: -10 });
+    expect(CHARMS.afterglow).toMatchObject({ rarity: "uncommon", afterglowTicks: 240 });
+    expect(CHARMS.thermal_mass).toMatchObject({ rarity: "rare", comboCarry: 0.25 });
+    expect(CHARMS.inferno_engine).toMatchObject({ rarity: "legendary", infernoEngine: true });
+  });
+  it("compounding charms explain their stacks", () => {
+    expect(CHARMS.fever_pitch.stackNote!(2)).toContain("30");
+    expect(CHARMS.heat_sink.stackNote!(4)).toContain("20"); // floor
+    expect(CHARMS.thermal_mass.stackNote!(4)).toContain("75"); // cap
+  });
+});

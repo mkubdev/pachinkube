@@ -173,6 +173,18 @@ export interface Charm {
   eventEveryDelta?: number;
   /** When a combo of at least this many hits ends, +1 ball this round (once per round). */
   secondWindAt?: number;
+
+  // --- fever (combo-depth multiplier; src/game/fever.ts) ----------------------
+  /** Change to the combo count where fever ignites (50 by default, floor 10). */
+  feverIgnitionDelta?: number;
+  /** Change to the fever ramp divisor (50 by default, floor 20 — lower is steeper). */
+  feverRampDelta?: number;
+  /** Ticks fever fades over after a combo ends, instead of snapping to ×1. */
+  afterglowTicks?: number;
+  /** Fraction of the combo kept when the window lapses (cap 0.75). */
+  comboCarry?: number;
+  /** While fever ≥ ×2, peg-hit chip gains are also multiplied by the fever. */
+  infernoEngine?: boolean;
 }
 
 export type CharmId =
@@ -241,7 +253,13 @@ export type CharmId =
   // combo economy
   | "echo_chamber"
   | "second_wind"
-  | "overclock";
+  | "overclock"
+  // fever
+  | "fever_pitch"
+  | "heat_sink"
+  | "afterglow"
+  | "thermal_mass"
+  | "inferno_engine";
 
 function nearestUnlit(ctx: CharmCtx, from: Peg, n: number): Peg[] {
   return ctx.pegs
@@ -476,6 +494,47 @@ export const CHARMS: Record<CharmId, Charm> = {
   echo_chamber: { id: "echo_chamber", name: "Echo Chamber", desc: "Combo events fire every 40 hits instead of 50.", rarity: "rare", eventEveryDelta: -10 },
   second_wind: { id: "second_wind", name: "Second Wind", desc: "When a combo of 60+ ends, gain a ball (once per round).", rarity: "uncommon", secondWindAt: 60 },
   overclock: { id: "overclock", name: "Overclock", desc: "Combos stay alive 0.15 s longer, but milestones come every 12 hits.", rarity: "uncommon", comboWindowBonus: 18, milestoneDelta: 2 },
+
+  // --- fever ------------------------------------------------------------------
+  fever_pitch: {
+    id: "fever_pitch",
+    name: "Fever Pitch",
+    desc: "Fever ignites at 40 combo instead of 50.",
+    rarity: "rare",
+    feverIgnitionDelta: -10,
+    stackNote: (level) => `×${level}: fever ignites at ${Math.max(10, 50 - 10 * level)} combo`,
+  },
+  heat_sink: {
+    id: "heat_sink",
+    name: "Heat Sink",
+    desc: "Fever climbs faster past ignition.",
+    rarity: "rare",
+    feverRampDelta: -10,
+    stackNote: (level) => `×${level}: fever ramp ${Math.max(20, 50 - 10 * level)} (lower is hotter)`,
+  },
+  afterglow: {
+    id: "afterglow",
+    name: "Afterglow",
+    desc: "When a combo ends, fever fades out over 2 s instead of vanishing.",
+    rarity: "uncommon",
+    afterglowTicks: 240,
+    stackNote: (level) => `×${level}: fever fades over ${2 * level} s`,
+  },
+  thermal_mass: {
+    id: "thermal_mass",
+    name: "Thermal Mass",
+    desc: "A lapsed combo keeps 25% of its count.",
+    rarity: "rare",
+    comboCarry: 0.25,
+    stackNote: (level) => `×${level}: keeps ${Math.min(75, 25 * level)}% of the combo`,
+  },
+  inferno_engine: {
+    id: "inferno_engine",
+    name: "Inferno Engine",
+    desc: "While fever is ×2 or higher, peg chips are multiplied by the fever too.",
+    rarity: "legendary",
+    infernoEngine: true,
+  },
 };
 
 export const CHARM_IDS = Object.keys(CHARMS) as CharmId[];
