@@ -529,7 +529,8 @@ export class GameUI {
       const el = c.element ? ` el-${c.element}` : "";
       const level = this.shopRun?.charmLevel(o.id) ?? 0;
       const up = level > 0 ? (c.duration ? `<span class="lvl">+${c.duration} round${c.duration === 1 ? "" : "s"}</span>` : `<span class="lvl">level ${level + 1}</span>`) : "";
-      return `<button data-i="${i}" class="offer ${c.rarity}${el}${freshCls}${level > 0 ? " upgrade" : ""}"><span class="tag">${c.rarity}${dur}${up}${fresh}</span><div class="ic">${charmIcon(o.id)}</div><b>${c.name}</b><p>${c.desc}</p></button>`;
+      const stack = level > 0 && !c.duration && c.stackNote ? `<p class="stack">${escapeHtml(c.stackNote(level + 1))}</p>` : "";
+      return `<button data-i="${i}" class="offer ${c.rarity}${el}${freshCls}${level > 0 ? " upgrade" : ""}"><span class="tag">${c.rarity}${dur}${up}${fresh}</span><div class="ic">${charmIcon(o.id)}</div><b>${c.name}</b><p>${c.desc}</p>${stack}</button>`;
     }
     const b = BALL_TYPES[o.id];
     return `<button data-i="${i}" class="offer ball${freshCls}"><span class="tag">ball ×${o.count}${fresh}</span><div class="ic">${ballIcon(o.id)}</div><b style="color:#${b.color.toString(16).padStart(6, "0")}">${b.name}</b><p>${b.desc}</p></button>`;

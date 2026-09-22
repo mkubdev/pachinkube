@@ -62,6 +62,12 @@ export interface Charm {
   onWallHit?(ctx: CharmCtx): void;
   /** Return false to veto the ball being scored/removed (used for revives). */
   onBallLost?(ctx: CharmCtx, bucket: number, bucketMult: number): boolean | void;
+  /**
+   * Combined effect at `level` copies, shown in the shop when re-offered.
+   * Only needed where copies compound (products, caps) — additive stacks are
+   * obvious from the base desc.
+   */
+  stackNote?(level: number): string;
   // --- passive fields: no hooks, the run reads them directly ---------------
   /** Extra balls per round. */
   extraBalls?: number;
@@ -293,6 +299,7 @@ export const CHARMS: Record<CharmId, Charm> = {
     desc: "Centre pocket multiplier ×2.",
     rarity: "uncommon",
     jackpotFactor: 2,
+    stackNote: (level) => `×${level}: centre pocket multiplier ×${2 ** level}`,
   },
   rubber_soul: {
     id: "rubber_soul",
@@ -302,6 +309,7 @@ export const CHARMS: Record<CharmId, Charm> = {
     onSpawn(spawn) {
       return { ...spawn, restitution: Math.min(0.98, (spawn.restitution ?? 0.55) + 0.15) };
     },
+    stackNote: (level) => `×${level}: +${(0.15 * level).toFixed(2)} restitution (caps at 0.98)`,
   },
   heavy_metal: {
     id: "heavy_metal",
@@ -402,15 +410,15 @@ export const CHARMS: Record<CharmId, Charm> = {
   wide_net: { id: "wide_net", name: "Wide Net", desc: "Edge pockets +2 multiplier.", rarity: "common", edgeBonus: 2 },
   warm_start: { id: "warm_start", name: "Warm Start", desc: "Every ball starts with 30 chips.", rarity: "common", startChips: 30 },
   momentum: { id: "momentum", name: "Momentum", desc: "Each ball starts with +0.2 mult per ball already landed this round.", rarity: "uncommon", momentum: 0.2 },
-  grand_finale: { id: "grand_finale", name: "Grand Finale", desc: "The last ball of each round lands with mult ×2.", rarity: "uncommon", finaleMult: 2 },
+  grand_finale: { id: "grand_finale", name: "Grand Finale", desc: "The last ball of each round lands with mult ×2.", rarity: "uncommon", finaleMult: 2, stackNote: (level) => `×${level}: last ball mult ×${2 ** level}` },
   fresh_paint: { id: "fresh_paint", name: "Fresh Paint", desc: "Fresh pegs are worth +5 chips.", rarity: "common", freshChipBonus: 5 },
   echo: { id: "echo", name: "Echo", desc: "Already-lit pegs are worth +4 chips.", rarity: "common", repeatChipBonus: 4 },
   long_fuse: { id: "long_fuse", name: "Long Fuse", desc: "Combos stay alive 0.25 s longer.", rarity: "common", comboWindowBonus: 30 },
   milestone_maker: { id: "milestone_maker", name: "Milestone Maker", desc: "Combo milestones every 8 hits instead of 10.", rarity: "uncommon", milestoneDelta: -2 },
   insurance: { id: "insurance", name: "Insurance", desc: "Fail a round once and replay it instead of losing.", rarity: "rare", retries: 1 },
   duplicator: { id: "duplicator", name: "Duplicator", desc: "Ball offers in the shop give one more ball.", rarity: "common", ballOfferBonus: 1 },
-  compound: { id: "compound", name: "Compound", desc: "Round score ×1.15 before the target check.", rarity: "uncommon", roundEndMult: 1.15 },
-  sharpshooter: { id: "sharpshooter", name: "Sharpshooter", desc: "Land in the pocket you aimed at: mult ×1.5.", rarity: "uncommon", sharpshooter: 1.5 },
+  compound: { id: "compound", name: "Compound", desc: "Round score ×1.15 before the target check.", rarity: "uncommon", roundEndMult: 1.15, stackNote: (level) => `×${level}: round score ×${(Math.round(1.15 ** level * 100) / 100).toFixed(2)}` },
+  sharpshooter: { id: "sharpshooter", name: "Sharpshooter", desc: "Land in the pocket you aimed at: mult ×1.5.", rarity: "uncommon", sharpshooter: 1.5, stackNote: (level) => `×${level}: aimed-pocket mult ×${(Math.round(1.5 ** level * 100) / 100).toFixed(2).replace(/\.?0+$/, "")}` },
   low_gravity: {
     id: "low_gravity",
     name: "Low Gravity",
@@ -419,6 +427,7 @@ export const CHARMS: Record<CharmId, Charm> = {
     onSpawn(spawn) {
       return { ...spawn, gravityScale: (spawn.gravityScale ?? 1) * 0.8 };
     },
+    stackNote: (level) => `×${level}: balls fall at ${Math.round(0.8 ** level * 100)}% gravity`,
   },
 
   // --- elemental passives (permanent) --------------------------------------
