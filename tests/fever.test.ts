@@ -135,8 +135,12 @@ describe("fever determinism", () => {
       const run = await Run.create("fever-replay");
       run.charms.push("fever_pitch" as never, "afterglow" as never, "thermal_mass" as never);
       (run as unknown as Priv).startRound();
-      run.drop(0);
-      for (let i = 0; i < 4000 && run.phase === "drop"; i++) run.step();
+      while (run.phase === "drop" && run.ballsLeft > 0) {
+        if (!run.drop(0)) break;
+        for (let i = 0; i < 2000 && run.sim.ballCount > 0; i++) run.step();
+      }
+      for (let i = 0; i < 200; i++) run.step(); // let the round close
+      expect(run.phase).not.toBe("drop");
       const score = run.totalScore;
       run.dispose();
       return score;
