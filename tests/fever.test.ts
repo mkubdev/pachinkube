@@ -77,78 +77,122 @@ function land(run: Run, bucket: number, chips = 100): GameEvent[] {
   return out;
 }
 
-describe("fever in a run", () => {
-  it("multiplies a landing while the chain is hot", async () => {
-    const run = await make("fv1");
-    run.combo = 150; // fever ×5
+type ModePriv = { feverGauge: number; feverLevel: number; feverModeEnd: number; handle(ev: unknown, out: GameEvent[]): void; endFeverMode(): void };
+
+function hitPeg(run: Run, out: GameEvent[] = []): GameEvent[] {
+  const id = 777;
+  if (!run.balls.has(id)) run.balls.set(id, { id, type: "steel", chips: 0, mult: 1, hits: 0, freshHits: 0, revives: 0, zaps: 0, shard: false } as never);
+  (run as unknown as ModePriv).handle({ type: "pegHit", ball: id, peg: run.sim.pegs[0]!.id, speed: 0 }, out);
+  return out;
+}
+
+describe("fever mode in a run", () => {
+  it("peg hits charge the gauge; full gauge starts the mode at level 1", async () => {
+    const run = await make("fm1");
+    const priv = run as unknown as ModePriv;
+    priv.feverGauge = 99;
+    const out = hitPeg(run);
+    expect(priv.feverLevel).toBe(1);
+    expect(priv.feverGauge).toBe(0);
+    expect(priv.feverModeEnd).toBe(run.sim.tick + 960);
+    expect(run.feverValue()).toBe(3); // 1 + 2·1
+    const fe = out.filter((e) => e.type === "fever").at(-1) as Extract<GameEvent, { type: "fever" }>;
+    expect(fe.level).toBe(1);
+    expect(fe.mult).toBe(3);
+  });
+  it("landings during the mode cash the multiplier; cold landings don't", async () => {
+    const run = await make("fm2");
+    const priv = run as unknown as ModePriv;
+    expect(run.feverValue()).toBe(1);
+    priv.feverLevel = 1;
+    priv.feverModeEnd = run.sim.tick + 960;
     const before = run.roundScore;
-    const out = land(run, 3, 100); // centre ×5 pocket: 100 × 1 × 5 × fever 5 = 2500
-    expect(run.roundScore - before).toBe(2500);
+    const out = land(run, 3, 100); // centre ×5 pocket: 100 × 1 × 5 × fever 3 = 1500
+    expect(run.roundScore - before).toBe(1500);
     const scored = out.find((e) => e.type === "ballScored") as Extract<GameEvent, { type: "ballScored" }>;
-    expect(scored.fever).toBe(5);
+    expect(scored.fever).toBe(3);
   });
-  it("is ×1 below ignition and after the combo ends", async () => {
-    const run = await make("fv2");
-    run.combo = 49;
-    expect(run.feverValue()).toBe(1);
-    run.combo = 150;
+  it("refilling in-mode re-chains: level up, timer reset, requirement +25%", async () => {
+    const run = await make("fm3");
+    const priv = run as unknown as ModePriv;
+    priv.feverLevel = 1;
+    priv.feverModeEnd = run.sim.tick + 400;
+    expect(run.feverRequirement()).toBe(125);
+    priv.feverGauge = 124;
+    hitPeg(run);
+    expect(priv.feverLevel).toBe(2);
+    expect(priv.feverModeEnd).toBe(run.sim.tick + 960);
+    expect(run.feverValue()).toBe(5);
+    expect(run.feverRequirement()).toBe(156);
+  });
+  it("mode expiry resets level and gauge; Thermal Mass keeps a fraction", async () => {
+    const run = await make("fm4");
+    const priv = run as unknown as ModePriv;
+    priv.feverLevel = 2;
+    priv.feverGauge = 100;
+    priv.endFeverMode();
+    expect(priv.feverLevel).toBe(0);
+    expect(priv.feverGauge).toBe(0);
+    const run2 = await make("fm4b", "thermal_mass", "thermal_mass");
+    const priv2 = run2 as unknown as ModePriv;
+    priv2.feverLevel = 1;
+    priv2.feverGauge = 100;
+    priv2.endFeverMode();
+    expect(priv2.feverGauge).toBe(50); // 2 copies → 50% kept
+  });
+  it("grace (Afterglow) extends refill time but never scores", async () => {
+    const run = await make("fm5", "afterglow");
+    const priv = run as unknown as ModePriv;
+    priv.feverLevel = 1;
+    priv.feverModeEnd = run.sim.tick; // timer just expired; grace runs 240 more ticks
+    expect(run.feverValue()).toBe(1); // grace never scores
+    run.step(); // one tick inside grace: mode must survive
+    expect(priv.feverLevel).toBe(1);
+    // charging to full during grace still re-chains
+    priv.feverGauge = run.feverRequirement() - 1;
+    hitPeg(run);
+    expect(priv.feverLevel).toBe(2);
+  });
+  it("without grace, step() past the timer ends the mode", async () => {
+    const run = await make("fm6");
+    const priv = run as unknown as ModePriv;
+    priv.feverLevel = 3;
+    priv.feverModeEnd = run.sim.tick; // expires on this tick
+    run.step();
+    expect(priv.feverLevel).toBe(0);
+  });
+  it("Fever Pitch shrinks the gauge multiplicatively with a ×0.5 floor", async () => {
+    const run = await make("fm7", "fever_pitch", "fever_pitch");
+    expect(run.feverRequirement()).toBe(72); // floor(100 × 0.85²)
+    for (let i = 0; i < 6; i++) run.charms.push("fever_pitch" as never);
+    expect(run.feverRequirement()).toBe(50); // floor
+  });
+  it("Heat Sink steepens the level curve", async () => {
+    const run = await make("fm8", "heat_sink");
+    const priv = run as unknown as ModePriv;
+    priv.feverLevel = 4;
+    priv.feverModeEnd = run.sim.tick + 960;
+    expect(run.feverValue()).toBe(17); // 1 + 8 + 0.5·16
+  });
+  it("Inferno Engine multiplies peg chips only while the mode runs", async () => {
+    const run = await make("fm9", "inferno_engine");
+    const priv = run as unknown as ModePriv;
+    priv.feverLevel = 1;
+    priv.feverModeEnd = run.sim.tick + 960;
+    const out = hitPeg(run);
+    // fresh peg: base 10 chips × fever 3 = 30 (steel chipFactor 1, no bonuses)
+    expect(run.balls.get(777)!.chips).toBe(30);
+    void out;
+  });
+  it("combo close leaves the gauge alone; round start resets everything", async () => {
+    const run = await make("fm10");
+    const priv = run as unknown as ModePriv;
+    priv.feverGauge = 40;
+    run.combo = 30;
     const out: GameEvent[] = [];
     (run as unknown as Priv).closeCombo(out);
-    expect(run.feverValue()).toBe(1);
-  });
-  it("Fever Pitch and Heat Sink move ignition and ramp with floors", async () => {
-    const run = await make("fv3", "fever_pitch", "fever_pitch", "heat_sink");
-    expect(run.feverIgnition()).toBe(30);
-    expect(run.feverRamp()).toBe(40);
-    for (let i = 0; i < 5; i++) run.charms.push("fever_pitch" as never, "heat_sink" as never);
-    expect(run.feverIgnition()).toBe(10); // floor
-    expect(run.feverRamp()).toBe(20); // floor
-  });
-  it("Afterglow decays fever linearly after comboEnd", async () => {
-    const run = await make("fv4", "afterglow");
-    run.combo = 150; // ×5
-    const out: GameEvent[] = [];
-    (run as unknown as Priv).closeCombo(out);
-    expect(run.feverValue()).toBeCloseTo(5); // tick 0 of the decay
-    // half-way through 240 ticks the bonus is halved: 1 + 4·0.5 = 3
-    (run as unknown as { afterglow: { until: number; ticks: number; from: number } }).afterglow.until = run.sim.tick + 120;
-    expect(run.feverValue()).toBeCloseTo(3);
-  });
-  it("Thermal Mass keeps a quarter of the combo, never on an empty board at round end", async () => {
-    const run = await make("fv5", "thermal_mass");
-    run.combo = 100;
-    const out: GameEvent[] = [];
-    (run as unknown as Priv).closeCombo(out);
-    expect(run.combo).toBe(25);
-    expect(out.some((e) => e.type === "combo" && e.count === 25)).toBe(true);
-  });
-  it("emits fever events on 0.1 steps only", async () => {
-    const run = await make("fv6");
-    run.combo = 100;
-    const out: GameEvent[] = [];
-    (run as unknown as { emitFever(out: GameEvent[]): void }).emitFever(out);
-    (run as unknown as { emitFever(out: GameEvent[]): void }).emitFever(out);
-    expect(out.filter((e) => e.type === "fever")).toHaveLength(1);
-    expect((out[0] as Extract<GameEvent, { type: "fever" }>).value).toBe(2);
-  });
-  it("Inferno Engine multiplies peg chips while fever ≥ 2", async () => {
-    const run = await make("fv7", "inferno_engine");
-    run.combo = 100; // fever ×2
-    const id = 4242;
-    run.balls.set(id, { id, type: "steel", chips: 0, mult: 1, hits: 0, freshHits: 0, revives: 0, zaps: 0, shard: false } as never);
-    const peg = run.sim.pegs[0]!;
-    const out: GameEvent[] = [];
-    (run as unknown as Priv).handle({ type: "pegHit", ball: id, peg: peg.id, speed: 0 }, out);
-    // fresh peg: base 10 chips × fever 2 = 20 (steel has chipFactor 1, no bonuses)
-    expect(run.balls.get(id)!.chips).toBe(20);
-  });
-  it("afterglow never arms on a dead board (round end)", async () => {
-    const run = await make("fv-glow-dead", "afterglow");
-    run.combo = 150;
-    run.ballsLeft = 0; // dead board: no balls left, none in flight
-    const out: GameEvent[] = [];
-    (run as unknown as Priv).closeCombo(out);
-    expect(run.feverValue()).toBe(1);
+    expect(priv.feverGauge).toBe(40); // persists across combo breaks
+    expect(run.combo).toBe(0); // comboCarry is gone: full reset
   });
 });
 

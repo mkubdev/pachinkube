@@ -23,7 +23,7 @@ import {
 import { BASE_CHIPS_FRESH, BASE_CHIPS_REPEAT, ballScore, bucketMultipliers, roundTarget } from "./scoring.js";
 import { ICE_RESTITUTION, react, type Element, type PegElementState, type Reaction } from "./elements.js";
 import { COMBO_EVENTS, COMBO_EVENT_COOLDOWN_TICKS, COMBO_EVENT_EVERY, COMBO_EVENT_KINDS, type ComboEventKind } from "./comboEvents.js";
-import { FEVER_IGNITION, FEVER_RAMP, feverMultiplier } from "./fever.js";
+import { FEVER_MODE_TICKS, feverGaugeRequirement, feverMult } from "./fever.js";
 
 /** Runs are endless: targets keep climbing until you miss one. Round 8 is the
  *  "machine cleared" milestone, not the end. Tests pass a finite `rounds`. */
@@ -89,8 +89,8 @@ export type GameEvent =
   | { type: "roundEnd"; round: number; passed: boolean; roundScore: number; target: number }
   | { type: "phase"; phase: Phase }
   | { type: "shake"; strength: number }
-  /** Displayed fever multiplier changed (0.1 steps). ×1 = cold. */
-  | { type: "fever"; value: number };
+  /** Fever display state changed: gauge fill 0–1, mode level (0 = cold), its multiplier, ticks left in the window, grace = refill overtime. */
+  | { type: "fever"; gauge: number; level: number; mult: number; ticksLeft: number; grace: boolean };
 
 export interface RunInput {
   tick: number;
@@ -150,9 +150,11 @@ export class Run {
   private readonly activeEffects = new Map<ComboEventKind, number>();
   private lastComboEventTick = -1_000_000;
   private secondWindUsed = false;
-  /** Afterglow: fever fades from `from` to ×1 by `until` (over `ticks`). */
-  private afterglow: { from: number; until: number; ticks: number } | null = null;
-  private lastFeverShown = 1;
+  /** Fever mode: gauge charged by combo hits; full → timed jackpot; refill in-mode to re-chain. */
+  private feverGauge = 0;
+  private feverLevel = 0; // 0 = no mode running
+  private feverModeEnd = -1; // tick the mode window (before grace) expires
+  private lastFeverKey = "";
 
   private readonly rounds: number;
   private readonly ballsPerRound: number;
@@ -223,30 +225,53 @@ export class Run {
     return COMBO_WINDOW_TICKS + this.sumCharm((c) => c.comboWindowBonus ?? 0);
   }
 
-  feverIgnition(): number {
-    return Math.max(10, FEVER_IGNITION + this.sumCharm((c) => c.feverIgnitionDelta ?? 0));
+  /** Gauge units needed to start (level 0) or re-chain (level N → N+1) a fever mode. */
+  feverRequirement(): number {
+    const scale = Math.max(0.5, this.charms.reduce((f, id) => f * (CHARMS[id].feverGaugeScale ?? 1), 1));
+    return feverGaugeRequirement(this.feverLevel, scale);
   }
 
-  feverRamp(): number {
-    return Math.max(20, FEVER_RAMP + this.sumCharm((c) => c.feverRampDelta ?? 0));
+  private feverCurveBoost(): number {
+    return this.sumCharm((c) => c.feverCurveBoost ?? 0);
   }
 
-  /** Live fever multiplier: from the running combo, or the afterglow fade. */
+  private feverGrace(): number {
+    return this.sumCharm((c) => c.feverGraceTicks ?? 0);
+  }
+
+  /** Level whose multiplier is live right now — 0 outside the window (grace never scores). */
+  feverActiveLevel(): number {
+    return this.feverLevel > 0 && this.sim.tick < this.feverModeEnd ? this.feverLevel : 0;
+  }
+
+  /** Live fever multiplier: ×1 unless a mode window is running. */
   feverValue(): number {
-    const live = feverMultiplier(this.combo, this.feverIgnition(), this.feverRamp());
-    if (this.afterglow && this.sim.tick < this.afterglow.until) {
-      const k = (this.afterglow.until - this.sim.tick) / this.afterglow.ticks;
-      return Math.max(live, 1 + (this.afterglow.from - 1) * k);
-    }
-    return live;
+    return feverMult(this.feverActiveLevel(), this.feverCurveBoost());
   }
 
+  /** Full gauge: start the mode, or re-chain to the next level while one runs. */
+  private chainFeverMode(): void {
+    this.feverGauge = 0;
+    this.feverLevel++;
+    this.feverModeEnd = this.sim.tick + FEVER_MODE_TICKS;
+  }
+
+  /** Timer + grace ran out short of a refill: back to cold. Thermal Mass keeps some gauge. */
+  private endFeverMode(): void {
+    const carry = Math.min(0.75, this.sumCharm((c) => c.feverGaugeCarry ?? 0));
+    this.feverGauge = Math.floor(this.feverGauge * carry);
+    this.feverLevel = 0;
+    this.feverModeEnd = -1;
+  }
+
+  /** Display event, emitted only when something visible changed. */
   private emitFever(out: GameEvent[]): void {
-    const v = Math.round(this.feverValue() * 10) / 10;
-    if (v !== this.lastFeverShown) {
-      this.lastFeverShown = v;
-      out.push({ type: "fever", value: v });
-    }
+    const grace = this.feverLevel > 0 && this.sim.tick >= this.feverModeEnd;
+    const gauge = Math.min(1, this.feverGauge / this.feverRequirement());
+    const key = `${this.feverLevel}:${Math.round(gauge * 100)}:${grace}`;
+    if (key === this.lastFeverKey) return;
+    this.lastFeverKey = key;
+    out.push({ type: "fever", gauge, level: this.feverLevel, mult: feverMult(this.feverLevel, this.feverCurveBoost()), ticksLeft: this.feverLevel > 0 ? Math.max(0, this.feverModeEnd - this.sim.tick) : 0, grace });
   }
 
   comboMilestone(): number {
@@ -351,10 +376,8 @@ export class Run {
         out.push({ type: "comboEventEnd", kind });
       }
     }
-    if (this.afterglow) {
-      this.emitFever(out);
-      if (this.sim.tick >= this.afterglow.until) this.afterglow = null;
-    }
+    if (this.feverLevel > 0 && this.sim.tick >= this.feverModeEnd + this.feverGrace()) this.endFeverMode();
+    this.emitFever(out);
     if (this.combo > 0 && !this.activeEffects.has("time_lock") && this.sim.tick - this.lastHitTick > this.comboWindow()) {
       this.closeCombo(out);
     }
@@ -374,14 +397,6 @@ export class Run {
    *  this round; each extra copy lowers the bar by 10 (never below 20). */
   private closeCombo(out: GameEvent[]): void {
     out.push({ type: "comboEnd", count: this.combo });
-    // Read deliberately before Second Wind's ballsLeft++: a revived round-end
-    // close is not a window lapse, so it earns neither afterglow nor carry.
-    const boardLive = this.ballsLeft > 0 || this.sim.ballCount > 0;
-    // Afterglow: hold the fever and fade it, so late landings still cash out.
-    // Pointless on a dead board — and arming it there would strand the renderer hot through the shop.
-    const glow = this.sumCharm((c) => c.afterglowTicks ?? 0);
-    const fever = feverMultiplier(this.combo, this.feverIgnition(), this.feverRamp());
-    if (glow > 0 && fever > 1 && boardLive) this.afterglow = { from: fever, until: this.sim.tick + glow, ticks: glow };
     const swAll = this.charms.map((id) => CHARMS[id].secondWindAt ?? 0).filter((n) => n > 0);
     const sw = swAll.length ? Math.max(20, Math.min(...swAll) - 10 * (swAll.length - 1)) : Infinity;
     if (!this.secondWindUsed && this.combo >= sw) {
@@ -390,13 +405,7 @@ export class Run {
       this.bag.push("steel");
       out.push({ type: "popup", x: 0, y: this.sim.config.height * 0.5, text: "SECOND WIND · +1 ball", kind: "mult" });
     }
-    // Thermal Mass: a lapsed combo keeps a fraction — pointless once the board is empty.
-    const carry = Math.min(0.75, this.sumCharm((c) => c.comboCarry ?? 0));
-    this.combo = carry > 0 && boardLive ? Math.floor(this.combo * carry) : 0;
-    if (this.combo > 0) {
-      this.lastHitTick = this.sim.tick;
-      out.push({ type: "combo", count: this.combo, milestone: false });
-    }
+    this.combo = 0;
     this.emitFever(out);
   }
 
@@ -578,8 +587,10 @@ export class Run {
     pending.push({ type: "bumpers", pegs: [...this.bumpers].sort((a, b) => a - b) });
     this.pendingRoundEvents = pending;
     this.combo = 0;
-    this.afterglow = null;
-    this.lastFeverShown = 1;
+    this.feverGauge = 0;
+    this.feverLevel = 0;
+    this.feverModeEnd = -1;
+    this.lastFeverKey = "";
     this.lastHitTick = -1;
     this.landedThisRound = 0;
     this.ballExtra.clear();
@@ -707,7 +718,7 @@ export class Run {
       const bonus = fresh ? this.sumCharm((c) => c.freshChipBonus ?? 0) : this.sumCharm((c) => c.repeatChipBonus ?? 0);
       const speedChips = (type.traits?.speedChips ?? 0) * ev.speed;
       const feverNow = this.feverValue();
-      const inferno = feverNow >= 2 && this.charms.some((id) => CHARMS[id].infernoEngine);
+      const inferno = feverNow > 1 && this.charms.some((id) => CHARMS[id].infernoEngine);
       const base = Math.round((((fresh ? BASE_CHIPS_FRESH : BASE_CHIPS_REPEAT) + bonus) * type.chipFactor + speedChips) * (inferno ? feverNow : 1));
       ball.chips += base;
       out.push({ type: "pegHit", peg: ev.peg, x: peg.x, y: peg.y, fresh, tag: ball.type, speed: ev.speed });
@@ -722,9 +733,12 @@ export class Run {
       const bumperCombo = isBumper ? BUMPER_COMBO + this.sumCharm((c) => c.bumperCombo ?? 0) : 0;
       const traitCombo = (type.traits?.comboHits ?? 1) - 1;
       const overdrive = this.activeEffects.has("overdrive") ? 2 : 1;
-      this.combo += (1 + bumperCombo + traitCombo) * overdrive;
+      const comboGain = (1 + bumperCombo + traitCombo) * overdrive;
+      this.combo += comboGain;
       this.bestCombo = Math.max(this.bestCombo, this.combo);
       this.lastHitTick = this.sim.tick;
+      this.feverGauge += comboGain;
+      if (this.feverGauge >= this.feverRequirement()) this.chainFeverMode();
       const m = this.comboMilestone();
       const milestones = Math.floor(this.combo / m) - Math.floor(prevCombo / m);
       out.push({ type: "combo", count: this.combo, milestone: milestones > 0 });
