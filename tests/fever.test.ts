@@ -1,27 +1,35 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { FEVER_IGNITION, FEVER_RAMP, feverMultiplier } from "../src/game/fever.js";
+import { FEVER_GAUGE_BASE, FEVER_MODE_TICKS, feverGaugeRequirement, feverMult } from "../src/game/fever.js";
 import { CHARMS } from "../src/game/charms.js";
 import { Run, type GameEvent } from "../src/game/run.js";
 import { BALL_TYPES } from "../src/game/balls.js";
 
-describe("fever formula", () => {
-  it("is ×1 below ignition", () => {
-    expect(feverMultiplier(0)).toBe(1);
-    expect(feverMultiplier(49)).toBe(1);
+describe("fever mode math", () => {
+  it("mult is ×1 cold and 1 + 2·level in a mode", () => {
+    expect(feverMult(0)).toBe(1);
+    expect(feverMult(1)).toBe(3);
+    expect(feverMult(2)).toBe(5);
+    expect(feverMult(5)).toBe(11);
   });
-  it("ignites at the threshold and grows quadratically", () => {
-    expect(feverMultiplier(50)).toBe(1);
-    expect(feverMultiplier(100)).toBe(2); // 1 + (50/50)²
-    expect(feverMultiplier(150)).toBe(5); // 1 + (100/50)²
-    expect(feverMultiplier(400)).toBe(50); // 1 + (350/50)²
+  it("Heat Sink curve boost adds boost × level²", () => {
+    expect(feverMult(4, 0.5)).toBe(1 + 8 + 0.5 * 16); // ×17
+    expect(feverMult(6, 1.0)).toBe(1 + 12 + 36); // ×49
+    expect(feverMult(0, 1.0)).toBe(1); // cold stays cold
   });
-  it("respects custom ignition and ramp", () => {
-    expect(feverMultiplier(50, 30, 50)).toBeCloseTo(1 + (20 / 50) ** 2);
-    expect(feverMultiplier(100, 50, 40)).toBeCloseTo(1 + (50 / 40) ** 2);
+  it("gauge requirement grows 25% per level", () => {
+    expect(feverGaugeRequirement(0)).toBe(100);
+    expect(feverGaugeRequirement(1)).toBe(125);
+    expect(feverGaugeRequirement(2)).toBe(156); // floor(100 × 1.25²)
+    expect(feverGaugeRequirement(3)).toBe(195);
+  });
+  it("Fever Pitch scales the requirement down", () => {
+    expect(feverGaugeRequirement(0, 0.85)).toBe(85);
+    expect(feverGaugeRequirement(1, 0.85)).toBe(106); // floor(125 × 0.85)
+    expect(feverGaugeRequirement(0, 0.5)).toBe(50);
   });
   it("exports the tuned defaults", () => {
-    expect(FEVER_IGNITION).toBe(50);
-    expect(FEVER_RAMP).toBe(50);
+    expect(FEVER_GAUGE_BASE).toBe(100);
+    expect(FEVER_MODE_TICKS).toBe(960); // 8 s at 120 Hz
   });
 });
 
