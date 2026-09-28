@@ -77,7 +77,15 @@ function land(run: Run, bucket: number, chips = 100): GameEvent[] {
   return out;
 }
 
-type ModePriv = { feverGauge: number; feverLevel: number; feverModeEnd: number; handle(ev: unknown, out: GameEvent[]): void; endFeverMode(): void };
+type ModePriv = {
+  feverGauge: number;
+  feverLevel: number;
+  feverModeEnd: number;
+  handle(ev: unknown, out: GameEvent[]): void;
+  endFeverMode(): void;
+  endRound(out: GameEvent[]): void;
+  startRound(): void;
+};
 
 function hitPeg(run: Run, out: GameEvent[] = []): GameEvent[] {
   const id = 777;
@@ -193,6 +201,36 @@ describe("fever mode in a run", () => {
     (run as unknown as Priv).closeCombo(out);
     expect(priv.feverGauge).toBe(40); // persists across combo breaks
     expect(run.combo).toBe(0); // comboCarry is gone: full reset
+    priv.startRound();
+    expect(priv.feverGauge).toBe(0);
+    expect(priv.feverLevel).toBe(0);
+  });
+  it("overshooting the requirement discards the remainder and chains only once", async () => {
+    const run = await make("fm11");
+    const priv = run as unknown as ModePriv;
+    priv.feverGauge = run.feverRequirement() + 50; // way past the bar
+    hitPeg(run);
+    expect(priv.feverLevel).toBe(1); // a single hit chains at most one level
+    expect(priv.feverGauge).toBe(0); // remainder discarded, not carried
+  });
+  it("idle steps emit at most one fever event (120 Hz dedupe)", async () => {
+    const run = await make("fm12");
+    const a = run.step().filter((e) => e.type === "fever");
+    const b = run.step().filter((e) => e.type === "fever");
+    expect(a.length + b.length).toBeLessThanOrEqual(1);
+  });
+  it("round end zeroes the mode even with Thermal Mass, and reports it cold", async () => {
+    const run = await make("fm13", "thermal_mass");
+    const priv = run as unknown as ModePriv;
+    priv.feverLevel = 2;
+    priv.feverGauge = 100;
+    priv.feverModeEnd = run.sim.tick + 960;
+    const out: GameEvent[] = [];
+    priv.endRound(out);
+    expect(priv.feverLevel).toBe(0);
+    expect(priv.feverGauge).toBe(0); // no carry at round end
+    const fe = out.filter((e) => e.type === "fever") as Array<Extract<GameEvent, { type: "fever" }>>;
+    expect(fe.at(-1)!.level).toBe(0);
   });
 });
 

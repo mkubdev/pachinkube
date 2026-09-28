@@ -89,7 +89,7 @@ export type GameEvent =
   | { type: "roundEnd"; round: number; passed: boolean; roundScore: number; target: number }
   | { type: "phase"; phase: Phase }
   | { type: "shake"; strength: number }
-  /** Fever display state changed: gauge fill 0–1, mode level (0 = cold), its multiplier, ticks left in the window, grace = refill overtime. */
+  /** Fever display state changed: gauge fill 0–1, mode level (0 = cold), the level's multiplier (not applied while grace=true), ticks left in the window, grace = refill overtime. */
   | { type: "fever"; gauge: number; level: number; mult: number; ticksLeft: number; grace: boolean };
 
 export interface RunInput {
@@ -227,6 +227,8 @@ export class Run {
 
   /** Gauge units needed to start (level 0) or re-chain (level N → N+1) a fever mode. */
   feverRequirement(): number {
+    // Multiplicative like jackpotFactor; only fever_pitch (0.85) defines feverGaugeScale today,
+    // so charm order can't matter. Keep it that way or make this order-stable.
     const scale = Math.max(0.5, this.charms.reduce((f, id) => f * (CHARMS[id].feverGaugeScale ?? 1), 1));
     return feverGaugeRequirement(this.feverLevel, scale);
   }
@@ -251,6 +253,7 @@ export class Run {
 
   /** Full gauge: start the mode, or re-chain to the next level while one runs. */
   private chainFeverMode(): void {
+    // Overshoot is deliberately discarded and a single hit chains at most once — the gauge resets to zero per spec.
     this.feverGauge = 0;
     this.feverLevel++;
     this.feverModeEnd = this.sim.tick + FEVER_MODE_TICKS;
@@ -406,7 +409,6 @@ export class Run {
       out.push({ type: "popup", x: 0, y: this.sim.config.height * 0.5, text: "SECOND WIND · +1 ball", kind: "mult" });
     }
     this.combo = 0;
-    this.emitFever(out);
   }
 
   /** Remove temporary charms whose last round has passed. Returns their ids. */
@@ -614,6 +616,12 @@ export class Run {
   }
 
   private endRound(out: GameEvent[]): void {
+    // Round end always kills the mode outright — no Thermal Mass carry, and the
+    // renderer must see a cold fever event before the shop.
+    this.feverGauge = 0;
+    this.feverLevel = 0;
+    this.feverModeEnd = -1;
+    this.emitFever(out);
     const endMult = this.charms.reduce((f, id) => f * (CHARMS[id].roundEndMult ?? 1), 1);
     if (endMult !== 1) {
       const boosted = Math.floor(this.roundScore * endMult);

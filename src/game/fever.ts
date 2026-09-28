@@ -16,5 +16,9 @@ export function feverMult(level: number, curveBoost = 0): number {
 
 /** Gauge units to go from `level` to `level + 1` (level 0 = first ignition). */
 export function feverGaugeRequirement(level: number, scale = 1): number {
-  return Math.max(1, Math.floor(FEVER_GAUGE_BASE * scale * FEVER_REQ_GROWTH ** level));
+  // 1.25 is binary-exact; repeated multiplication stays exact across engines,
+  // where `**`'s implementation-approximated result could flip a Math.floor.
+  let growth = 1;
+  for (let i = 0; i < level; i++) growth *= FEVER_REQ_GROWTH;
+  return Math.max(1, Math.floor(FEVER_GAUGE_BASE * scale * growth));
 }
