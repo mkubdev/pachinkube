@@ -35,6 +35,8 @@ describe("main.ts wiring", () => {
     expect(main).toMatch(/ui\.feverBanner\(/);
     expect(main).toMatch(/ui\.endFeverBanner\(\)/);
     expect(main).toMatch(/ui\.resetFever\(/);
+    expect(main).toMatch(/ui\.syncFeverBar\(/);
+    expect(main).toMatch(/ui\.setFeverBannerGrace\(/);
     for (const k of ["bomb", "bullseye", "prism", "finale", "split", "revive", "overflow", "metal"]) {
       expect(main, `fx kind ${k}`).toMatch(new RegExp(`e\\.kind === "${k}"`));
     }

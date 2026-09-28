@@ -470,6 +470,7 @@ export class GameUI {
   setFeverGauge(fill: number, level: number, grace: boolean): void {
     this.feverGaugeEl.hidden = false;
     this.feverFillEl.style.height = `${Math.round(fill * 100)}%`;
+    // g = level + 1: the gauge wears the colour of the level it is charging toward.
     this.feverGaugeEl.className = `g${Math.min(4, level + 1)}${grace ? " grace" : ""}`;
   }
 
@@ -478,12 +479,31 @@ export class GameUI {
     this.feverBannerEl.hidden = false;
     this.feverLabelEl.textContent = `FEVER${level > 1 ? ` Lv.${level}` : ""} ×${Number.isInteger(mult) ? mult : mult.toFixed(1)}`;
     this.feverBannerEl.className = `f${Math.min(4, level)}`;
+    // Replay the slam: a class swap alone would not restart the child's animation.
+    this.feverLabelEl.style.animation = "none";
+    void this.feverLabelEl.offsetWidth;
+    this.feverLabelEl.style.animation = "";
     // Restart the countdown: snap the bar to full without a transition, then shrink.
     this.feverBarEl.style.transition = "none";
     this.feverBarEl.style.width = "100%";
     void this.feverBarEl.offsetWidth;
     this.feverBarEl.style.transition = `width ${seconds}s linear`;
     this.feverBarEl.style.width = "0%";
+  }
+
+  /** Re-sync the countdown to sim time (the CSS transition is wall-clock and drifts under slowmo/backgrounded tabs). */
+  syncFeverBar(secondsLeft: number, totalSeconds: number): void {
+    if (this.feverBannerEl.hidden) return;
+    this.feverBarEl.style.transition = "none";
+    this.feverBarEl.style.width = `${Math.max(0, Math.min(100, (secondsLeft / totalSeconds) * 100))}%`;
+    void this.feverBarEl.offsetWidth;
+    this.feverBarEl.style.transition = `width ${secondsLeft}s linear`;
+    this.feverBarEl.style.width = "0%";
+  }
+
+  /** Grace: the multiplier is off until the gauge refills — dim the banner and say so. */
+  setFeverBannerGrace(grace: boolean): void {
+    this.feverBannerEl.classList.toggle("grace", grace);
   }
 
   /** Mode over but the round continues: drop the banner, keep the gauge. */

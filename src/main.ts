@@ -10,6 +10,7 @@ import { BALL_TYPES, type BallTypeId } from "./game/balls.js";
 import { COMBO_TIER_FLASH, comboTier, REACTION_FX } from "./render/palette.js";
 import { SyncedMetaStore } from "./game/metaSync.js";
 import { RULES_VERSION } from "./game/version.js";
+import { FEVER_MODE_TICKS } from "./game/fever.js";
 import { getSession, signInUrl, signOutUrl } from "./game/auth.js";
 import { cycleQuality, loadGfx, renderInterval, saveGfx, toggleFps } from "./game/gfx.js";
 import {
@@ -619,7 +620,11 @@ function simStep(): void {
           ui.feverBanner(e.level, e.mult, e.ticksLeft / 120);
         } else if (e.level === 0 && was > 0) {
           ui.endFeverBanner();
+        } else if (e.level > 0 && e.level === was && !e.grace) {
+          ui.syncFeverBar(e.ticksLeft / 120, FEVER_MODE_TICKS / 120);
         }
+        // After any feverBanner() (which rewrites className) so grace survives.
+        if (e.level > 0) ui.setFeverBannerGrace(e.grace);
         break;
       }
       case "ballScored": {
@@ -663,6 +668,8 @@ function simStep(): void {
       }
       if (e.type === "phase" && (e.phase === "won" || e.phase === "lost") && !runEnded) {
         runEnded = true;
+        feverLevel = 0;
+        ui.resetFever(); // no gauge lingering over the end screen
         // Signed in: every finished run posts itself. The server keeps only the
         // best per player and says whether this one improved it, so no local
         // "best so far" can go stale (a deleted board row used to haunt it).
