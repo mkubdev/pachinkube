@@ -6,6 +6,7 @@ import { GameUI } from "./game/ui.js";
 import { GameAudio } from "./game/audio.js";
 import { Music } from "./game/music.js";
 import type { CharmId } from "./game/charms.js";
+import type { ComboEventKind } from "./game/comboEvents.js";
 import { BALL_TYPES, type BallTypeId } from "./game/balls.js";
 import { COMBO_TIER_FLASH, comboTier, REACTION_FX } from "./render/palette.js";
 import { SyncedMetaStore } from "./game/metaSync.js";
@@ -136,6 +137,7 @@ async function newRun(nextSeed: string): Promise<void> {
   runEnded = false;
   tainted = false; // a fresh in-place run has no dev modifications
   feverLevel = 0;
+  clearTints();
   auto = false;
   Object.assign(tracker, newTracker());
   recordRunStart(meta);
@@ -202,23 +204,28 @@ let feverLevel = 0; // current fever mode level: detects level-up edges for the 
 // Board tints per combo event. Events overlap freely; the most recent wins and
 // an ending event must only clear its own (a shared setTint(null) used to let
 // the first expiry wipe everyone's cast — the laser looked washed out or naked).
-const EVENT_TINTS: Partial<Record<string, [number, number]>> = {
+const EVENT_TINTS: Partial<Record<ComboEventKind, [number, number]>> = {
   quake: [0xff6a00, 0.5],
   gravity_flip: [0x2de2ff, 0.8],
   magnet_storm: [0xb46cff, 0.7],
   overdrive: [0xffb02d, 0.35], // was 0.6: strong enough to read, weak enough not to drown the laser
   time_lock: [0x9ad7ff, 0.35],
 };
-const activeTints: string[] = [];
+const activeTints: ComboEventKind[] = [];
 function applyTint(): void {
   const top = activeTints.at(-1);
-  if (top) view.setTint(EVENT_TINTS[top]![0], EVENT_TINTS[top]![1]);
+  const t = top && EVENT_TINTS[top];
+  if (t) view.setTint(t[0], t[1]);
   else view.setTint(null);
 }
-function pushTint(kind: string): void {
+function pushTint(kind: ComboEventKind): void {
   const i = activeTints.indexOf(kind);
   if (i >= 0) activeTints.splice(i, 1);
   activeTints.push(kind);
+  applyTint();
+}
+function clearTints(): void {
+  activeTints.length = 0;
   applyTint();
 }
 let prev: Snapshot = run.sim.snapshot();
@@ -461,6 +468,7 @@ function simStep(): void {
         view.kickBloom(1.0);
         view.resetPegs();
         ui.notice(`INSURANCE — round ${e.round} again (${e.left} left)`);
+        clearTints(); // startRound() clears activeEffects without emitting comboEventEnd
         break;
       case "cleared":
         view.shock(0, run.sim.config.height * 0.5, 1);
@@ -694,13 +702,13 @@ function simStep(): void {
         feverLevel = 0;
         ui.resetFever();
         view.setHeat(0);
-        activeTints.length = 0;
-        applyTint();
+        clearTints();
       }
       if (e.type === "phase" && (e.phase === "won" || e.phase === "lost") && !runEnded) {
         runEnded = true;
         feverLevel = 0;
         ui.resetFever(); // no gauge lingering over the end screen
+        clearTints();
         // Signed in: every finished run posts itself. The server keeps only the
         // best per player and says whether this one improved it, so no local
         // "best so far" can go stale (a deleted board row used to haunt it).

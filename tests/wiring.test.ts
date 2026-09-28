@@ -43,7 +43,8 @@ describe("main.ts wiring", () => {
     for (const k of ["laser", "portal", "quake", "rain", "gravity_flip", "magnet_storm", "slowmo", "overdrive", "time_lock", "fresh_coat"]) {
       expect(main, `combo event ${k}`).toMatch(new RegExp(`case "${k}"`));
     }
-    expect(main).toMatch(/applyTint\(\)/);
+    expect(main).toMatch(/pushTint\(e\.kind\)/);
+    expect(main).toMatch(/clearTints\(\)/);
     for (const k of ["ignite", "freeze", "charge", "burn", "shatter", "steam", "zap", "wildfire", "shatter_chain"]) {
       expect(main, `element kind ${k}`).toMatch(new RegExp(`case "${k}"`));
     }
