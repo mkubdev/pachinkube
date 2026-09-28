@@ -1,6 +1,6 @@
 # Fever Mode Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Replace the always-on quadratic fever with a pachinko-style timed jackpot (gauge → 8s FEVER MODE → re-chain levels), remap the five heat charms, break the event feeder loop, make the UI show the mechanic, and fix the laser/portal FX regressions.
 
@@ -18,7 +18,7 @@
 - Modify: `src/game/fever.ts` (full rewrite, currently 15 lines)
 - Test: `tests/fever.test.ts` (replace the `fever formula` describe block, lines 7–27)
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Replace the `fever formula` describe block at the top of `tests/fever.test.ts` (keep the file's other blocks for now — they break in later tasks and are rewritten there). Also update the import line:
 
@@ -57,12 +57,12 @@ describe("fever mode math", () => {
 });
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `npx vitest run tests/fever.test.ts`
 Expected: FAIL — `feverMult` / `feverGaugeRequirement` not exported.
 
-- [ ] **Step 3: Rewrite `src/game/fever.ts`**
+- [x] **Step 3: Rewrite `src/game/fever.ts`**
 
 ```ts
 /**
@@ -89,12 +89,12 @@ export function feverGaugeRequirement(level: number, scale = 1): number {
 
 Note: `run.ts` still imports the old names, so `typecheck` fails until Task 3. That's expected; this commit is test-scoped.
 
-- [ ] **Step 4: Run the new block**
+- [x] **Step 4: Run the new block**
 
 Run: `npx vitest run tests/fever.test.ts -t "fever mode math"`
 Expected: PASS (other blocks in the file still fail to compile — run only this block with `-t`; if the file doesn't compile at all, that's fine, proceed: Tasks 2–3 fix the rest of the file before the next full test run).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/game/fever.ts tests/fever.test.ts
@@ -109,7 +109,7 @@ git commit -m "feat: fever mode math — gauge requirement + level multiplier"
 - Modify: `src/game/charms.ts` — field declarations ~lines 177–187, charm defs ~lines 499–540
 - Test: `tests/fever.test.ts` — replace the `heat charms` describe block
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Replace the `heat charms` describe block in `tests/fever.test.ts`:
 
@@ -137,12 +137,12 @@ describe("heat charms", () => {
 });
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `npx vitest run tests/fever.test.ts -t "heat charms"`
 Expected: FAIL — fields don't exist yet.
 
-- [ ] **Step 3: Replace the field declarations**
+- [x] **Step 3: Replace the field declarations**
 
 In the `Charm` interface (~line 177), replace the whole fever block (`feverIgnitionDelta`, `feverRampDelta`, `afterglowTicks`, `comboCarry`, keep `infernoEngine`) with:
 
@@ -160,7 +160,7 @@ In the `Charm` interface (~line 177), replace the whole fever block (`feverIgnit
   infernoEngine?: boolean;
 ```
 
-- [ ] **Step 4: Replace the five charm definitions (~line 499)**
+- [x] **Step 4: Replace the five charm definitions (~line 499)**
 
 ```ts
   // --- fever ------------------------------------------------------------------
@@ -204,12 +204,12 @@ In the `Charm` interface (~line 177), replace the whole fever block (`feverIgnit
 
 For `inferno_engine`, edit the existing definition's `desc` in place — do not remove `infernoEngine: true` or its `NON_STACKABLE` membership (check `grep -n NON_STACKABLE src/game/charms.ts` and leave it listed).
 
-- [ ] **Step 5: Run charm tests**
+- [x] **Step 5: Run charm tests**
 
 Run: `npx vitest run tests/fever.test.ts -t "heat charms"`
 Expected: PASS. (`run.ts` still references removed fields — typecheck stays broken until Task 3; do not commit `npm run typecheck` claims.)
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/game/charms.ts tests/fever.test.ts
@@ -224,7 +224,7 @@ git commit -m "feat: heat charms remapped onto fever mode (gauge scale, curve bo
 - Modify: `src/game/run.ts` — import (line 26), GameEvent (lines 88–93), state fields (~153–155), accessors (~226–250), step() (~354–357), closeCombo (~375–401), startRound resets (~582), pegHit handler (~709–731)
 - Test: `tests/fever.test.ts` — replace the `fever in a run` describe block
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Replace the whole `fever in a run` describe block (keep the file's existing `make`/`land`/`Priv` helpers — `land` calls the private `handle` with a `ballLost` sim event, and `make(seed, ...charms)` pushes charms):
 
@@ -351,12 +351,12 @@ describe("fever mode in a run", () => {
 
 Also delete the old `emits fever events on 0.1 steps only` test (the event shape changed) and the two Afterglow-decay tests — grace behaviour is covered above.
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `npx vitest run tests/fever.test.ts`
 Expected: FAIL/compile errors — run.ts still implements the old fever.
 
-- [ ] **Step 3: Rework `run.ts` — imports, event type, state**
+- [x] **Step 3: Rework `run.ts` — imports, event type, state**
 
 Line 26: `import { FEVER_MODE_TICKS, feverGaugeRequirement, feverMult } from "./fever.js";`
 
@@ -377,7 +377,7 @@ Replace the state fields at ~153–155 (`afterglow`, `lastFeverShown`) with:
   private lastFeverKey = "";
 ```
 
-- [ ] **Step 4: Replace the accessors (~lines 226–250)**
+- [x] **Step 4: Replace the accessors (~lines 226–250)**
 
 Delete `feverIgnition()`, `feverRamp()`, the old `feverValue()`, and the old `emitFever()`. Add:
 
@@ -432,7 +432,7 @@ Delete `feverIgnition()`, `feverRamp()`, the old `feverValue()`, and the old `em
   }
 ```
 
-- [ ] **Step 5: step(), closeCombo, startRound, pegHit, inferno**
+- [x] **Step 5: step(), closeCombo, startRound, pegHit, inferno**
 
 In `step()` (~354–357), replace the afterglow block:
 
@@ -479,12 +479,12 @@ and immediately after `this.lastHitTick = this.sim.tick;` add:
 
 Inferno condition (~710): `const inferno = feverNow > 1 && this.charms.some((id) => CHARMS[id].infernoEngine);` (feverValue is 1 outside a mode, so `> 1` ⇔ mode running).
 
-- [ ] **Step 6: Run tests + typecheck**
+- [x] **Step 6: Run tests + typecheck**
 
 Run: `npx vitest run tests/fever.test.ts && npm run typecheck`
 Expected: fever tests PASS; typecheck may still fail on `main.ts`/`ui.ts` (old event shape) and `comboEvents.test.ts` — those are Tasks 4–5. If typecheck failures are ONLY in those files, proceed.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add src/game/run.ts tests/fever.test.ts
@@ -500,7 +500,7 @@ git commit -m "feat: fever mode state machine — gauge, timed window, re-chain,
 - Modify: `src/game/comboEvents.ts` — weights
 - Test: `tests/comboEvents.test.ts` — `fever tiers` describe block (~126)
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Replace the `fever tiers` describe block in `tests/comboEvents.test.ts`:
 
@@ -564,12 +564,12 @@ describe("fever tiers", () => {
 
 Keep the existing rain/duration tests below this block if present, adjusting any that set `run.combo` for tier — use `arm()` instead (search the file for `run.combo = 400` style lines).
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `npx vitest run tests/comboEvents.test.ts`
 Expected: FAIL — tier still derives from `feverValue`.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 `run.ts` `triggerComboEvent` (~465): replace
 
@@ -598,12 +598,12 @@ Portal arm (~494): replace with
 
 `comboEvents.ts`: `overdrive` weight `14` → `10`; `time_lock` weight `10` → `7`.
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 Run: `npx vitest run tests/comboEvents.test.ts tests/fever.test.ts`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/game/run.ts src/game/comboEvents.ts tests/comboEvents.test.ts
@@ -620,7 +620,7 @@ git commit -m "feat: event tier reads fever level (cap 3); time_lock loses its f
 - Modify: `src/main.ts` — `feverHot` (lines 137, 199, 615–621, 659), `case "fever"` (~612)
 - Test: `tests/wiring.test.ts`
 
-- [ ] **Step 1: Update the wiring test first**
+- [x] **Step 1: Update the wiring test first**
 
 In `tests/wiring.test.ts` (~line 31 block), add to the same `it` (or a new one below it):
 
@@ -632,7 +632,7 @@ In `tests/wiring.test.ts` (~line 31 block), add to the same `it` (or a new one b
 
 Run: `npx vitest run tests/wiring.test.ts` — expected FAIL.
 
-- [ ] **Step 2: ui.ts markup and fields**
+- [x] **Step 2: ui.ts markup and fields**
 
 Line 88, replace:
 
@@ -668,7 +668,7 @@ Replace the `comboF` field (line 44) and its query (line 113) with:
 
 At the reset site (~line 233, `this.comboF.hidden = true;`) call the new `resetFever()` instead.
 
-- [ ] **Step 3: ui.ts methods — replace `setFever` (~459–470)**
+- [x] **Step 3: ui.ts methods — replace `setFever` (~459–470)**
 
 ```ts
   /** Fever gauge fill (0–1); color follows the mode level; flashes during refill grace. */
@@ -700,7 +700,7 @@ At the reset site (~line 233, `this.comboF.hidden = true;`) call the new `resetF
 
 `feverPopup` (~455) is unchanged.
 
-- [ ] **Step 4: index.html CSS**
+- [x] **Step 4: index.html CSS**
 
 Delete the `#combo .f` and `#combo .f1`–`.f4` rules (lines ~108–112) and the `feverPulse` keyframes if now unused (`grep -n feverPulse index.html`). Add after the `#combo` block:
 
@@ -726,7 +726,7 @@ Also mirror the phone-layout override near line 262 (`#combo { … right: 12px; 
 
 Add `#fevergauge, #feverbanner` to the z-index list at line ~127 (`#hud, #charms, #combo, … { z-index: 2; }`).
 
-- [ ] **Step 5: main.ts rework**
+- [x] **Step 5: main.ts rework**
 
 Rename `feverHot` → `feverLevel` (number). Line 199: `let feverLevel = 0; // current fever mode level: detects level-up edges for the banner slam`. Line 137 (inside the run-reset closure): `feverLevel = 0;`.
 
@@ -772,14 +772,14 @@ At the shop-phase reset (~line 659), replace `feverHot = false;` with:
 
 Add `expect(main).toMatch(/ui\.endFeverBanner\(\)/);` to the wiring additions from Step 1.
 
-- [ ] **Step 6: Verify**
+- [x] **Step 6: Verify**
 
 Run: `npx vitest run tests/wiring.test.ts && npm run typecheck && npx vitest run`
 Expected: all PASS (full suite compiles now — this is the first task after which everything should be green).
 
 Browser check: `npm run dev`, open `http://localhost:5173/?seed=fever&charms=fever_pitch,heat_sink,afterglow` and play a multiball round — the gauge fills per hit, the banner slams on ignition with a shrinking countdown bar, re-chain bumps the level badge, grace flashes the gauge. **CLAUDE.md warning applies: scripted `str.replace` edits on `main.ts` have silently no-op'd before — verify each anchor matched (re-grep after editing).**
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add src/game/ui.ts src/main.ts index.html tests/wiring.test.ts
@@ -794,7 +794,7 @@ git commit -m "feat: fever gauge + mode banner UI; fever event carries gauge/lev
 - Modify: `src/main.ts` — comboEvent tint call sites (~475–511), `comboEventEnd` (~514–516), portal announce (~471–474)
 - Test: `tests/wiring.test.ts` — add `"portal"` to the combo-event kind list
 
-- [ ] **Step 1: Update the wiring test**
+- [x] **Step 1: Update the wiring test**
 
 Line ~37, add `"portal"` to the list:
 
@@ -810,7 +810,7 @@ Also add:
 
 Run: `npx vitest run tests/wiring.test.ts` — the `applyTint` expectation FAILS (portal already matches via the inner payoff case — that blind spot is why it's paired with the applyTint check).
 
-- [ ] **Step 2: Per-kind tint tracking in main.ts**
+- [x] **Step 2: Per-kind tint tracking in main.ts**
 
 Near the `feverLevel` declaration (~line 199), add:
 
@@ -854,7 +854,7 @@ Replace `case "comboEventEnd"` (~514):
 
 Also clear at the shop-phase reset (next to `ui.resetFever()`): `activeTints.length = 0; applyTint();`.
 
-- [ ] **Step 3: Portal announce beat**
+- [x] **Step 3: Portal announce beat**
 
 Replace the announce case (~471–474):
 
@@ -868,14 +868,14 @@ Replace the announce case (~471–474):
             break;
 ```
 
-- [ ] **Step 4: Verify**
+- [x] **Step 4: Verify**
 
 Run: `npx vitest run tests/wiring.test.ts && npm run typecheck && npx vitest run`
 Expected: PASS.
 
 Browser check (`npm run dev`): trigger events on a high-combo seed — an overdrive ending mid-quake must NOT clear the orange quake tint; a portal firing must visibly shock + double-ring; the laser beam must read clearly over an active overdrive tint.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/main.ts tests/wiring.test.ts
@@ -890,13 +890,13 @@ git commit -m "fix: per-kind event tints (softer overdrive/time_lock), louder po
 - Modify: `src/game/version.ts`
 - Test: full suite + `BALANCE=1` probe
 
-- [ ] **Step 1: Bump RULES_VERSION**
+- [x] **Step 1: Bump RULES_VERSION**
 
 ```ts
 export const RULES_VERSION = 18; // 18: fever mode (gauge/timed jackpot/re-chain) replaces always-on fever
 ```
 
-- [ ] **Step 2: Full verification**
+- [x] **Step 2: Full verification**
 
 Run each and confirm output before claiming success:
 
@@ -908,11 +908,11 @@ npm run build
 
 Expected: all green (the replay test `reproduces a live run's score from its log` remains intentionally skipped).
 
-- [ ] **Step 3: Determinism spot-check**
+- [x] **Step 3: Determinism spot-check**
 
 `tests/fever.test.ts` has a `fever determinism` describe block at the bottom — read it and update any charm ids/expectations to the new fields (it seeds a run with fever charms and replays it). It must still assert identical scores across two runs of the same seed+log. If it referenced ignition/ramp behaviour, re-seed it with `fever_pitch`+`heat_sink` and re-derive the expected equality (the assertion is equality between two replays, not a magic number, so usually only charm ids need changing).
 
-- [ ] **Step 4: Balance probe**
+- [x] **Step 4: Balance probe**
 
 ```bash
 BALANCE=1 npx vitest run tests/balance.probe.test.ts
@@ -921,7 +921,7 @@ cat .cache/balance.txt
 
 Expected: rounds 1–8 pass rates at or below the pre-fever tuning (~100% r1 → ~50% r5–7). Compare against the previous `.cache/balance.txt` if present (`git stash` isn't needed — the file is gitignored; just note the numbers in the commit message). If pass rates are still notably above the target curve, flag it to the owner — the tuning knobs, in order: gauge size, mode duration, requirement growth, level curve. Do not tune round targets.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/game/version.ts tests/fever.test.ts

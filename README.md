@@ -135,13 +135,30 @@ counter climbs through colour tiers (10 / 20 / 40) and the screen heats up.
 
 **Combo events** (`src/game/comboEvents.ts`). Every **50th** combo hit, with a
 6 s cooldown, one fires from the seeded stream: **Laser Sweep** (a beam lights a
-whole peg row and pays every ball in flight), **Portal** (the next two balls to
-reach the bottom come back from the top with +2 mult), **Quake** (3 s of violent
-drift), **Ball Rain** (three bonus shards), **Gravity Flip** (everything falls up
-for a second), **Magnet Storm** (2 s of centre pull), **Slow Motion** (1.5 s of
-time dilation — render pacing only, so replays stay exact). Physics-side effects
-are pure functions of run state and end on a tick, so they verify too. The board
-has a ceiling now: flipped gravity cannot throw a ball out.
+whole peg row and pays every ball in flight), **Portal** (the next 2 + fever-level
+balls, max 4, to reach the bottom come back from the top with +2 mult), **Quake**
+(3 s of violent drift), **Ball Rain** (three bonus shards), **Gravity Flip**
+(everything falls up for a second), **Magnet Storm** (2 s of centre pull),
+**Slow Motion** (1.5 s of time dilation — render pacing only, so replays stay
+exact), **Overdrive** (every peg hit counts double toward the combo for 3 s),
+**Time Lock** (the combo cannot lapse for 2.5 s), **Fresh Coat** (every lit peg
+goes dark — the whole board pays fresh again). Physics-side effects are pure
+functions of run state and end on a tick, so they verify too. The board has a
+ceiling now: flipped gravity cannot throw a ball out.
+
+**Fever mode** (`src/game/fever.ts`). A gauge (100 units, scaled by charms)
+charges **+1 per combo hit** and persists within a round. Full gauge triggers
+**8 s of FEVER MODE**, multiplying every landing by `1 + 2 × level`. Refilling
+the gauge before the timer runs out **re-chains**: level goes up, the timer
+resets, and the mode keeps going. Missing the refill (or ending the round)
+resets both level and gauge to zero. The five heat charms: **Fever Pitch**
+shrinks the gauge 15% per copy (floor 50% of base size, so modes trigger and
+re-chain sooner); **Heat Sink** adds `+0.5 × level²` per copy to the mode
+multiplier; **Afterglow** grants 2 extra seconds of grace per copy to finish a
+re-chain refill once the timer runs out (the grace period itself never scores);
+**Thermal Mass** keeps 25% of the gauge per copy (capped at 75%) when a mode
+ends un-chained instead of zeroing it; **Inferno Engine** (legendary) makes
+peg-hit chips scale with the fever multiplier during modes, not just landings.
 
 **Progression** (`src/game/meta.ts`). A profile persists across runs: lifetime
 stats, discoveries (first time you see a charm/ball), **90+ feats** (combo tiers
@@ -268,7 +285,7 @@ npm run dev               # http://localhost:5173
 
 | Command | |
 |---|---|
-| `npm test` | 81 tests: RNG, sim, run, balls, passives, elements, pockets, combo events, meta, discoveries, icons, replay, scores/meta API, main.ts wiring |
+| `npm test` | 191 tests: RNG, sim, run, balls, passives, elements, pockets, combo events, meta, discoveries, icons, replay, scores/meta API, main.ts wiring |
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm run build` | production bundle to `dist/` |
 
@@ -419,6 +436,11 @@ NAT cannot reach the add-on's `localhost:9876`.
   steam pinks, prismatic shatter chains, `burstPrism` lightness 0.65) — combo
   tier colours were verified headlessly, but arcs/steam were not caught
   mid-flight under SwiftShader.
+- **2026-09-28**: fever mode replaces the always-on quadratic fever
+  (`RULES_VERSION` 18). The combo event tier now reads the fever level (capped
+  at 3) instead of the old fever value; Time Lock no longer restarts the combo
+  window, only holds it open; Overdrive/Time Lock event weights are 10/7; and
+  Portal arms `2 + fever level` balls, capped at 4.
 
 ## Gotchas already paid for
 
