@@ -106,13 +106,15 @@ describe("chain feeders", () => {
     (run as unknown as { handle(ev: unknown, out: GameEvent[]): void }).handle({ type: "pegHit", ball: id, peg: peg.id, speed: 0 }, out);
     expect(run.combo).toBe(2);
   });
-  it("time_lock keeps the chain alive past the window, with a grace restart", async () => {
+  it("time_lock protects the chain while active, but grants no free window after", async () => {
     const run = await make("cf-lock");
     run.combo = 30;
     const out: GameEvent[] = [];
     run.triggerComboEvent("time_lock", out);
-    for (let i = 0; i < 320; i++) run.step(); // window 54 ticks; lock 300, grace restarts lastHitTick at lock end
+    for (let i = 0; i < 250; i++) run.step(); // still inside the 300-tick lock: window can't lapse
     expect(run.combo).toBe(30);
+    for (let i = 0; i < 100; i++) run.step(); // lock ends at 300, no grace restart: window lapses right after
+    expect(run.combo).toBe(0);
   });
   it("fresh_coat unlights every peg", async () => {
     const run = await make("cf-coat");
@@ -124,6 +126,11 @@ describe("chain feeders", () => {
 });
 
 describe("fever tiers", () => {
+  const arm = (run: Run, level: number) => {
+    const priv = run as unknown as { feverLevel: number; feverModeEnd: number };
+    priv.feverLevel = level;
+    priv.feverModeEnd = run.sim.tick + 960;
+  };
   it("cold events fire at tier 1 with base duration", async () => {
     const run = await make("tier-1");
     const out: GameEvent[] = [];
@@ -132,23 +139,39 @@ describe("fever tiers", () => {
     expect(ev.tier).toBe(1);
     expect(ev.ticks).toBe(360);
   });
-  it("hot events scale duration, capped", async () => {
-    const run = await make("tier-hot");
-    run.combo = 400; // fever ×50 → tier 7
+  it("tier = 1 + fever level, capped at 3", async () => {
+    const run = await make("tier-lvl");
+    arm(run, 1);
     const out: GameEvent[] = [];
     run.triggerComboEvent("quake", out);
-    const q = out.find((e) => e.type === "comboEvent") as Extract<GameEvent, { type: "comboEvent" }>;
+    expect((out.at(-1) as Extract<GameEvent, { type: "comboEvent" }>).tier).toBe(2);
+    arm(run, 7);
+    run.triggerComboEvent("quake", out);
+    const q = out.filter((e) => e.type === "comboEvent").at(-1) as Extract<GameEvent, { type: "comboEvent" }>;
+    expect(q.tier).toBe(3);
     expect(q.ticks).toBe(1080); // 360 × 3 cap
+  });
+  it("a deep combo alone no longer raises the tier", async () => {
+    const run = await make("tier-combo");
+    run.combo = 400;
+    const out: GameEvent[] = [];
+    run.triggerComboEvent("quake", out);
+    expect((out.at(-1) as Extract<GameEvent, { type: "comboEvent" }>).tier).toBe(1);
+  });
+  it("hot events scale duration, capped", async () => {
+    const run = await make("tier-hot");
+    arm(run, 7); // tier 3 (capped)
+    const out: GameEvent[] = [];
     run.triggerComboEvent("overdrive", out);
     const o = out.filter((e) => e.type === "comboEvent").at(-1) as Extract<GameEvent, { type: "comboEvent" }>;
-    expect(o.ticks).toBe(720); // 360 + 120·(tier−1), cap 720
+    expect(o.ticks).toBe(600); // 360 + 120·(tier−1), cap 720
     run.triggerComboEvent("time_lock", out);
     const t = out.filter((e) => e.type === "comboEvent").at(-1) as Extract<GameEvent, { type: "comboEvent" }>;
-    expect(t.ticks).toBe(600); // 300 + 60·(tier−1), cap 600
+    expect(t.ticks).toBe(420); // 300 + 60·(tier−1), cap 600
   });
   it("hot rain drops more shards, capped at 9", async () => {
     const run = await make("tier-rain");
-    run.combo = 400;
+    arm(run, 7); // tier 3 (capped)
     const before = run.sim.ballCount;
     const out: GameEvent[] = [];
     run.triggerComboEvent("rain", out);
@@ -156,12 +179,33 @@ describe("fever tiers", () => {
   });
   it("a cooled retrigger never shortens a running effect", async () => {
     const run = await make("tier-retrigger");
-    run.combo = 400; // tier 7 → quake 1080 ticks
+    arm(run, 7); // tier 3 → quake 1080 ticks
     const out: GameEvent[] = [];
     run.triggerComboEvent("quake", out);
     const hotUntil = (run as unknown as { activeEffects: Map<string, number> }).activeEffects.get("quake")!;
-    run.combo = 0; // cooled to tier 1 → quake 360 ticks
+    arm(run, 0); // cooled to tier 1 → quake 360 ticks
     run.triggerComboEvent("quake", out);
     expect((run as unknown as { activeEffects: Map<string, number> }).activeEffects.get("quake")).toBe(hotUntil);
+  });
+  it("portal arms 2 + level balls, cap 4", async () => {
+    const run = await make("tier-portal");
+    const out: GameEvent[] = [];
+    run.triggerComboEvent("portal", out);
+    expect(run.sim.portalsArmedCount).toBe(2);
+    arm(run, 5);
+    run.triggerComboEvent("portal", out);
+    expect(run.sim.portalsArmedCount).toBe(2 + 4); // +cap 4
+  });
+  it("time_lock protects while running but grants no fresh window after", async () => {
+    const run = await make("tier-lock");
+    run.combo = 10;
+    const priv = run as unknown as { lastHitTick: number; endEffect(kind: string): void };
+    priv.lastHitTick = -1000;
+    priv.endEffect("time_lock");
+    expect(priv.lastHitTick).toBe(-1000); // unchanged — the old grace reset is gone
+  });
+  it("feeder weights are trimmed", () => {
+    expect(COMBO_EVENTS.overdrive.weight).toBe(10);
+    expect(COMBO_EVENTS.time_lock.weight).toBe(7);
   });
 });

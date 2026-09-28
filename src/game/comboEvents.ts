@@ -36,8 +36,8 @@ export const COMBO_EVENTS: Record<ComboEventKind, ComboEventDef> = {
   gravity_flip: { kind: "gravity_flip", name: "GRAVITY FLIP", desc: "Everything falls up for a second.", weight: 9, ticks: 110 },
   magnet_storm: { kind: "magnet_storm", name: "MAGNET STORM", desc: "Every ball is dragged toward the centre pocket for 2 s.", weight: 10, ticks: 240 },
   slowmo: { kind: "slowmo", name: "SLOW MOTION", desc: "Time dilates for 1.5 s.", weight: 7, ticks: 0 },
-  overdrive: { kind: "overdrive", name: "OVERDRIVE", desc: "Every peg hit counts double toward the combo for 3 s.", weight: 14, ticks: 360 },
-  time_lock: { kind: "time_lock", name: "TIME LOCK", desc: "The combo cannot lapse for 2.5 s.", weight: 10, ticks: 300 },
+  overdrive: { kind: "overdrive", name: "OVERDRIVE", desc: "Every peg hit counts double toward the combo for 3 s.", weight: 10, ticks: 360 },
+  time_lock: { kind: "time_lock", name: "TIME LOCK", desc: "The combo cannot lapse for 2.5 s.", weight: 7, ticks: 300 },
   fresh_coat: { kind: "fresh_coat", name: "FRESH COAT", desc: "Every lit peg goes dark — the whole board pays fresh again.", weight: 12, ticks: 0 },
 };
 

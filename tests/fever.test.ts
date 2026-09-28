@@ -231,6 +231,11 @@ describe("fever mode in a run", () => {
     expect(priv.feverGauge).toBe(0); // no carry at round end
     const fe = out.filter((e) => e.type === "fever") as Array<Extract<GameEvent, { type: "fever" }>>;
     expect(fe.at(-1)!.level).toBe(0);
+    const feverIdx = out.findIndex((e) => e.type === "fever" && e.level === 0);
+    const roundEndIdx = out.findIndex((e) => e.type === "roundEnd");
+    expect(feverIdx).toBeGreaterThanOrEqual(0);
+    expect(roundEndIdx).toBeGreaterThanOrEqual(0);
+    expect(feverIdx).toBeLessThan(roundEndIdx);
   });
 });
 

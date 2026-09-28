@@ -472,8 +472,9 @@ export class Run {
   /** Fire a combo event; exported for tests and dev tooling. */
   triggerComboEvent(kind: ComboEventKind, out: GameEvent[]): void {
     const def = COMBO_EVENTS[kind];
-    // Fever tier: events grow with heat — longer, stronger, richer, capped per kind.
-    const tier = Math.max(1, Math.floor(Math.sqrt(this.feverValue())));
+    // Tier follows the fever LEVEL (not the multiplier): events can't buy fever
+    // that buys richer events. Capped so the board stays playable.
+    const tier = Math.min(3, 1 + this.feverActiveLevel());
     let ticks = def.ticks;
     if (ticks > 0) {
       if (kind === "overdrive") ticks = Math.min(360 + (tier - 1) * 120, 720);
@@ -502,7 +503,7 @@ export class Run {
         break;
       }
       case "portal":
-        this.sim.armPortals(this.sim.portalsArmedCount + Math.min(2 * tier, 6));
+        this.sim.armPortals(this.sim.portalsArmedCount + Math.min(2 + this.feverActiveLevel(), 4));
         y = 0.6;
         break;
       case "quake":
@@ -540,7 +541,6 @@ export class Run {
     if (kind === "quake") this.applyBoardMotion();
     else if (kind === "gravity_flip") this.sim.setGravityScaleAll(1);
     else if (kind === "magnet_storm") this.sim.setGlobalPull(0);
-    else if (kind === "time_lock") this.lastHitTick = this.sim.tick; // grace: the chain restarts its window
   }
 
   private setPegElement(peg: number, state: PegElementState | null, out: GameEvent[]): void {
