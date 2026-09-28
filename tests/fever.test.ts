@@ -35,15 +35,22 @@ describe("fever mode math", () => {
 
 describe("heat charms", () => {
   it("are defined with the spec'd fields", () => {
-    expect(CHARMS.fever_pitch).toMatchObject({ rarity: "rare", feverIgnitionDelta: -10 });
-    expect(CHARMS.heat_sink).toMatchObject({ rarity: "rare", feverRampDelta: -10 });
-    expect(CHARMS.afterglow).toMatchObject({ rarity: "uncommon", afterglowTicks: 240 });
-    expect(CHARMS.thermal_mass).toMatchObject({ rarity: "rare", comboCarry: 0.25 });
+    expect(CHARMS.fever_pitch).toMatchObject({ rarity: "rare", feverGaugeScale: 0.85 });
+    expect(CHARMS.heat_sink).toMatchObject({ rarity: "rare", feverCurveBoost: 0.5 });
+    expect(CHARMS.afterglow).toMatchObject({ rarity: "uncommon", feverGraceTicks: 240 });
+    expect(CHARMS.thermal_mass).toMatchObject({ rarity: "rare", feverGaugeCarry: 0.25 });
     expect(CHARMS.inferno_engine).toMatchObject({ rarity: "legendary", infernoEngine: true });
   });
-  it("compounding charms explain their stacks", () => {
-    expect(CHARMS.fever_pitch.stackNote!(2)).toContain("30");
-    expect(CHARMS.heat_sink.stackNote!(4)).toContain("20"); // floor
+  it("old always-on fever fields are gone", () => {
+    for (const c of Object.values(CHARMS)) {
+      expect(c).not.toHaveProperty("feverIgnitionDelta");
+      expect(c).not.toHaveProperty("feverRampDelta");
+      expect(c).not.toHaveProperty("afterglowTicks");
+      expect(c).not.toHaveProperty("comboCarry");
+    }
+  });
+  it("stack notes describe the compounding", () => {
+    expect(CHARMS.fever_pitch.stackNote!(2)).toContain("72"); // 0.85² ≈ 72%
     expect(CHARMS.thermal_mass.stackNote!(4)).toContain("75"); // cap
   });
 });

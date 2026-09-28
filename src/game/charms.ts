@@ -174,16 +174,16 @@ export interface Charm {
   /** When a combo of at least this many hits ends, +1 ball this round (once per round). */
   secondWindAt?: number;
 
-  // --- fever (combo-depth multiplier; src/game/fever.ts) ----------------------
-  /** Change to the combo count where fever ignites (50 by default, floor 10). */
-  feverIgnitionDelta?: number;
-  /** Change to the fever ramp divisor (50 by default, floor 20 — lower is steeper). */
-  feverRampDelta?: number;
-  /** Ticks fever fades over after a combo ends, instead of snapping to ×1. */
-  afterglowTicks?: number;
-  /** Fraction of the combo kept when the window lapses (cap 0.75). */
-  comboCarry?: number;
-  /** While fever ≥ ×2, peg-hit chip gains are also multiplied by the fever. */
+  // --- fever (gauge → timed mode → re-chain; src/game/fever.ts) ----------------
+  /** Multiplies the fever gauge size (0.85 = 15% smaller). Multiplicative per copy, floor ×0.5 total. */
+  feverGaugeScale?: number;
+  /** Steepens the fever level curve: adds `boost × level²` to the mode multiplier. */
+  feverCurveBoost?: number;
+  /** Extra ticks after the mode timer to finish a re-chain refill. Grace never scores. */
+  feverGraceTicks?: number;
+  /** Fraction of the gauge kept when a mode ends un-chained (cap 0.75 total). */
+  feverGaugeCarry?: number;
+  /** During fever mode, peg-hit chip gains are also multiplied by the fever multiplier. */
   infernoEngine?: boolean;
 }
 
@@ -500,39 +500,39 @@ export const CHARMS: Record<CharmId, Charm> = {
   fever_pitch: {
     id: "fever_pitch",
     name: "Fever Pitch",
-    desc: "Fever ignites at 40 combo instead of 50.",
+    desc: "The fever gauge is 15% smaller — modes trigger and re-chain sooner.",
     rarity: "rare",
-    feverIgnitionDelta: -10,
-    stackNote: (level) => `×${level}: fever ignites at ${Math.max(10, 50 - 10 * level)} combo`,
+    feverGaugeScale: 0.85,
+    stackNote: (level) => `×${level}: gauge at ${Math.round(Math.max(0.5, 0.85 ** level) * 100)}% size`,
   },
   heat_sink: {
     id: "heat_sink",
     name: "Heat Sink",
-    desc: "Fever climbs faster past ignition.",
+    desc: "Fever levels hit harder: +0.5 × level² to the mode multiplier.",
     rarity: "rare",
-    feverRampDelta: -10,
-    stackNote: (level) => `×${level}: fever ramp ${Math.max(20, 50 - 10 * level)} (lower is hotter)`,
+    feverCurveBoost: 0.5,
+    stackNote: (level) => `×${level}: a level-4 mode pays ×${1 + 8 + 0.5 * level * 16}`,
   },
   afterglow: {
     id: "afterglow",
     name: "Afterglow",
-    desc: "When a combo ends, fever fades out over 2 s instead of vanishing.",
+    desc: "When the fever timer runs out, 2 extra seconds to finish the re-chain refill.",
     rarity: "uncommon",
-    afterglowTicks: 240,
-    stackNote: (level) => `×${level}: fever fades over ${2 * level} s`,
+    feverGraceTicks: 240,
+    stackNote: (level) => `×${level}: ${2 * level} s of grace`,
   },
   thermal_mass: {
     id: "thermal_mass",
     name: "Thermal Mass",
-    desc: "A lapsed combo keeps 25% of its count.",
+    desc: "When a fever mode ends un-chained, the gauge keeps 25% of its charge.",
     rarity: "rare",
-    comboCarry: 0.25,
-    stackNote: (level) => `×${level}: keeps ${Math.min(75, 25 * level)}% of the combo`,
+    feverGaugeCarry: 0.25,
+    stackNote: (level) => `×${level}: keeps ${Math.min(75, 25 * level)}%`,
   },
   inferno_engine: {
     id: "inferno_engine",
     name: "Inferno Engine",
-    desc: "While fever is ×2 or higher, peg chips are multiplied by the fever too.",
+    desc: "During fever mode, peg hits also earn fever-multiplied chips.",
     rarity: "legendary",
     infernoEngine: true,
   },
