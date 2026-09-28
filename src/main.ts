@@ -198,6 +198,29 @@ const stepper = new FixedStepper(run.sim.config.dt);
 let timeScale = 1;
 let slowmoUntil = 0;
 let feverLevel = 0; // current fever mode level: detects level-up edges for the banner slam
+
+// Board tints per combo event. Events overlap freely; the most recent wins and
+// an ending event must only clear its own (a shared setTint(null) used to let
+// the first expiry wipe everyone's cast — the laser looked washed out or naked).
+const EVENT_TINTS: Partial<Record<string, [number, number]>> = {
+  quake: [0xff6a00, 0.5],
+  gravity_flip: [0x2de2ff, 0.8],
+  magnet_storm: [0xb46cff, 0.7],
+  overdrive: [0xffb02d, 0.35], // was 0.6: strong enough to read, weak enough not to drown the laser
+  time_lock: [0x9ad7ff, 0.35],
+};
+const activeTints: string[] = [];
+function applyTint(): void {
+  const top = activeTints.at(-1);
+  if (top) view.setTint(EVENT_TINTS[top]![0], EVENT_TINTS[top]![1]);
+  else view.setTint(null);
+}
+function pushTint(kind: string): void {
+  const i = activeTints.indexOf(kind);
+  if (i >= 0) activeTints.splice(i, 1);
+  activeTints.push(kind);
+  applyTint();
+}
 let prev: Snapshot = run.sim.snapshot();
 let curr: Snapshot = prev;
 let aimX: number | null = 0;
@@ -470,23 +493,26 @@ function simStep(): void {
             ui.flash("#ff2d95", 0.3);
             break;
           case "portal":
+            view.shock(0, 0.6, 0.9);
             view.fx.ring(0, 0.6, 0xb46cff, 3.2, 0.7);
-            ui.flash("#b46cff", 0.25);
+            view.fx.ring(0, 0.6, 0xd6a8ff, 1.6, 0.5);
+            view.kickBloom(0.8);
+            ui.flash("#b46cff", 0.35);
             break;
           case "quake":
             view.addShake(1);
-            view.setTint(0xff6a00, 0.5);
+            pushTint(e.kind);
             break;
           case "rain":
             view.fx.burst(0, run.sim.config.height + 0.4, 0xffffff, 60, 4, 0.16, 0.7, -8);
             break;
           case "gravity_flip":
-            view.setTint(0x2de2ff, 0.8);
+            pushTint(e.kind);
             view.shock(0, run.sim.config.height * 0.5, 1);
             ui.flash("#2de2ff", 0.35);
             break;
           case "magnet_storm":
-            view.setTint(0xb46cff, 0.7);
+            pushTint(e.kind);
             break;
           case "slowmo":
             timeScale = 0.3;
@@ -495,11 +521,11 @@ function simStep(): void {
             ui.flash("#ffffff", 0.2);
             break;
           case "overdrive":
-            view.setTint(0xffb02d, 0.6);
+            pushTint(e.kind);
             ui.flash("#ffb02d", 0.3);
             break;
           case "time_lock":
-            view.setTint(0x9ad7ff, 0.6);
+            pushTint(e.kind);
             ui.flash("#9ad7ff", 0.3);
             break;
           case "fresh_coat":
@@ -512,9 +538,12 @@ function simStep(): void {
         }
         break;
       }
-      case "comboEventEnd":
-        view.setTint(null);
+      case "comboEventEnd": {
+        const i = activeTints.indexOf(e.kind);
+        if (i >= 0) activeTints.splice(i, 1);
+        applyTint();
         break;
+      }
       case "portal":
         view.portal(e.from, e.to);
         view.shock(e.from.x, e.from.y, 0.5);
@@ -665,6 +694,8 @@ function simStep(): void {
         feverLevel = 0;
         ui.resetFever();
         view.setHeat(0);
+        activeTints.length = 0;
+        applyTint();
       }
       if (e.type === "phase" && (e.phase === "won" || e.phase === "lost") && !runEnded) {
         runEnded = true;
