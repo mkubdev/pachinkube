@@ -134,7 +134,7 @@ async function newRun(nextSeed: string): Promise<void> {
   old.dispose();
   runEnded = false;
   tainted = false; // a fresh in-place run has no dev modifications
-  feverHot = false;
+  feverLevel = 0;
   auto = false;
   Object.assign(tracker, newTracker());
   recordRunStart(meta);
@@ -196,7 +196,7 @@ const stepper = new FixedStepper(run.sim.config.dt);
 // before it reaches the fixed stepper, so the simulation itself is untouched.
 let timeScale = 1;
 let slowmoUntil = 0;
-let feverHot = false; // fever > 1: detects the ignition edge for the one-shot flash
+let feverLevel = 0; // current fever mode level: detects level-up edges for the banner slam
 let prev: Snapshot = run.sim.snapshot();
 let curr: Snapshot = prev;
 let aimX: number | null = 0;
@@ -610,15 +610,16 @@ function simStep(): void {
         view.setHeat(0);
         break;
       case "fever": {
-        // Heat stays combo-driven (the sustained full-screen bloom read as
-        // bloat); fever keeps only the one-shot ignition flash + the readout.
-        const wasHot = feverHot;
-        feverHot = e.value > 1;
-        if (feverHot && !wasHot) {
+        const was = feverLevel;
+        feverLevel = e.level;
+        ui.setFeverGauge(e.gauge, e.level, e.grace);
+        if (e.level > was) {
           view.kickBloom(1.2);
           ui.flash("#ffb02d", 0.35);
+          ui.feverBanner(e.level, e.mult, e.ticksLeft / 120);
+        } else if (e.level === 0 && was > 0) {
+          ui.endFeverBanner();
         }
-        ui.setFever(e.value);
         break;
       }
       case "ballScored": {
@@ -656,7 +657,8 @@ function simStep(): void {
       if (e.type === "phase" && e.phase === "shop") {
         ui.toasts(recordOffers(meta, run.offers));
         // Re-arm the ignition flash for the next round.
-        feverHot = false;
+        feverLevel = 0;
+        ui.resetFever();
         view.setHeat(0);
       }
       if (e.type === "phase" && (e.phase === "won" || e.phase === "lost") && !runEnded) {

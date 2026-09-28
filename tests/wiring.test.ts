@@ -31,6 +31,10 @@ describe("main.ts wiring", () => {
     for (const c of ["pegLit", "pegHit", "zap", "fx", "combo", "comboEnd", "fever", "ballScored", "shake", "popup", "retry", "cleared", "pegElement", "element", "charmExpired", "pockets", "comboEvent", "comboEventEnd", "portal"]) {
       expect(main, `case "${c}"`).toMatch(new RegExp(`case "${c}"`));
     }
+    expect(main).toMatch(/ui\.setFeverGauge\(/);
+    expect(main).toMatch(/ui\.feverBanner\(/);
+    expect(main).toMatch(/ui\.endFeverBanner\(\)/);
+    expect(main).toMatch(/ui\.resetFever\(/);
     for (const k of ["bomb", "bullseye", "prism", "finale", "split", "revive", "overflow", "metal"]) {
       expect(main, `fx kind ${k}`).toMatch(new RegExp(`e\\.kind === "${k}"`));
     }
