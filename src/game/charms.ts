@@ -62,7 +62,11 @@ export interface Charm {
   onRoundStart?(ctx: Omit<CharmCtx, "ball">): void;
   onPegHit?(ctx: CharmCtx, ev: Extract<SimEvent, { type: "pegHit" }>, fresh: boolean): void;
   onWallHit?(ctx: CharmCtx): void;
-  /** Fires when a ball strikes a board feature part (wave-2 extension point). */
+  /**
+   * Fires when a ball strikes a board feature part. `feature` indexes
+   * `Sim.features` (its `BoardFeature.id`), `part` indexes that feature's
+   * `parts`. Wave-2 extension point: no charm uses it yet.
+   */
   onFeatureHit?(ctx: CharmCtx, feature: number, part: number): void;
   /** Return false to veto the ball being scored/removed (used for revives). */
   onBallLost?(ctx: CharmCtx, bucket: number, bucketMult: number): boolean | void;
