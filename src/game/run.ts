@@ -635,6 +635,34 @@ export class Run {
     return ballId;
   }
 
+  /**
+   * Advance the combo by `gain` hits and resolve everything a crossing
+   * triggers: milestones (+1 mult to every ball in flight) and combo events.
+   * Shared by peg hits and board-feature hits.
+   */
+  private addCombo(gain: number, out: GameEvent[]): void {
+    const prevCombo = this.combo;
+    this.combo += gain;
+    this.bestCombo = Math.max(this.bestCombo, this.combo);
+    this.lastHitTick = this.sim.tick;
+    const m = this.comboMilestone();
+    const milestones = Math.floor(this.combo / m) - Math.floor(prevCombo / m);
+    out.push({ type: "combo", count: this.combo, milestone: milestones > 0 });
+    // Combo events: every 50th hit, but never two within the cooldown.
+    const every = Math.max(20, COMBO_EVENT_EVERY + this.sumCharm((c) => c.eventEveryDelta ?? 0));
+    const crossedEvent = Math.floor(this.combo / every) > Math.floor(prevCombo / every);
+    if (crossedEvent && this.sim.tick - this.lastComboEventTick >= COMBO_EVENT_COOLDOWN_TICKS) {
+      this.lastComboEventTick = this.sim.tick;
+      const kind = weightedPick(this.sim.streams.fx, COMBO_EVENT_KINDS, (k) => COMBO_EVENTS[k].weight);
+      this.triggerComboEvent(kind, out);
+    }
+    if (milestones > 0) {
+      for (const b of this.balls.values()) b.mult += milestones;
+      out.push({ type: "popup", x: 0, y: this.sim.config.height * 0.55, text: `COMBO ${this.combo} · +${milestones} mult all`, kind: "mult" });
+      out.push({ type: "shake", strength: 0.35 });
+    }
+  }
+
   private handle(ev: SimEvent, out: GameEvent[]): void {
     const ball = this.balls.get(ev.ball);
     if (!ball) return;
@@ -662,31 +690,12 @@ export class Run {
       // +1 mult to all balls in play, so multiball is worth engineering.
       // A bumper counts as several hits at once, so milestones and events are
       // detected by crossing, not equality.
-      const prevCombo = this.combo;
       const isBumper = this.bumpers.has(ev.peg);
       const bumperCombo = isBumper ? BUMPER_COMBO + this.sumCharm((c) => c.bumperCombo ?? 0) : 0;
       const traitCombo = (type.traits?.comboHits ?? 1) - 1;
       const overdrive = this.activeEffects.has("overdrive") ? 2 : 1;
       const comboGain = (1 + bumperCombo + traitCombo) * overdrive;
-      this.combo += comboGain;
-      this.bestCombo = Math.max(this.bestCombo, this.combo);
-      this.lastHitTick = this.sim.tick;
-      const m = this.comboMilestone();
-      const milestones = Math.floor(this.combo / m) - Math.floor(prevCombo / m);
-      out.push({ type: "combo", count: this.combo, milestone: milestones > 0 });
-      // Combo events: every 50th hit, but never two within the cooldown.
-      const every = Math.max(20, COMBO_EVENT_EVERY + this.sumCharm((c) => c.eventEveryDelta ?? 0));
-      const crossedEvent = Math.floor(this.combo / every) > Math.floor(prevCombo / every);
-      if (crossedEvent && this.sim.tick - this.lastComboEventTick >= COMBO_EVENT_COOLDOWN_TICKS) {
-        this.lastComboEventTick = this.sim.tick;
-        const kind = weightedPick(this.sim.streams.fx, COMBO_EVENT_KINDS, (k) => COMBO_EVENTS[k].weight);
-        this.triggerComboEvent(kind, out);
-      }
-      if (milestones > 0) {
-        for (const b of this.balls.values()) b.mult += milestones;
-        out.push({ type: "popup", x: 0, y: this.sim.config.height * 0.55, text: `COMBO ${this.combo} · +${milestones} mult all`, kind: "mult" });
-        out.push({ type: "shake", strength: 0.35 });
-      }
+      this.addCombo(comboGain, out);
       if (isBumper) {
         ball.chips += Math.round(BUMPER_CHIPS * type.chipFactor);
         const bm = this.sumCharm((c) => c.bumperMult ?? 0);
