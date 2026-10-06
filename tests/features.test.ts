@@ -378,3 +378,21 @@ describe("features are part of the replay", () => {
     expect(seen.has(-1), "a ball leaked out of the board").toBe(false);
   });
 });
+
+import { emptyMeta, recordEvents, FEATS, type RunTracker } from "../src/game/meta.js";
+
+describe("feature stats", () => {
+  it("counts feature hits and offers a feat family", async () => {
+    const run = await make("feat-meta", "target_bank");
+    const meta = emptyMeta();
+    expect(meta.stats.featureHits).toBe(0);
+    const events: GameEvent[] = [
+      { type: "featureHit", feature: 0, part: 0, kind: "target_bank", x: 0, y: 1.5, fresh: true },
+      { type: "featureHit", feature: 0, part: 1, kind: "target_bank", x: 0, y: 1.5, fresh: true },
+    ];
+    const tracker: RunTracker = { jackpotStreak: 0, pocketsThisRound: [], eventsThisRound: 0, lastBallScore: 0 };
+    recordEvents(meta, events, run, tracker);
+    expect(meta.stats.featureHits).toBe(2);
+    expect(Object.keys(FEATS).some((id) => id.startsWith("features_"))).toBe(true);
+  });
+});

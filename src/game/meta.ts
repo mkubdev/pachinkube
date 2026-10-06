@@ -37,6 +37,8 @@ export interface MetaStats {
   portals: number;
   /** Balls popped off bumper pegs. */
   bumperHits: number;
+  /** Hits on board features (target banks, drop targets). */
+  featureHits: number;
 }
 
 export interface MetaState {
@@ -63,7 +65,7 @@ export function emptyMeta(): MetaState {
     stats: {
       runs: 0, wins: 0, losses: 0, ballsDropped: 0, pegHits: 0, jackpots: 0,
       roundsCleared: 0, bestRound: 0, bestCombo: 0, bestScore: 0, bestBallScore: 0, totalScore: 0,
-      reactions: 0, steams: 0, comboEvents: 0, portals: 0, bumperHits: 0,
+      reactions: 0, steams: 0, comboEvents: 0, portals: 0, bumperHits: 0, featureHits: 0,
     },
     discovered: { charms: [], balls: ["steel"] },
     used: { charms: [], balls: [] },
@@ -214,6 +216,7 @@ export const THRESHOLD_FEATS: ThresholdFeat[] = [
   ...tier("totalScore", "total", ["Millionaire", "Multimillionaire", "Billionaire"], [1_000_000, 10_000_000, 1_000_000_000], (v) => `Score ${v.toLocaleString("en-US")} across all runs.`),
   ...tier("losses", "losses", ["Bruised", "Stubborn", "Unbreakable"], [5, 25, 100], (v) => `Lose ${v} runs and come back.`),
   ...tier("bumperHits", "bumpers", ["Pinball", "Wizard", "Tilt"], [50, 500, 5000], (v) => `Pop off ${v} bumpers.`),
+  ...tier("featureHits", "features", ["Target Practice", "Bank Job", "Demolition"], [50, 500, 2500], (v) => `Hit board features ${v} times.`),
 ];
 
 const MOMENT_FEATS = {
@@ -354,6 +357,9 @@ export function recordEvents(
         break;
       case "bumper":
         s.bumperHits++;
+        break;
+      case "featureHit":
+        s.featureHits++;
         break;
       case "ballScored": {
         const centre = (run.sim.config.buckets - 1) / 2;

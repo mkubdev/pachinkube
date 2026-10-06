@@ -64,6 +64,7 @@ const FAMILY_GLYPH: Record<string, keyof typeof G> = {
   combo: "star", run: "trophy", ball: "coin", round: "trophy", runs: "clock", wins: "trophy", drops: "ball",
   pegs: "gear", jackpots: "eye", reactions: "sun", events: "bolt", portals: "eye",
   steams: "sun", cleared: "trophy", total: "coin", losses: "skull", bumpers: "gear",
+  features: "eye",
 };
 
 interface Palette { primary: string; secondary: string; highlight: string }
