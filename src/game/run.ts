@@ -97,7 +97,10 @@ export type GameEvent =
    *  how many charm-requested features found no free anchor (0 normally; the
    *  anchor count is a hard cap and stacked feature charms can exceed it). */
   | { type: "features"; list: BoardFeature[]; disabled: number[]; dropped: number }
-  /** A ball struck a feature part. `fresh` = the part was unlit / unbroken. */
+  /** A ball struck a feature part. `fresh` = the part was unlit / unbroken.
+   *  Only meaningful for `target_bank` (whether the part was unlit before
+   *  this hit); always `true` for `drop_target` — consumers must not branch
+   *  on it for drop targets. */
   | { type: "featureHit"; feature: number; part: number; kind: FeatureKind; x: number; y: number; fresh: boolean }
   /** A bank completed, or a drop target broke. */
   | { type: "featureDone"; feature: number; kind: FeatureKind; x: number; y: number }
@@ -105,6 +108,24 @@ export type GameEvent =
   | { type: "roundEnd"; round: number; passed: boolean; roundScore: number; target: number }
   | { type: "phase"; phase: Phase }
   | { type: "shake"; strength: number }
+
+/** Per-round state for a placed board feature. Discriminated by `kind` so a
+ *  `switch` on `kind` narrows the rest of the shape: `lit` only exists for
+ *  `target_bank`, `hits` only for `drop_target`. `spinner`/`orbit` can't be
+ *  placed (no `FEATURE_SHAPES` entry — see `handleFeatureHit`), so they have
+ *  no state variant here. */
+type FeatureState =
+  | { kind: "target_bank"; lit: Set<number>; done: boolean }
+  | { kind: "drop_target"; hits: number; done: boolean };
+
+/** Fresh per-round state for a newly placed feature. `spinner`/`orbit` have
+ *  no `FEATURE_SHAPES` entry, so `Sim.addFeature` already refuses to place
+ *  them — this throw mirrors that and should be unreachable. */
+function freshFeatureState(kind: FeatureKind): FeatureState {
+  if (kind === "target_bank") return { kind, lit: new Set(), done: false };
+  if (kind === "drop_target") return { kind, hits: 0, done: false };
+  throw new Error(`unplaceable feature kind: ${kind}`);
+}
 
 export interface RunInput {
   tick: number;
@@ -134,7 +155,7 @@ export class Run {
   /** Per-round state for each board feature, keyed by feature id. `kind` mirrors
    *  `BoardFeature.kind` on `sim.features` — the two are constructed together in
    *  `placeFeatures`, and nothing else may populate this map. */
-  readonly featureState = new Map<number, { kind: FeatureKind; lit: Set<number>; hits: number; done: boolean }>();
+  readonly featureState = new Map<number, FeatureState>();
   /** Cache of the pegs this round's features switched off, used by the bumper
    *  candidate filter and cleared on the round reset. `Sim.pegIsEnabled` is the
    *  authority; this set just mirrors it for fast lookups. */
@@ -542,8 +563,9 @@ export class Run {
       const anchors = shuffle(FEATURE_ANCHORS.map((_, i) => i), this.sim.streams.shop);
       for (let i = 0; i < wanted.length && i < anchors.length; i++) {
         const a = FEATURE_ANCHORS[anchors[i]!]!;
-        const fid = this.sim.addFeature(wanted[i]!, a.x * W, a.y * Hb);
-        this.featureState.set(fid, { kind: wanted[i]!, lit: new Set(), hits: 0, done: false });
+        const kind = wanted[i]!;
+        const fid = this.sim.addFeature(kind, a.x * W, a.y * Hb);
+        this.featureState.set(fid, freshFeatureState(kind));
         for (const peg of this.sim.pegsUnderFeature(fid)) {
           this.sim.setPegEnabled(peg, false);
           this.disabledPegs.add(peg);
@@ -1029,20 +1051,17 @@ export class Run {
         }
         return;
       }
-      // `spinner` and `orbit` are declared in FeatureKind but have no
-      // FEATURE_SHAPES entry — Sim.addFeature refuses to place them, so these
-      // cases cannot currently fire. They still need a case each (combined is
-      // fine): a literal left for `default` to absorb would never narrow away,
-      // defeating the exhaustiveness check below.
-      case "spinner":
-      case "orbit":
-        throw new Error(`unhandled feature kind: ${st.kind}`);
+      // `spinner` and `orbit` are declared in `FeatureKind` but have no
+      // `FEATURE_SHAPES` entry — `Sim.addFeature` refuses to place them, and
+      // `FeatureState` (unlike `FeatureKind`) only has variants for the two
+      // kinds that can actually be placed, so they need no case here: `st.kind`
+      // can never be one of them, and `default` below already covers it.
       default: {
-        // Unreachable: every FeatureKind member has a case above. If a new kind
-        // is ever added to FeatureKind without a case for it, `st.kind` stops
-        // narrowing to `never` here and this line fails to typecheck.
-        const _exhaustive: never = st.kind;
-        throw new Error(`unhandled feature kind: ${String(_exhaustive)}`);
+        // Unreachable: every FeatureState member has a case above. If a new
+        // variant is ever added without a case for it, `st` stops narrowing
+        // to `never` here and this line fails to typecheck.
+        const _exhaustive: never = st;
+        throw new Error(`unhandled feature state: ${JSON.stringify(_exhaustive)}`);
       }
     }
   }

@@ -239,10 +239,11 @@ describe("target bank scoring", () => {
     for (const p of [0, 1, 2]) (run as unknown as Priv).handle({ type: "featureHit", ball: b.id, feature: 0, part: p, speed: 1 }, out);
     expect(run.featureState.get(0)!.done).toBe(true);
     (run as unknown as Priv).startRound();
-    expect(run.featureState.get(0)!.done).toBe(false);
-    expect(run.featureState.get(0)!.lit.size).toBe(0);
+    const st = run.featureState.get(0)!;
+    expect(st.done).toBe(false);
+    if (st.kind !== "target_bank") throw new Error("expected target_bank state");
+    expect(st.lit.size).toBe(0);
   });
-
 
   it("two balls alternating on the same bank: completion fires once, mult lands on the completing ball, chips are per-ball", async () => {
     const run = await make("bank-multiball", "target_bank");
@@ -309,8 +310,10 @@ describe("drop target scoring", () => {
       (run as unknown as Priv).handle({ type: "featureHit", ball: b.id, feature: 0, part: 0, speed: 1 }, out);
     }
     (run as unknown as Priv).startRound();
-    expect(run.featureState.get(0)!.hits).toBe(0);
-    expect(run.featureState.get(0)!.done).toBe(false);
+    const st = run.featureState.get(0)!;
+    if (st.kind !== "drop_target") throw new Error("expected drop_target state");
+    expect(st.hits).toBe(0);
+    expect(st.done).toBe(false);
     // The collider is live again: a ball dropped onto it reports a hit.
     const bar = run.sim.features[0]!.parts[0]!;
     run.sim.spawnBall({ x: bar.x, y: bar.y + 0.6 });
