@@ -108,7 +108,12 @@ New `GameEvent`s for the renderer:
 | { type: "featureDone"; feature: number; kind: FeatureKind; x: number; y: number }
 ```
 
-`featureDone` covers both a completed bank and a broken drop target.
+`featureDone` covers both a completed bank and a broken drop target. On
+`featureHit`, `lit` means "this part was in its fresh state before the hit" —
+an unlit bank part, or a drop target with hits left.
+
+Every `featureHit` counts as **one** combo hit, like a peg, regardless of kind.
+Only the bumper gets the `BUMPER_COMBO` multi-hit treatment.
 
 ### Charms
 
@@ -140,7 +145,7 @@ Three static circles, r≈0.1, in a shallow arc. Solid colliders, restitution at
 
 | Event | Reward |
 | --- | --- |
-| Part hit, unlit | 12 chips, +1 combo |
+| Part hit, unlit | 12 chips |
 | Part hit, already lit | 4 chips |
 | All three lit (once per round) | +60 chips, +2 mult |
 
