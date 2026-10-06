@@ -1008,6 +1008,23 @@ export class Run {
         out.push({ type: "popup", x: f.x, y: f.y + 0.4, text: `BANK +${BANK_COMPLETE_CHIPS} · +${BANK_COMPLETE_MULT} mult`, kind: "mult" });
         out.push({ type: "shake", strength: 0.3 });
       }
+      return;
+    }
+
+    // drop_target: three hits, then the bar comes off for the rest of the round.
+    st.hits++;
+    const chips = Math.round(DROP_TARGET_CHIPS * type.chipFactor);
+    ball.chips += chips;
+    out.push({ type: "featureHit", feature: ev.feature, part: ev.part, kind: st.kind, x: part.x, y: part.y, fresh: true });
+    out.push({ type: "popup", x: part.x, y: part.y, text: `+${chips}`, kind: "chips", fresh: true, tag: ball.type });
+    if (st.hits >= DROP_TARGET_HITS) {
+      st.done = true;
+      // Safe here: handle() runs after sim.step() returns, never inside a contact callback.
+      this.sim.removeFeaturePart(ev.feature, ev.part);
+      ball.chips += Math.round(DROP_TARGET_BREAK_CHIPS * type.chipFactor);
+      out.push({ type: "featureDone", feature: ev.feature, kind: st.kind, x: f.x, y: f.y });
+      out.push({ type: "popup", x: f.x, y: f.y + 0.4, text: `TARGET DOWN +${DROP_TARGET_BREAK_CHIPS}`, kind: "chips" });
+      out.push({ type: "shake", strength: 0.25 });
     }
   }
 

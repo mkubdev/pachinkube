@@ -242,4 +242,46 @@ describe("target bank scoring", () => {
     expect(run.featureState.get(0)!.done).toBe(false);
     expect(run.featureState.get(0)!.lit.size).toBe(0);
   });
+
+});
+
+import { DROP_TARGET_BREAK_CHIPS, DROP_TARGET_CHIPS, DROP_TARGET_HITS } from "../src/game/run.js";
+
+describe("drop target scoring", () => {
+  it("takes three hits, pays the break bonus once, and removes the collider", async () => {
+    const run = await make("drop-score", "drop_target");
+    const b = fakeBall(9101);
+    run.balls.set(b.id, b);
+    const out: GameEvent[] = [];
+    const hit = () => (run as unknown as Priv).handle({ type: "featureHit", ball: b.id, feature: 0, part: 0, speed: 2 }, out);
+
+    for (let i = 0; i < DROP_TARGET_HITS; i++) hit();
+    expect(b.chips).toBe(DROP_TARGET_CHIPS * DROP_TARGET_HITS + DROP_TARGET_BREAK_CHIPS);
+    expect(out.filter((e) => e.type === "featureDone")).toHaveLength(1);
+    expect(run.featureState.get(0)!.done).toBe(true);
+
+    // A broken target is inert: the collider is gone, and a stray event pays nothing.
+    const chips = b.chips;
+    hit();
+    expect(b.chips).toBe(chips);
+  });
+
+  it("the target is restored at the start of the next round", async () => {
+    const run = await make("drop-reset", "drop_target");
+    const b = fakeBall(9102);
+    run.balls.set(b.id, b);
+    const out: GameEvent[] = [];
+    for (let i = 0; i < DROP_TARGET_HITS; i++) {
+      (run as unknown as Priv).handle({ type: "featureHit", ball: b.id, feature: 0, part: 0, speed: 1 }, out);
+    }
+    (run as unknown as Priv).startRound();
+    expect(run.featureState.get(0)!.hits).toBe(0);
+    expect(run.featureState.get(0)!.done).toBe(false);
+    // The collider is live again: a ball dropped onto it reports a hit.
+    const bar = run.sim.features[0]!.parts[0]!;
+    run.sim.spawnBall({ x: bar.x, y: bar.y + 0.6 });
+    let hits = 0;
+    for (let t = 0; t < 240; t++) for (const e of run.sim.step()) if (e.type === "featureHit") hits++;
+    expect(hits).toBeGreaterThan(0);
+  });
 });
