@@ -93,8 +93,10 @@ export type GameEvent =
   | { type: "bumpers"; pegs: number[] }
   /** A ball popped off a bumper. */
   | { type: "bumper"; peg: number; x: number; y: number; combo: number; ball: number }
-  /** This round's board features, and the pegs they switched off. */
-  | { type: "features"; list: BoardFeature[]; disabled: number[] }
+  /** This round's board features, and the pegs they switched off. `dropped` is
+   *  how many charm-requested features found no free anchor (0 normally; the
+   *  anchor count is a hard cap and stacked feature charms can exceed it). */
+  | { type: "features"; list: BoardFeature[]; disabled: number[]; dropped: number }
   /** A ball struck a feature part. `fresh` = the part was unlit / unbroken. */
   | { type: "featureHit"; feature: number; part: number; kind: FeatureKind; x: number; y: number; fresh: boolean }
   /** A bank completed, or a drop target broke. */
@@ -129,9 +131,13 @@ export class Run {
   readonly lit = new Set<number>();
   /** Peg ids that are pop bumpers this round. */
   readonly bumpers = new Set<number>();
-  /** Per-round state for each board feature, keyed by feature id. */
+  /** Per-round state for each board feature, keyed by feature id. `kind` mirrors
+   *  `BoardFeature.kind` on `sim.features` — the two are constructed together in
+   *  `placeFeatures`, and nothing else may populate this map. */
   readonly featureState = new Map<number, { kind: FeatureKind; lit: Set<number>; hits: number; done: boolean }>();
-  /** Pegs switched off because a feature sits on them this round. */
+  /** Cache of the pegs this round's features switched off, used by the bumper
+   *  candidate filter and cleared on the round reset. `Sim.pegIsEnabled` is the
+   *  authority; this set just mirrors it for fast lookups. */
   readonly disabledPegs = new Set<number>();
   offers: Offer[] = [];
   readonly log: RunInput[] = [];
@@ -510,6 +516,50 @@ export class Run {
   /** Called from startRound with the events buffer of the *next* step. */
   private pendingRoundEvents: GameEvent[] = [];
 
+  /** Places this round's charm-driven board features and pushes the `features`
+   *  event onto `pending`. Resets its own per-round state (`featureState`,
+   *  `disabledPegs`) before placing.
+   *
+   *  Must run before the bumper block in `startRound` — the bumper candidate
+   *  filter excludes `this.disabledPegs`, so bumpers placed first could land
+   *  on a peg a feature then switches off. */
+  private placeFeatures(pending: GameEvent[]): void {
+    this.sim.clearFeatures();
+    this.featureState.clear();
+    for (const id of this.disabledPegs) this.sim.setPegEnabled(id, true);
+    this.disabledPegs.clear();
+    const wanted: FeatureKind[] = [];
+    for (const id of this.charms) for (const f of CHARMS[id].features ?? []) for (let i = 0; i < f.count; i++) wanted.push(f.kind);
+    let dropped = 0;
+    if (wanted.length > 0) {
+      const W = this.sim.config.width;
+      const Hb = this.sim.config.height;
+      // FEATURE_ANCHORS is a hard cap for wave 1: only one feature per anchor
+      // (overlapping features would break the board), and stacked feature
+      // charms can ask for more than there are anchors. Rather than silently
+      // dropping the overflow, we count it and report it in the `features`
+      // event below.
+      const anchors = shuffle(FEATURE_ANCHORS.map((_, i) => i), this.sim.streams.shop);
+      for (let i = 0; i < wanted.length && i < anchors.length; i++) {
+        const a = FEATURE_ANCHORS[anchors[i]!]!;
+        const fid = this.sim.addFeature(wanted[i]!, a.x * W, a.y * Hb);
+        this.featureState.set(fid, { kind: wanted[i]!, lit: new Set(), hits: 0, done: false });
+        for (const peg of this.sim.pegsUnderFeature(fid)) {
+          this.sim.setPegEnabled(peg, false);
+          this.disabledPegs.add(peg);
+          this.lit.delete(peg); // a switched-off peg must not count as lit
+        }
+      }
+      dropped = Math.max(0, wanted.length - anchors.length);
+    }
+    pending.push({
+      type: "features",
+      list: this.sim.features.map((f) => ({ ...f, parts: f.parts.map((p) => ({ ...p })) })),
+      disabled: [...this.disabledPegs].sort((x, y) => x - y),
+      dropped,
+    });
+  }
+
   private startRound(): void {
     this.roundScore = 0;
     this.lit.clear();
@@ -532,31 +582,9 @@ export class Run {
       const ids = shuffle(this.sim.pegs.map((p) => p.id), this.sim.streams.layout).slice(0, frozen);
       for (const peg of ids) this.freezePeg(peg, pending);
     }
-    // Board features: charm-driven, so they roll from the shop stream — a
-    // charm choice must never shift a bounce. Placed before bumpers so a
-    // bumper is never seeded onto a peg a feature has just switched off.
-    this.sim.clearFeatures();
-    this.featureState.clear();
-    for (const id of this.disabledPegs) this.sim.setPegEnabled(id, true);
-    this.disabledPegs.clear();
-    const wanted: FeatureKind[] = [];
-    for (const id of this.charms) for (const f of CHARMS[id].features ?? []) for (let i = 0; i < f.count; i++) wanted.push(f.kind);
-    if (wanted.length > 0) {
-      const W = this.sim.config.width;
-      const Hb = this.sim.config.height;
-      const anchors = shuffle(FEATURE_ANCHORS.map((_, i) => i), this.sim.streams.shop);
-      for (let i = 0; i < wanted.length && i < anchors.length; i++) {
-        const a = FEATURE_ANCHORS[anchors[i]!]!;
-        const fid = this.sim.addFeature(wanted[i]!, a.x * W, a.y * Hb);
-        this.featureState.set(fid, { kind: wanted[i]!, lit: new Set(), hits: 0, done: false });
-        for (const peg of this.sim.pegsUnderFeature(fid)) {
-          this.sim.setPegEnabled(peg, false);
-          this.disabledPegs.add(peg);
-          this.lit.delete(peg); // a switched-off peg must not count as lit
-        }
-      }
-    }
-    pending.push({ type: "features", list: this.sim.features.map((f) => ({ ...f, parts: f.parts.map((p) => ({ ...p })) })), disabled: [...this.disabledPegs].sort((x, y) => x - y) });
+    // Board features must be placed before bumpers so a bumper is never seeded
+    // onto a peg a feature has just switched off (see placeFeatures doc comment).
+    this.placeFeatures(pending);
     // Bumpers: a few seeded pegs in the middle rows (never the top row, where a
     // pop would fire the drop straight back up, nor the bottom row).
     for (const p of this.bumpers) this.sim.setPegBumper(p, false);

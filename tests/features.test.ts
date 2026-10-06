@@ -165,4 +165,20 @@ describe("feature placement", () => {
     const disabled = new Set(run.sim.features.flatMap((f) => run.sim.pegsUnderFeature(f.id)));
     for (const b of run.bumpers) expect(disabled.has(b)).toBe(false);
   });
+
+  it("caps placed features at the anchor count and reports the overflow instead of dropping it silently", async () => {
+    const requested = ["target_bank", "target_bank", "target_bank", "drop_target", "drop_target", "drop_target"];
+    const run = await make("feat-overflow", ...requested);
+    expect(run.sim.features).toHaveLength(FEATURE_ANCHORS.length);
+
+    const ann = run.step().find((e) => e.type === "features");
+    expect(ann).toBeDefined();
+    if (ann?.type === "features") {
+      expect(ann.dropped).toBe(requested.length - FEATURE_ANCHORS.length);
+      expect(ann.dropped).toBeGreaterThan(0);
+    }
+
+    const positions = run.sim.features.map((f) => `${f.x},${f.y}`);
+    expect(new Set(positions).size).toBe(positions.length);
+  });
 });
