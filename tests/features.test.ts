@@ -104,3 +104,65 @@ describe("feature charms", () => {
     }
   });
 });
+
+import { afterEach } from "vitest";
+import { Run, type GameEvent } from "../src/game/run.js";
+
+const runs: Run[] = [];
+afterEach(() => {
+  for (const r of runs.splice(0)) r.dispose();
+});
+type Priv = { startRound(): void; handle(ev: unknown, out: GameEvent[]): void };
+
+async function make(seed: string, ...charms: string[]) {
+  const run = await Run.create(seed);
+  runs.push(run);
+  if (charms.length) {
+    run.charms.push(...(charms as never[]));
+    (run as unknown as Priv).startRound();
+  }
+  return run;
+}
+
+describe("feature placement", () => {
+  it("places nothing without a charm", async () => {
+    const run = await make("feat-none");
+    expect(run.sim.features).toHaveLength(0);
+  });
+
+  it("a charm places its feature, announces it, and disables the pegs under it", async () => {
+    const run = await make("feat-one", "target_bank");
+    expect(run.sim.features).toHaveLength(1);
+    expect(run.sim.features[0]!.kind).toBe("target_bank");
+    const ann = run.step().find((e) => e.type === "features");
+    expect(ann).toBeDefined();
+    if (ann?.type === "features") {
+      expect(ann.list).toHaveLength(1);
+      for (const peg of ann.disabled) expect(run.sim.pegIsEnabled(peg)).toBe(false);
+    }
+  });
+
+  it("placement is seeded: same seed and charms, same anchors", async () => {
+    const a = await make("feat-seed", "target_bank", "drop_target");
+    const b = await make("feat-seed", "target_bank", "drop_target");
+    expect(a.sim.features.map((f) => [f.kind, f.x, f.y])).toEqual(b.sim.features.map((f) => [f.kind, f.x, f.y]));
+  });
+
+  it("a new round rebuilds the features and re-enables last round's pegs", async () => {
+    const run = await make("feat-round", "target_bank");
+    const before = [...run.sim.features];
+    (run as unknown as Priv).startRound();
+    expect(run.sim.features).toHaveLength(1);
+    expect(run.sim.features[0]).not.toBe(before[0]); // rebuilt, not reused
+    for (const p of run.sim.pegs) {
+      const under = run.sim.pegsUnderFeature(0).includes(p.id);
+      expect(run.sim.pegIsEnabled(p.id)).toBe(!under);
+    }
+  });
+
+  it("never puts a feature on top of a bumper peg", async () => {
+    const run = await make("feat-bump", "target_bank", "drop_target");
+    const disabled = new Set(run.sim.features.flatMap((f) => run.sim.pegsUnderFeature(f.id)));
+    for (const b of run.bumpers) expect(disabled.has(b)).toBe(false);
+  });
+});

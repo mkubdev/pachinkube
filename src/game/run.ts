@@ -6,9 +6,9 @@
  * Everything the UI needs arrives as `GameEvent`s from `step()`.
  */
 import { Sim } from "../sim/world.js";
-import { BUMPER_RESTITUTION } from "../sim/types.js";
+import { BUMPER_RESTITUTION, FEATURE_ANCHORS } from "../sim/types.js";
 import type { Rng } from "../sim/rng.js";
-import type { BallSpawn, SimEvent } from "../sim/types.js";
+import type { BallSpawn, BoardFeature, FeatureKind, SimEvent } from "../sim/types.js";
 import { BALL_TYPES, SHOP_BALLS, STARTING_BAG, type BallTypeId } from "./balls.js";
 import {
   CHARMS,
@@ -40,6 +40,15 @@ export const BUMPERS_PER_ROUND = 3;
 export const BUMPER_COMBO = 3; // on top of the hit itself
 export const BUMPER_KICK = 3.2;
 export const BUMPER_CHIPS = 15;
+/** Board features: a target bank pays per part and bursts when all three light. */
+export const BANK_CHIPS_FRESH = 12;
+export const BANK_CHIPS_REPEAT = 4;
+export const BANK_COMPLETE_CHIPS = 60;
+export const BANK_COMPLETE_MULT = 2;
+/** A drop target takes this many hits, then breaks open for the rest of the round. */
+export const DROP_TARGET_HITS = 3;
+export const DROP_TARGET_CHIPS = 10;
+export const DROP_TARGET_BREAK_CHIPS = 40;
 export const SHOP_OFFERS = 3;
 
 export type Phase = "drop" | "shop" | "won" | "lost";
@@ -84,6 +93,12 @@ export type GameEvent =
   | { type: "bumpers"; pegs: number[] }
   /** A ball popped off a bumper. */
   | { type: "bumper"; peg: number; x: number; y: number; combo: number; ball: number }
+  /** This round's board features, and the pegs they switched off. */
+  | { type: "features"; list: BoardFeature[]; disabled: number[] }
+  /** A ball struck a feature part. `fresh` = the part was unlit / unbroken. */
+  | { type: "featureHit"; feature: number; part: number; kind: FeatureKind; x: number; y: number; fresh: boolean }
+  /** A bank completed, or a drop target broke. */
+  | { type: "featureDone"; feature: number; kind: FeatureKind; x: number; y: number }
   | { type: "ballScored"; ball: number; score: number; bucket: number; chips: number; mult: number }
   | { type: "roundEnd"; round: number; passed: boolean; roundScore: number; target: number }
   | { type: "phase"; phase: Phase }
@@ -114,6 +129,10 @@ export class Run {
   readonly lit = new Set<number>();
   /** Peg ids that are pop bumpers this round. */
   readonly bumpers = new Set<number>();
+  /** Per-round state for each board feature, keyed by feature id. */
+  readonly featureState = new Map<number, { kind: FeatureKind; lit: Set<number>; hits: number; done: boolean }>();
+  /** Pegs switched off because a feature sits on them this round. */
+  readonly disabledPegs = new Set<number>();
   offers: Offer[] = [];
   readonly log: RunInput[] = [];
   readonly balls = new Map<number, BallScoreState>();
@@ -513,13 +532,38 @@ export class Run {
       const ids = shuffle(this.sim.pegs.map((p) => p.id), this.sim.streams.layout).slice(0, frozen);
       for (const peg of ids) this.freezePeg(peg, pending);
     }
+    // Board features: charm-driven, so they roll from the shop stream — a
+    // charm choice must never shift a bounce. Placed before bumpers so a
+    // bumper is never seeded onto a peg a feature has just switched off.
+    this.sim.clearFeatures();
+    this.featureState.clear();
+    for (const id of this.disabledPegs) this.sim.setPegEnabled(id, true);
+    this.disabledPegs.clear();
+    const wanted: FeatureKind[] = [];
+    for (const id of this.charms) for (const f of CHARMS[id].features ?? []) for (let i = 0; i < f.count; i++) wanted.push(f.kind);
+    if (wanted.length > 0) {
+      const W = this.sim.config.width;
+      const Hb = this.sim.config.height;
+      const anchors = shuffle(FEATURE_ANCHORS.map((_, i) => i), this.sim.streams.shop);
+      for (let i = 0; i < wanted.length && i < anchors.length; i++) {
+        const a = FEATURE_ANCHORS[anchors[i]!]!;
+        const fid = this.sim.addFeature(wanted[i]!, a.x * W, a.y * Hb);
+        this.featureState.set(fid, { kind: wanted[i]!, lit: new Set(), hits: 0, done: false });
+        for (const peg of this.sim.pegsUnderFeature(fid)) {
+          this.sim.setPegEnabled(peg, false);
+          this.disabledPegs.add(peg);
+          this.lit.delete(peg); // a switched-off peg must not count as lit
+        }
+      }
+    }
+    pending.push({ type: "features", list: this.sim.features.map((f) => ({ ...f, parts: f.parts.map((p) => ({ ...p })) })), disabled: [...this.disabledPegs].sort((x, y) => x - y) });
     // Bumpers: a few seeded pegs in the middle rows (never the top row, where a
     // pop would fire the drop straight back up, nor the bottom row).
     for (const p of this.bumpers) this.sim.setPegBumper(p, false);
     this.bumpers.clear();
     const H = this.sim.config.height;
     const nb = BUMPERS_PER_ROUND + this.sumCharm((c) => c.extraBumpers ?? 0);
-    const candidates = this.sim.pegs.filter((p) => p.y < H * 0.8 && p.y > H * 0.3 && !this.pegElements.has(p.id)).map((p) => p.id);
+    const candidates = this.sim.pegs.filter((p) => p.y < H * 0.8 && p.y > H * 0.3 && !this.pegElements.has(p.id) && !this.disabledPegs.has(p.id)).map((p) => p.id);
     for (const id of shuffle(candidates, this.sim.streams.layout).slice(0, nb)) {
       this.bumpers.add(id);
       this.sim.setPegBumper(id, true);
