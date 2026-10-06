@@ -322,3 +322,46 @@ describe("drop target scoring", () => {
     expect(hits).toBeGreaterThan(0);
   });
 });
+
+describe("features are part of the replay", () => {
+  it("two runs with the same seed and charms hash identically every tick", async () => {
+    const a = await make("feat-det", "target_bank", "drop_target");
+    const b = await make("feat-det", "target_bank", "drop_target");
+    a.bag[0] = "steel";
+    b.bag[0] = "steel";
+    a.drop(0.4);
+    b.drop(0.4);
+    for (let t = 0; t < 600; t++) {
+      a.step();
+      b.step();
+      expect(a.sim.hash(), `tick ${t}`).toBe(b.sim.hash());
+    }
+  });
+
+  it("no feature part overlaps a pocket divider or the walls", async () => {
+    const run = await make("feat-safe", "target_bank", "drop_target");
+    const half = run.sim.config.width / 2;
+    for (const f of run.sim.features) {
+      for (const p of f.parts) {
+        const extent = p.r ?? Math.max((p.w ?? 0) / 2, (p.h ?? 0) / 2);
+        expect(p.y - extent, `${f.kind} sits in the pockets`).toBeGreaterThan(0.9);
+        expect(Math.abs(p.x) + extent, `${f.kind} touches a wall`).toBeLessThan(half - 0.2);
+      }
+    }
+  });
+
+  it("a ball can still reach every pocket with both features on the board", async () => {
+    const run = await make("feat-pass", "target_bank", "drop_target");
+    const seen = new Set<number>();
+    for (let i = 0; i < 40; i++) {
+      run.bag[0] = "steel";
+      run.drop(-2.4 + (i % 9) * 0.6);
+      for (let t = 0; t < 120 * 14 && run.inFlight > 0; t++) {
+        for (const e of run.step()) if (e.type === "ballScored") seen.add(e.bucket);
+      }
+      if (run.phase !== "drop") break;
+    }
+    expect(seen.size, "balls only reached some pockets").toBeGreaterThanOrEqual(3);
+    expect(seen.has(-1), "a ball leaked out of the board").toBe(false);
+  });
+});
