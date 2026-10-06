@@ -778,6 +778,11 @@ export class Run {
       return;
     }
 
+    if (ev.type === "featureHit") {
+      // Scoring/FX land in a later task; this keeps the branch exhaustive.
+      return;
+    }
+
     if (ev.type === "wallHit") {
       // Ricochet: the wall is a scoring surface and a springboard.
       const t = BALL_TYPES[ball.type].traits;

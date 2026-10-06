@@ -68,6 +68,63 @@ export const FIN_DROP = 0.44;
 export const BUMPER_RADIUS = 0.16;
 export const BUMPER_RESTITUTION = 0.9;
 
+/** Board features: obstacles charms place in the field (see run.ts for scoring). */
+export type FeatureKind = "target_bank" | "drop_target" | "spinner" | "orbit";
+
+/** One collider of a feature. `r` = circle; `w`/`h` = axis-aligned bar. */
+export interface FeaturePart {
+  x: number;
+  y: number;
+  r?: number;
+  w?: number;
+  h?: number;
+}
+
+export interface BoardFeature {
+  id: number;
+  kind: FeatureKind;
+  /** Anchor position; `parts` carry absolute world coordinates. */
+  x: number;
+  y: number;
+  parts: FeaturePart[];
+}
+
+/**
+ * Part layout per kind, as offsets from the feature anchor. Kinds absent here
+ * are not implemented yet and `Sim.addFeature` refuses them — wave 2 (spinner)
+ * and wave 3 (orbit) fill them in.
+ */
+export const FEATURE_SHAPES: Partial<Record<FeatureKind, FeaturePart[]>> = {
+  target_bank: [
+    { x: -0.34, y: 0, r: 0.1 },
+    { x: 0, y: 0.16, r: 0.1 },
+    { x: 0.34, y: 0, r: 0.1 },
+  ],
+  drop_target: [{ x: 0, y: 0, w: 0.5, h: 0.1 }],
+};
+
+/** Features bounce like bumpers so a hit reads as a hit. */
+export const FEATURE_RESTITUTION = 0.85;
+
+/**
+ * A peg this close to a feature part is switched off: anything tighter could
+ * wedge the widest ball (Heavy, r = 0.2) between peg and feature.
+ */
+export const FEATURE_CLEARANCE = 0.45;
+
+/**
+ * Legal anchor points as fractions of board width (x, 0 = centre) and height
+ * (y). The low row sits in the clear band between the bottom peg row and the
+ * pocket dividers; the two mid anchors sit inside the field and displace pegs.
+ */
+export const FEATURE_ANCHORS: ReadonlyArray<{ x: number; y: number }> = [
+  { x: -0.3, y: 0.15 },
+  { x: 0, y: 0.15 },
+  { x: 0.3, y: 0.15 },
+  { x: -0.33, y: 0.4 },
+  { x: 0.33, y: 0.4 },
+];
+
 export const DEFAULT_CONFIG: SimConfig = {
   seed: "pachinkube",
   width: 6,
@@ -85,6 +142,8 @@ export const DEFAULT_CONFIG: SimConfig = {
 /** Gameplay events the roguelite layer subscribes to; charms hook in here. */
 export type SimEvent =
   | { type: "pegHit"; ball: number; peg: number; speed: number }
+  /** A ball struck part `part` of board feature `feature`. */
+  | { type: "featureHit"; ball: number; feature: number; part: number; speed: number }
   /** A portal caught the ball at pocket `bucket` and sent it back to the top. */
   | { type: "portal"; ball: number; bucket: number }
   /** Ball left the board through pocket `bucket` (0..buckets-1), or -1. */
