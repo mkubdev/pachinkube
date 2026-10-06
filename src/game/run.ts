@@ -1029,15 +1029,12 @@ export class Run {
         }
         return;
       }
-      // `spinner` and `orbit` are declared in FeatureKind but have no FEATURE_SHAPES
-      // entry — Sim.addFeature refuses to place them, so these two cases can't
-      // currently fire. Each gets its own case (rather than being folded into
-      // `default`) because TS only narrows a case's discriminant to `never` when
-      // every other literal has its own separate case above it — combining case
-      // labels on one clause, or leaving a literal to be swept up by `default`,
-      // keeps it widened and defeats the compile-time check below.
+      // `spinner` and `orbit` are declared in FeatureKind but have no
+      // FEATURE_SHAPES entry — Sim.addFeature refuses to place them, so these
+      // cases cannot currently fire. They still need a case each (combined is
+      // fine): a literal left for `default` to absorb would never narrow away,
+      // defeating the exhaustiveness check below.
       case "spinner":
-        throw new Error(`unhandled feature kind: ${st.kind}`);
       case "orbit":
         throw new Error(`unhandled feature kind: ${st.kind}`);
       default: {
