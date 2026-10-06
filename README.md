@@ -106,6 +106,15 @@ bumper can pay a milestone mid-jump). *Pop Bumpers* adds two more per round,
 *Super Bumpers* makes each worth +3 more combo, *Bumper Crown* gives +1 mult
 per pop. Bumpers are part of the seeded layout, so replays verify.
 
+**Board features** (charm-driven, re-seeded every round, state persists for the
+round). *Target Bank* (uncommon) places three targets below the peg field:
+each unlit part pays 12 chips, repeats 4, and lighting all three pays +60
+chips and +2 mult, once per round. *Drop Target* (uncommon) is a breakable
+bar: 10 chips a hit, three hits break it for +40 chips, and the lane behind it
+opens for the rest of the round. Features switch off the pegs they overlap,
+so the board never gets denser than a Heavy ball can pass. Spinner and
+orbit-lane features are planned (waves 2 and 3).
+
 **No free fall.** The side channels used to let a ball drop from the top to an
 edge pocket without touching anything. Two fixes: drops are clamped to the
 outermost peg column (the aim marker shows the clamped spot), and the top two

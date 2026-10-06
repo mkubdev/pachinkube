@@ -6,4 +6,4 @@
  * on a different version the score is stored *unverified* rather than
  * rejected: a deploy mid-run must never eat a real run.
  */
-export const RULES_VERSION = 19; // 19: fever removed entirely (chips × mult × pocket) + refitted round targets
+export const RULES_VERSION = 20; // 20: board features — target bank + drop target
