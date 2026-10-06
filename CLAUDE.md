@@ -29,7 +29,7 @@ Node 22 (`.nvmrc`). `assets:manifest` needs `python3`. Deploy is automatic on pu
 ## Layers
 
 - `src/sim/` — deterministic physics: `world.ts` (board, pockets, balls, stuck-ball recovery) emits `SimEvent[]`.
-- `src/game/` — roguelite layer, also pure TS: `run.ts` (rounds/bag/shop) emits `GameEvent[]`; `charms.ts` (56 charms) and `balls.ts` (25 ball types) are data-driven; `scoring.ts` (chips × mult × pocket, round targets); `meta.ts` (profile, feats, unlocks); `ui.ts` is the DOM overlay (game layer, but browser-only — the exception).
+- `src/game/` — roguelite layer, also pure TS: `run.ts` (rounds/bag/shop) emits `GameEvent[]`; `charms.ts` (60 charms) and `balls.ts` (25 ball types) are data-driven; `scoring.ts` (chips × mult × pocket, round targets); `meta.ts` (profile, feats, unlocks); `ui.ts` is the DOM overlay (game layer, but browser-only — the exception).
 - `src/render/` — Three.js presentation only, driven by `GameEvent`s; `fx.ts` is pooled/pre-allocated particles.
 - `src/main.ts` — wiring. **Wiring here is only covered by `tests/wiring.test.ts`** (unit tests all passed while the browser was silently broken once); keep it updated when adding call sites.
 - `api/` — Vercel functions (Web `Request`/`Response` signature, runs both under Vercel and the Vite dev bridge). Upstash Redis with a per-instance memory fallback.

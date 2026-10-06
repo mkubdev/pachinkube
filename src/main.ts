@@ -11,7 +11,6 @@ import { BALL_TYPES, type BallTypeId } from "./game/balls.js";
 import { COMBO_TIER_FLASH, comboTier, REACTION_FX } from "./render/palette.js";
 import { SyncedMetaStore } from "./game/metaSync.js";
 import { RULES_VERSION } from "./game/version.js";
-import { FEVER_MODE_TICKS } from "./game/fever.js";
 import { getSession, signInUrl, signOutUrl } from "./game/auth.js";
 import { cycleQuality, loadGfx, renderInterval, saveGfx, toggleFps } from "./game/gfx.js";
 import {
@@ -136,7 +135,6 @@ async function newRun(nextSeed: string): Promise<void> {
   old.dispose();
   runEnded = false;
   tainted = false; // a fresh in-place run has no dev modifications
-  feverLevel = 0;
   clearTints();
   auto = false;
   Object.assign(tracker, newTracker());
@@ -199,7 +197,6 @@ const stepper = new FixedStepper(run.sim.config.dt);
 // before it reaches the fixed stepper, so the simulation itself is untouched.
 let timeScale = 1;
 let slowmoUntil = 0;
-let feverLevel = 0; // current fever mode level: detects level-up edges for the banner slam
 
 // Board tints per combo event. Events overlap freely; the most recent wins and
 // an ending event must only clear its own (a shared setTint(null) used to let
@@ -647,23 +644,6 @@ function simStep(): void {
         ui.endCombo(e.count);
         view.setHeat(0);
         break;
-      case "fever": {
-        const was = feverLevel;
-        feverLevel = e.level;
-        ui.setFeverGauge(e.gauge, e.level, e.grace);
-        if (e.level > was) {
-          view.kickBloom(1.2);
-          ui.flash("#ffb02d", 0.35);
-          ui.feverBanner(e.level, e.mult, e.ticksLeft / 120);
-        } else if (e.level === 0 && was > 0) {
-          ui.endFeverBanner();
-        } else if (e.level > 0 && e.level === was && !e.grace) {
-          ui.syncFeverBar(e.ticksLeft / 120, FEVER_MODE_TICKS / 120);
-        }
-        // After any feverBanner() (which rewrites className) so grace survives.
-        if (e.level > 0) ui.setFeverBannerGrace(e.grace);
-        break;
-      }
       case "ballScored": {
         const cx = run.sim.bucketCenters[e.bucket] ?? 0;
         const mag = Math.min(1, Math.log10(e.score + 1) / 6);
@@ -672,7 +652,6 @@ function simStep(): void {
         view.kickBloom(0.4 + mag * 1.2);
         if (mag > 0.45) ui.flash("#ff2d95", 0.15 + mag * 0.35);
         ui.scorePopup(cx, 1.2, e.score);
-        if (e.fever > 1) ui.feverPopup(cx, 1.7, e.fever);
         break;
       }
       case "shake":
@@ -698,16 +677,11 @@ function simStep(): void {
     for (const e of events) {
       if (e.type === "phase" && e.phase === "shop") {
         ui.toasts(recordOffers(meta, run.offers));
-        // Re-arm the ignition flash for the next round.
-        feverLevel = 0;
-        ui.resetFever();
         view.setHeat(0);
         clearTints();
       }
       if (e.type === "phase" && (e.phase === "won" || e.phase === "lost") && !runEnded) {
         runEnded = true;
-        feverLevel = 0;
-        ui.resetFever(); // no gauge lingering over the end screen
         clearTints();
         // Signed in: every finished run posts itself. The server keeps only the
         // best per player and says whether this one improved it, so no local

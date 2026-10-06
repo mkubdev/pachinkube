@@ -1,3 +1,6 @@
+> **Superseded 2026-10-06.** Fever was removed from the game entirely (RULES_VERSION 19);
+> this document is kept for history only. See the README changelog.
+
 # Fever Mode Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.

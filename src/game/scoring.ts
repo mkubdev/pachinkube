@@ -23,14 +23,16 @@ export function ballScore(chips: number, mult: number, bucketMult: number): numb
 }
 
 /**
- * Round targets, tuned with the balance probe against a dumb policy:
- * ~100% pass on round 1, ~50% by rounds 5–7. Combos made the early game much
- * richer, so the base is high and the growth gentle.
+ * Round targets, tuned with the balance probe against a dumb policy (120 seeds,
+ * `.cache/tune.txt`): ~95%+ pass through round 3, easing to ~65% by round 8, so
+ * the clear is a real wall rather than a cliff after seven free rounds.
  */
 export function roundTarget(round: number): number {
-  // 1.58× through the "machine cleared" round (r8 ≈ 19.8K), then 1.38× so
-  // endless play is a climb rather than a wall: r10 ≈ 38K, r12 ≈ 72K, r15 ≈ 189K.
-  // Eased from 1.62/1.42 on 2026-09-19 after real runs stalled around round 10.
-  const base = 800 * Math.pow(1.58, Math.min(round, 8) - 1);
-  return Math.floor(round <= 8 ? base : base * Math.pow(1.38, round - 8));
+  // Dumb-policy scores grow ~1.23×/round, so the old 800 base × 1.58 started
+  // twelve times under the player and only caught up at round 8. The base now
+  // sits just under the bottom decile of round 1 and climbs 1.37× through the
+  // "machine cleared" round (r8 ≈ 27K), then 1.32× so endless is a climb:
+  // r10 ≈ 47K, r12 ≈ 82K, r15 ≈ 189K.
+  const base = 3000 * Math.pow(1.37, Math.min(round, 8) - 1);
+  return Math.floor(round <= 8 ? base : base * Math.pow(1.32, round - 8));
 }

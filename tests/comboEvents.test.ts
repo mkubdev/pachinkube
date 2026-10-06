@@ -125,13 +125,12 @@ describe("chain feeders", () => {
   });
 });
 
-describe("fever tiers", () => {
-  const arm = (run: Run, level: number) => {
-    const priv = run as unknown as { feverLevel: number; feverModeEnd: number };
-    priv.feverLevel = level;
-    priv.feverModeEnd = run.sim.tick + 960;
+describe("event tiers", () => {
+  // Tier follows combo depth: 1 under 100, 2 at 100+, 3 at 200+ (capped).
+  const arm = (run: Run, combo: number) => {
+    run.combo = combo;
   };
-  it("cold events fire at tier 1 with base duration", async () => {
+  it("shallow combos fire at tier 1 with base duration", async () => {
     const run = await make("tier-1");
     const out: GameEvent[] = [];
     run.triggerComboEvent("quake", out);
@@ -139,28 +138,21 @@ describe("fever tiers", () => {
     expect(ev.tier).toBe(1);
     expect(ev.ticks).toBe(360);
   });
-  it("tier = 1 + fever level, capped at 3", async () => {
+  it("tier = 1 + combo/100, capped at 3", async () => {
     const run = await make("tier-lvl");
-    arm(run, 1);
+    arm(run, 100);
     const out: GameEvent[] = [];
     run.triggerComboEvent("quake", out);
     expect((out.at(-1) as Extract<GameEvent, { type: "comboEvent" }>).tier).toBe(2);
-    arm(run, 7);
+    arm(run, 700);
     run.triggerComboEvent("quake", out);
     const q = out.filter((e) => e.type === "comboEvent").at(-1) as Extract<GameEvent, { type: "comboEvent" }>;
     expect(q.tier).toBe(3);
     expect(q.ticks).toBe(1080); // 360 × 3 cap
   });
-  it("a deep combo alone no longer raises the tier", async () => {
-    const run = await make("tier-combo");
-    run.combo = 400;
-    const out: GameEvent[] = [];
-    run.triggerComboEvent("quake", out);
-    expect((out.at(-1) as Extract<GameEvent, { type: "comboEvent" }>).tier).toBe(1);
-  });
   it("hot events scale duration, capped", async () => {
     const run = await make("tier-hot");
-    arm(run, 7); // tier 3 (capped)
+    arm(run, 700); // tier 3 (capped)
     const out: GameEvent[] = [];
     run.triggerComboEvent("overdrive", out);
     const o = out.filter((e) => e.type === "comboEvent").at(-1) as Extract<GameEvent, { type: "comboEvent" }>;
@@ -171,7 +163,7 @@ describe("fever tiers", () => {
   });
   it("hot rain drops more shards, capped at 9", async () => {
     const run = await make("tier-rain");
-    arm(run, 7); // tier 3 (capped)
+    arm(run, 700); // tier 3 (capped)
     const before = run.sim.ballCount;
     const out: GameEvent[] = [];
     run.triggerComboEvent("rain", out);
@@ -179,7 +171,7 @@ describe("fever tiers", () => {
   });
   it("a cooled retrigger never shortens a running effect", async () => {
     const run = await make("tier-retrigger");
-    arm(run, 7); // tier 3 → quake 1080 ticks
+    arm(run, 700); // tier 3 → quake 1080 ticks
     const out: GameEvent[] = [];
     run.triggerComboEvent("quake", out);
     const hotUntil = (run as unknown as { activeEffects: Map<string, number> }).activeEffects.get("quake")!;
@@ -187,12 +179,12 @@ describe("fever tiers", () => {
     run.triggerComboEvent("quake", out);
     expect((run as unknown as { activeEffects: Map<string, number> }).activeEffects.get("quake")).toBe(hotUntil);
   });
-  it("portal arms 2 + level balls, cap 4", async () => {
+  it("portal arms 1 + tier balls, cap 4", async () => {
     const run = await make("tier-portal");
     const out: GameEvent[] = [];
     run.triggerComboEvent("portal", out);
     expect(run.sim.portalsArmedCount).toBe(2);
-    arm(run, 5);
+    arm(run, 700);
     run.triggerComboEvent("portal", out);
     expect(run.sim.portalsArmedCount).toBe(2 + 4); // +cap 4
   });

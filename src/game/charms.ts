@@ -174,17 +174,6 @@ export interface Charm {
   /** When a combo of at least this many hits ends, +1 ball this round (once per round). */
   secondWindAt?: number;
 
-  // --- fever (gauge → timed mode → re-chain; src/game/fever.ts) ----------------
-  /** Multiplies the fever gauge size (0.85 = 15% smaller). Multiplicative per copy, floor ×0.5 total. */
-  feverGaugeScale?: number;
-  /** Steepens the fever level curve: adds `boost × level²` to the mode multiplier. */
-  feverCurveBoost?: number;
-  /** Extra ticks after the mode timer to finish a re-chain refill. Grace never scores. */
-  feverGraceTicks?: number;
-  /** Fraction of the gauge kept when a mode ends un-chained (cap 0.75 total). */
-  feverGaugeCarry?: number;
-  /** During fever mode, peg-hit chip gains are also multiplied by the fever multiplier. */
-  infernoEngine?: boolean;
 }
 
 export type CharmId =
@@ -253,13 +242,7 @@ export type CharmId =
   // combo economy
   | "echo_chamber"
   | "second_wind"
-  | "overclock"
-  // fever
-  | "fever_pitch"
-  | "heat_sink"
-  | "afterglow"
-  | "thermal_mass"
-  | "inferno_engine";
+  | "overclock";
 
 function nearestUnlit(ctx: CharmCtx, from: Peg, n: number): Peg[] {
   return ctx.pegs
@@ -495,47 +478,6 @@ export const CHARMS: Record<CharmId, Charm> = {
   echo_chamber: { id: "echo_chamber", name: "Echo Chamber", desc: "Combo events fire every 40 hits instead of 50.", rarity: "rare", eventEveryDelta: -10 },
   second_wind: { id: "second_wind", name: "Second Wind", desc: "When a combo of 60+ ends, gain a ball (once per round).", rarity: "uncommon", secondWindAt: 60 },
   overclock: { id: "overclock", name: "Overclock", desc: "Combos stay alive 0.15 s longer, but milestones come every 12 hits.", rarity: "uncommon", comboWindowBonus: 18, milestoneDelta: 2 },
-
-  // --- fever ------------------------------------------------------------------
-  fever_pitch: {
-    id: "fever_pitch",
-    name: "Fever Pitch",
-    desc: "The fever gauge is 15% smaller — modes trigger and re-chain sooner.",
-    rarity: "rare",
-    feverGaugeScale: 0.85,
-    stackNote: (level) => `×${level}: gauge at ${Math.round(Math.max(0.5, 0.85 ** level) * 100)}% size`,
-  },
-  heat_sink: {
-    id: "heat_sink",
-    name: "Heat Sink",
-    desc: "Fever levels hit harder: +0.5 × level² to the mode multiplier.",
-    rarity: "rare",
-    feverCurveBoost: 0.5,
-    stackNote: (level) => `×${level}: a level-4 mode pays ×${1 + 8 + 0.5 * level * 16}`,
-  },
-  afterglow: {
-    id: "afterglow",
-    name: "Afterglow",
-    desc: "When the fever timer runs out, 2 extra seconds to finish the re-chain refill.",
-    rarity: "uncommon",
-    feverGraceTicks: 240,
-    stackNote: (level) => `×${level}: ${2 * level} s of grace`,
-  },
-  thermal_mass: {
-    id: "thermal_mass",
-    name: "Thermal Mass",
-    desc: "When a fever mode ends un-chained, the gauge keeps 25% of its charge.",
-    rarity: "rare",
-    feverGaugeCarry: 0.25,
-    stackNote: (level) => `×${level}: keeps ${Math.min(75, 25 * level)}%`,
-  },
-  inferno_engine: {
-    id: "inferno_engine",
-    name: "Inferno Engine",
-    desc: "During fever mode, peg hits also earn fever-multiplied chips.",
-    rarity: "legendary",
-    infernoEngine: true,
-  },
 };
 
 export const CHARM_IDS = Object.keys(CHARMS) as CharmId[];

@@ -41,11 +41,6 @@ export class GameUI {
   private readonly modal: HTMLElement;
   private readonly comboEl: HTMLElement;
   private readonly comboN: HTMLElement;
-  private readonly feverGaugeEl: HTMLElement;
-  private readonly feverFillEl: HTMLElement;
-  private readonly feverBannerEl: HTMLElement;
-  private readonly feverLabelEl: HTMLElement;
-  private readonly feverBarEl: HTMLElement;
   private readonly flashEl: HTMLElement;
   private comboHideAt = 0;
   private readonly labels: HTMLElement[] = [];
@@ -90,8 +85,6 @@ export class GameUI {
       <div id="labels"></div>
       <div id="popups"></div>
       <div id="combo" hidden><div class="n"></div><div class="l">COMBO</div></div>
-      <div id="fevergauge" hidden><div class="fill"></div></div>
-      <div id="feverbanner" hidden><div class="fl"></div><div class="ft"><div class="bar"></div></div></div>
       <div id="flash"></div>
       <div id="toasts"></div>
       <div id="modal" hidden></div>
@@ -116,11 +109,6 @@ export class GameUI {
     this.modal = this.root.querySelector("#modal")!;
     this.comboEl = this.root.querySelector("#combo")!;
     this.comboN = this.comboEl.querySelector(".n")!;
-    this.feverGaugeEl = this.root.querySelector("#fevergauge")!;
-    this.feverFillEl = this.feverGaugeEl.querySelector(".fill")!;
-    this.feverBannerEl = this.root.querySelector("#feverbanner")!;
-    this.feverLabelEl = this.feverBannerEl.querySelector(".fl")!;
-    this.feverBarEl = this.feverBannerEl.querySelector(".bar")!;
     this.flashEl = this.root.querySelector("#flash")!;
     this.root.querySelector("#collection-btn")!.addEventListener("click", () => this.onCollection?.());
     this.root.querySelector("#board-btn")!.addEventListener("click", () => this.onBoard?.());
@@ -241,7 +229,6 @@ export class GameUI {
     this.root.querySelector<HTMLElement>("#board-panel")!.hidden = true;
     this.root.querySelector<HTMLElement>("#lexicon")!.hidden = true;
     this.comboEl.hidden = true;
-    this.resetFever();
     this.comboHideAt = 0;
     for (const el of this.popups) el.hidden = true;
     this.live = [];
@@ -459,62 +446,6 @@ export class GameUI {
   scorePopup(x: number, y: number, score: number): void {
     const mag = Math.max(0, Math.log10(score + 1));
     this.popup(x, y, formatScore(score), "score", 1.2 + mag * 0.45);
-  }
-
-  /** Landing popup for a fever-boosted score, alongside the score popup. */
-  feverPopup(x: number, y: number, value: number): void {
-    this.popup(x, y, `×${value.toFixed(1)} FEVER`, "mult");
-  }
-
-  /** Fever gauge fill (0–1); color follows the mode level; flashes during refill grace. */
-  setFeverGauge(fill: number, level: number, grace: boolean): void {
-    this.feverGaugeEl.hidden = false;
-    this.feverFillEl.style.height = `${Math.round(fill * 100)}%`;
-    // g = level + 1: the gauge wears the colour of the level it is charging toward.
-    this.feverGaugeEl.className = `g${Math.min(4, level + 1)}${grace ? " grace" : ""}`;
-  }
-
-  /** FEVER banner: level badge + multiplier + a countdown bar over `seconds`. */
-  feverBanner(level: number, mult: number, seconds: number): void {
-    this.feverBannerEl.hidden = false;
-    this.feverLabelEl.textContent = `FEVER${level > 1 ? ` Lv.${level}` : ""} ×${Number.isInteger(mult) ? mult : mult.toFixed(1)}`;
-    this.feverBannerEl.className = `f${Math.min(4, level)}`;
-    // Replay the slam: a class swap alone would not restart the child's animation.
-    this.feverLabelEl.style.animation = "none";
-    void this.feverLabelEl.offsetWidth;
-    this.feverLabelEl.style.animation = "";
-    // Restart the countdown: snap the bar to full without a transition, then shrink.
-    this.feverBarEl.style.transition = "none";
-    this.feverBarEl.style.width = "100%";
-    void this.feverBarEl.offsetWidth;
-    this.feverBarEl.style.transition = `width ${seconds}s linear`;
-    this.feverBarEl.style.width = "0%";
-  }
-
-  /** Re-sync the countdown to sim time (the CSS transition is wall-clock and drifts under slowmo/backgrounded tabs). */
-  syncFeverBar(secondsLeft: number, totalSeconds: number): void {
-    if (this.feverBannerEl.hidden) return;
-    this.feverBarEl.style.transition = "none";
-    this.feverBarEl.style.width = `${Math.max(0, Math.min(100, (secondsLeft / totalSeconds) * 100))}%`;
-    void this.feverBarEl.offsetWidth;
-    this.feverBarEl.style.transition = `width ${secondsLeft}s linear`;
-    this.feverBarEl.style.width = "0%";
-  }
-
-  /** Grace: the multiplier is off until the gauge refills — dim the banner and say so. */
-  setFeverBannerGrace(grace: boolean): void {
-    this.feverBannerEl.classList.toggle("grace", grace);
-  }
-
-  /** Mode over but the round continues: drop the banner, keep the gauge. */
-  endFeverBanner(): void {
-    this.feverBannerEl.hidden = true;
-  }
-
-  /** Hide both fever elements (round over, run reset). */
-  resetFever(): void {
-    this.endFeverBanner();
-    this.feverGaugeEl.hidden = true;
   }
 
   /** Combo counter: grows and shifts colour tier with the count. */

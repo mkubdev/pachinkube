@@ -115,28 +115,10 @@
       @keyframes comboPop { from { transform: translateX(-50%) scale(1.35); } to { transform: translateX(-50%) scale(1); } }
       @keyframes comboHit { 0% { filter: brightness(3); letter-spacing: .12em; } 100% { filter: brightness(1); letter-spacing: 0; } }
       @keyframes comboOut { to { opacity: 0; transform: translateX(-50%) translateY(-30px) scale(1.15); } }
-      #fevergauge { position: absolute; top: 6vh; left: calc(50% + 110px); width: 10px; height: 130px; border: 1px solid rgba(255,255,255,.25); border-radius: 5px; overflow: hidden; display: flex; align-items: flex-end; pointer-events: none; }
-      #fevergauge[hidden] { display: none; }
-      #fevergauge .fill { width: 100%; background: #fff6e0; transition: height .15s ease-out; box-shadow: 0 0 12px rgba(255,246,224,.8); }
-      #fevergauge.g2 .fill { background: #ffb02d; } #fevergauge.g3 .fill { background: var(--magenta); } #fevergauge.g4 .fill { background: #7ef0ff; }
-      #fevergauge.grace .fill { animation: feverGrace .3s steps(2) infinite; }
-      @keyframes feverGrace { 50% { filter: brightness(2.2); } }
-      @keyframes feverPop { from { transform: scale(1.35); } to { transform: scale(1); } }
-      #feverbanner { position: absolute; top: calc(6vh + 150px); left: 50%; transform: translateX(-50%); text-align: center; pointer-events: none; }
-      #feverbanner[hidden] { display: none; }
-      #feverbanner .fl { font-family: var(--display); font-size: 34px; font-weight: 900; letter-spacing: .08em; animation: feverPop .28s cubic-bezier(.2,1.6,.4,1) both; }
-      #feverbanner .ft { width: 180px; height: 5px; margin: 6px auto 0; border-radius: 3px; background: rgba(255,255,255,.15); overflow: hidden; }
-      #feverbanner .bar { height: 100%; background: currentColor; }
-      #feverbanner.f1 { color: #fff6e0; text-shadow: 0 0 18px rgba(255,246,224,.9); }
-      #feverbanner.f2 { color: #ffb02d; text-shadow: 0 0 22px rgba(255,140,26,.95); }
-      #feverbanner.f3 { color: var(--magenta); text-shadow: 0 0 26px rgba(255,45,149,1); }
-      #feverbanner.f4 { color: #7ef0ff; text-shadow: 0 0 30px rgba(126,240,255,1); }
-      #feverbanner.grace { opacity: .55; }
-      #feverbanner.grace .fl::after { content: " · REFILL!"; font-size: 18px; vertical-align: middle; }
       .banner { left: 50%; top: 42%; transform: translate(-50%, -50%); font-family: var(--display); font-weight: 900; font-size: clamp(28px, 6vw, 72px); letter-spacing: .12em; color: #fff; text-shadow: 0 0 24px rgba(255,255,255,.7), 0 0 60px rgba(255,45,149,.8); pointer-events: none; z-index: 2; animation: bannerIn 1.4s cubic-bezier(.2,1.4,.3,1) both; white-space: nowrap; }
       @keyframes bannerIn { 0% { opacity: 0; transform: translate(-50%, -50%) scale(2.2); letter-spacing: .6em; } 18% { opacity: 1; transform: translate(-50%, -50%) scale(1); letter-spacing: .12em; } 80% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, -60%) scale(1.05); } }
       #flash { inset: 0; pointer-events: none; opacity: 0; mix-blend-mode: screen; z-index: 1; }
-      #hud, #charms, #combo, #fevergauge, #feverbanner, #toasts, #dock, #hint, #labels { z-index: 2; }
+      #hud, #charms, #combo, #toasts, #dock, #hint, #labels { z-index: 2; }
       #modal, #collection, #board-panel, #lexicon { z-index: 3; }
       #modal { inset: 0; display: grid; place-items: center; background: rgba(4,4,10,.72); backdrop-filter: blur(3px); }
       #modal[hidden] { display: none; }
@@ -273,8 +255,6 @@
         /* Combo on the right, toasts on the left: they never fight for the centre. */
         #combo { top: calc(var(--hud-bottom) + 40px); left: auto; right: 12px; transform: none; text-align: right; }
         #combo .n { font-size: 44px; } #combo.t2 .n { font-size: 52px; } #combo.t3 .n { font-size: 60px; } #combo.t4 .n { font-size: 68px; } #combo.t5 .n { font-size: 76px; }
-        #fevergauge { left: auto; right: 2px; top: calc(var(--hud-bottom) + 40px); }
-        #feverbanner { left: auto; right: 12px; transform: none; top: calc(var(--hud-bottom) + 160px); }
         @keyframes comboPop { from { transform: scale(1.35); transform-origin: right top; } to { transform: scale(1); } }
         @keyframes comboOut { to { opacity: 0; transform: translateY(-30px) scale(1.15); } }
         .banner { font-size: clamp(22px, 9vw, 40px); letter-spacing: .08em; white-space: normal; text-align: center; width: 90vw; }

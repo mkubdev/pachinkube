@@ -6,7 +6,7 @@ rounds, ~20–30 minutes. Hosted on Vercel for a friend group, with a shared,
 **replay-verified** leaderboard.
 
 **Status: first playable.** Full loop — aim → drop → score → shop → next round →
-endless → submit — with 56 charms (incl. 8 temporary), 25 ball types, 7 combo
+endless → submit — with 60 charms (incl. 8 temporary), 25 ball types, 7 combo
 events, three
 elements with reactions, combos, meta-progression, effects, audio, lofi radio,
 a Blender cabinet, and server-side score verification. Balance is probe-tuned.
@@ -135,7 +135,7 @@ counter climbs through colour tiers (10 / 20 / 40) and the screen heats up.
 
 **Combo events** (`src/game/comboEvents.ts`). Every **50th** combo hit, with a
 6 s cooldown, one fires from the seeded stream: **Laser Sweep** (a beam lights a
-whole peg row and pays every ball in flight), **Portal** (the next 2 + fever-level
+whole peg row and pays every ball in flight), **Portal** (the next 1 + event-tier
 balls, max 4, to reach the bottom come back from the top with +2 mult), **Quake**
 (3 s of violent drift), **Ball Rain** (three bonus shards), **Gravity Flip**
 (everything falls up for a second), **Magnet Storm** (2 s of centre pull),
@@ -144,21 +144,9 @@ exact), **Overdrive** (every peg hit counts double toward the combo for 3 s),
 **Time Lock** (the combo cannot lapse for 2.5 s), **Fresh Coat** (every lit peg
 goes dark — the whole board pays fresh again). Physics-side effects are pure
 functions of run state and end on a tick, so they verify too. The board has a
-ceiling now: flipped gravity cannot throw a ball out.
-
-**Fever mode** (`src/game/fever.ts`). A gauge (100 units, scaled by charms)
-charges **+1 per combo hit** and persists within a round. Full gauge triggers
-**8 s of FEVER MODE**, multiplying every landing by `1 + 2 × level`. Refilling
-the gauge before the timer runs out **re-chains**: level goes up, the timer
-resets, and the mode keeps going. Missing the refill (or ending the round)
-resets both level and gauge to zero. The five heat charms: **Fever Pitch**
-shrinks the gauge 15% per copy (floor 50% of base size, so modes trigger and
-re-chain sooner); **Heat Sink** adds `+0.5 × level²` per copy to the mode
-multiplier; **Afterglow** grants 2 extra seconds of grace per copy to finish a
-re-chain refill once the timer runs out (the grace period itself never scores);
-**Thermal Mass** keeps 25% of the gauge per copy (capped at 75%) when a mode
-ends un-chained instead of zeroing it; **Inferno Engine** (legendary) makes
-peg-hit chips scale with the fever multiplier during modes, not just landings.
+ceiling now: flipped gravity cannot throw a ball out. Events fire at a **tier**
+(1, or 2 at 100 combo and 3 at 200, capped) that scales their duration, their
+payout and the number of balls Portal arms.
 
 **Progression** (`src/game/meta.ts`). A profile persists across runs: lifetime
 stats, discoveries (first time you see a charm/ball), **90+ feats** (combo tiers
@@ -266,9 +254,9 @@ in Node. That single constraint pays for:
 - **Balance probe** — `BALANCE=1 npx vitest run tests/balance.probe.test.ts`
   plays 40 seeded runs with a dumb policy and writes per-round pass rates to
   `.cache/balance.txt`. The policy keeps up to four balls in flight (how the game
-  is actually played). Targets in `scoring.ts` start at 800 and grow `1.58×`
-  through round 8, then `1.38×` (r10 ≈ 38K, r12 ≈ 72K, r15 ≈ 189K): currently
-  100/100/100/88/69/67/56/44 % pass by round, 4 wins in 40.
+  is actually played). Targets in `scoring.ts` start at 3000 and grow `1.37×`
+  through round 8, then `1.32×` (r8 ≈ 27K, r10 ≈ 47K, r12 ≈ 82K): currently
+  98/92/92/94/84/77/80/81 % pass by round, 13 clears in 40.
 
 Supporting rules: **fixed 120 Hz timestep** (`sim/loop.ts`, renderer
 interpolates), and **no `Math.random`** in `sim/` or `game/` — four named
@@ -318,7 +306,7 @@ src/sim/         deterministic physics — pure TS + Rapier, runs in Node
   world.ts         board, pockets, balls, stuck-ball recovery → SimEvent[]
 src/game/        roguelite layer — also pure TS, runs in Node
   run.ts           rounds, bag, shop, scoring dispatch → GameEvent[]
-  charms.ts        56 charms as data     balls.ts  25 ball types
+  charms.ts        60 charms as data     balls.ts  25 ball types
   scoring.ts       chips × mult × pocket, round targets
   replay.ts        headless replay for verification
   ui.ts            DOM overlay (HUD, popups, shop, end screen, leaderboard)
@@ -415,10 +403,10 @@ NAT cannot reach the add-on's `localhost:9876`.
   base64. Switch to `@dimforge/rapier2d` + `vite-plugin-wasm`.
 - **HDRI weight**: 1.6 MB `.hdr`; downsample or pre-filter to KTX2.
 - **Leaderboard identity**: key on `discordId` once auth is configured.
-- **Balance**: probed with a dumb policy (pass rates 100/100/98/82/81/77/55/36
-  over rounds 1–8 before the 2026-09-19 easing); real runs stalled around
-  round 10, so the curve was softened to 1.58×/1.38×. Tune in `scoring.ts` and
-  re-run the probe.
+- **Balance**: the target curve was refitted on 2026-10-06 (see the changelog);
+  the two knobs are the `3000` base and the `1.37`/`1.32` growth in
+  `scoring.ts`. Raise the base to make the opening gentler, lower the growth to
+  soften the clear. Re-run the probe after any change.
 - **Combo window** is 0.45 s (54 ticks), tuned so a stream of balls 0.4 s apart
   keeps the chain alive; it was 0.35 s, which forced players to dump the whole
   bag at once to combo. Probe through round 12 after this change (dumb policy,
@@ -436,11 +424,31 @@ NAT cannot reach the add-on's `localhost:9876`.
   steam pinks, prismatic shatter chains, `burstPrism` lightness 0.65) — combo
   tier colours were verified headlessly, but arcs/steam were not caught
   mid-flight under SwiftShader.
-- **2026-09-28**: fever mode replaces the always-on quadratic fever
-  (`RULES_VERSION` 18). The combo event tier now reads the fever level (capped
-  at 3) instead of the old fever value; Time Lock no longer restarts the combo
-  window, only holds it open; Overdrive/Time Lock event weights are 10/7; and
-  Portal arms `2 + fever level` balls, capped at 4.
+- **2026-10-06**: **fever removed entirely** (`RULES_VERSION` 19). Both the
+  always-on quadratic fever and the gauge/timed-mode rework that replaced it are
+  gone: a landing scores `chips × mult × pocket`, full stop. The five heat
+  charms (Fever Pitch, Heat Sink, Afterglow, Thermal Mass, Inferno Engine) and
+  their unlock rules are deleted (pool 65 → 60), as are the gauge and banner UI.
+  Fever made every run win on autopilot — throw balls, bank a mode, ignore the
+  build — which killed the point of drafting charms. Combo events survive; their
+  tier now follows raw combo depth (`1 + combo/100`, capped at 3) instead of the
+  fever level. Dumb-policy probe: round-8 pass rate 98% → 85%, runs won 39/40 →
+  33/40, median round-8 score 98K → 38K. Rounds 1–6 still pass ~100% under the
+  dumb policy — see the target retune below.
+- **2026-10-06**: **round targets refitted** to what a player actually scores.
+  The old curve started at 800 and grew `1.58×`, i.e. twelve times under the
+  dumb policy's round-1 score, so rounds 1–6 passed ~100% and the run fell off a
+  cliff at round 8. Measured over 120 seeds, dumb-policy scores grow only
+  ~`1.23×` a round, so the curve is now `3000 × 1.37^(r-1)` through the clear
+  round and `1.32×` past it — the base sits just under the bottom decile of
+  round 1 and the pressure arrives gradually. Dumb-policy pass by round:
+  100/100/100/100/100/100/98/85 → 98/92/92/94/84/77/80/81, and clears fall from
+  33/40 to 13/40. A real player beats the dumb policy comfortably; if 13/40
+  reads too harsh, lower the growth before touching the base.
+- **2026-09-28** (superseded): fever mode replaced the always-on quadratic fever
+  (`RULES_VERSION` 18). Time Lock no longer restarts the combo window, only
+  holds it open, and Overdrive/Time Lock event weights are 10/7 — both still
+  true.
 
 ## Gotchas already paid for
 

@@ -93,9 +93,11 @@ describe("pocket charms", () => {
 
 describe("target curve", () => {
   it("bends after round 8", () => {
-    expect(roundTarget(8)).toBe(Math.floor(800 * 1.58 ** 7));
-    expect(roundTarget(10)).toBeLessThan(40_000);
-    expect(roundTarget(12)).toBeLessThan(75_000);
+    expect(roundTarget(1)).toBe(3000);
+    expect(roundTarget(8)).toBe(Math.floor(3000 * 1.37 ** 7));
+    // Past the clear round the growth eases from 1.37 to 1.32.
+    expect(roundTarget(10) / roundTarget(8)).toBeCloseTo(1.32 ** 2, 2);
+    expect(roundTarget(12)).toBeLessThan(90_000);
     for (let r = 2; r < 20; r++) expect(roundTarget(r)).toBeGreaterThan(roundTarget(r - 1));
   });
 });
