@@ -243,6 +243,40 @@ describe("target bank scoring", () => {
     expect(run.featureState.get(0)!.lit.size).toBe(0);
   });
 
+
+  it("two balls alternating on the same bank: completion fires once, mult lands on the completing ball, chips are per-ball", async () => {
+    const run = await make("bank-multiball", "target_bank");
+    const a = fakeBall(9004);
+    const b = fakeBall(9005);
+    run.balls.set(a.id, a);
+    run.balls.set(b.id, b);
+    const out: GameEvent[] = [];
+    const hit = (ball: BallScoreState, part: number) =>
+      (run as unknown as Priv).handle({ type: "featureHit", ball: ball.id, feature: 0, part, speed: 2 }, out);
+
+    hit(a, 0); // a lights part 0
+    hit(b, 1); // b lights part 1
+    hit(a, 2); // a lights part 2 and completes the bank
+
+    const done = out.filter((e) => e.type === "featureDone");
+    expect(done).toHaveLength(1);
+    expect(run.featureState.get(0)!.done).toBe(true);
+
+    // a earned two fresh hits plus the completion bonus; b earned one fresh hit only.
+    expect(a.chips).toBe(BANK_CHIPS_FRESH * 2 + BANK_COMPLETE_CHIPS);
+    expect(b.chips).toBe(BANK_CHIPS_FRESH);
+
+    // The completion mult landed on a (the ball whose hit completed it), not b.
+    expect(a.mult).toBeGreaterThanOrEqual(1 + BANK_COMPLETE_MULT);
+    expect(b.mult).toBe(1);
+
+    // The bank is done: further hits from either ball pay nothing more.
+    const aChips = a.chips;
+    const bChips = b.chips;
+    hit(b, 0);
+    expect(a.chips).toBe(aChips);
+    expect(b.chips).toBe(bChips);
+  });
 });
 
 import { DROP_TARGET_BREAK_CHIPS, DROP_TARGET_CHIPS, DROP_TARGET_HITS } from "../src/game/run.js";

@@ -993,38 +993,60 @@ export class Run {
     this.addCombo(1, out);
     for (const id of this.charms) CHARMS[id].onFeatureHit?.(ctx, ev.feature, ev.part);
 
-    if (st.kind === "target_bank") {
-      const fresh = !st.lit.has(ev.part);
-      if (fresh) st.lit.add(ev.part);
-      const chips = Math.round((fresh ? BANK_CHIPS_FRESH : BANK_CHIPS_REPEAT) * type.chipFactor);
-      ball.chips += chips;
-      out.push({ type: "featureHit", feature: ev.feature, part: ev.part, kind: st.kind, x: part.x, y: part.y, fresh });
-      out.push({ type: "popup", x: part.x, y: part.y, text: `+${chips}`, kind: "chips", fresh, tag: ball.type });
-      if (st.lit.size === f.parts.length) {
-        st.done = true;
-        ball.chips += Math.round(BANK_COMPLETE_CHIPS * type.chipFactor);
-        ctx.addMult(BANK_COMPLETE_MULT, "bank");
-        out.push({ type: "featureDone", feature: ev.feature, kind: st.kind, x: f.x, y: f.y });
-        out.push({ type: "popup", x: f.x, y: f.y + 0.4, text: `BANK +${BANK_COMPLETE_CHIPS} · +${BANK_COMPLETE_MULT} mult`, kind: "mult" });
-        out.push({ type: "shake", strength: 0.3 });
+    switch (st.kind) {
+      case "target_bank": {
+        const fresh = !st.lit.has(ev.part);
+        if (fresh) st.lit.add(ev.part);
+        const chips = Math.round((fresh ? BANK_CHIPS_FRESH : BANK_CHIPS_REPEAT) * type.chipFactor);
+        ball.chips += chips;
+        out.push({ type: "featureHit", feature: ev.feature, part: ev.part, kind: st.kind, x: part.x, y: part.y, fresh });
+        out.push({ type: "popup", x: part.x, y: part.y, text: `+${chips}`, kind: "chips", fresh, tag: ball.type });
+        if (st.lit.size === f.parts.length) {
+          st.done = true;
+          ball.chips += Math.round(BANK_COMPLETE_CHIPS * type.chipFactor);
+          ctx.addMult(BANK_COMPLETE_MULT, "bank");
+          out.push({ type: "featureDone", feature: ev.feature, kind: st.kind, x: f.x, y: f.y });
+          out.push({ type: "popup", x: f.x, y: f.y + 0.4, text: `BANK +${BANK_COMPLETE_CHIPS} · +${BANK_COMPLETE_MULT} mult`, kind: "mult" });
+          out.push({ type: "shake", strength: 0.3 });
+        }
+        return;
       }
-      return;
-    }
-
-    // drop_target: three hits, then the bar comes off for the rest of the round.
-    st.hits++;
-    const chips = Math.round(DROP_TARGET_CHIPS * type.chipFactor);
-    ball.chips += chips;
-    out.push({ type: "featureHit", feature: ev.feature, part: ev.part, kind: st.kind, x: part.x, y: part.y, fresh: true });
-    out.push({ type: "popup", x: part.x, y: part.y, text: `+${chips}`, kind: "chips", fresh: true, tag: ball.type });
-    if (st.hits >= DROP_TARGET_HITS) {
-      st.done = true;
-      // Safe here: handle() runs after sim.step() returns, never inside a contact callback.
-      this.sim.removeFeaturePart(ev.feature, ev.part);
-      ball.chips += Math.round(DROP_TARGET_BREAK_CHIPS * type.chipFactor);
-      out.push({ type: "featureDone", feature: ev.feature, kind: st.kind, x: f.x, y: f.y });
-      out.push({ type: "popup", x: f.x, y: f.y + 0.4, text: `TARGET DOWN +${DROP_TARGET_BREAK_CHIPS}`, kind: "chips" });
-      out.push({ type: "shake", strength: 0.25 });
+      case "drop_target": {
+        // drop_target: three hits, then the bar comes off for the rest of the round.
+        st.hits++;
+        const chips = Math.round(DROP_TARGET_CHIPS * type.chipFactor);
+        ball.chips += chips;
+        out.push({ type: "featureHit", feature: ev.feature, part: ev.part, kind: st.kind, x: part.x, y: part.y, fresh: true });
+        out.push({ type: "popup", x: part.x, y: part.y, text: `+${chips}`, kind: "chips", fresh: true, tag: ball.type });
+        if (st.hits >= DROP_TARGET_HITS) {
+          st.done = true;
+          // Safe here: handle() runs after sim.step() returns, never inside a contact callback.
+          this.sim.removeFeaturePart(ev.feature, ev.part);
+          ball.chips += Math.round(DROP_TARGET_BREAK_CHIPS * type.chipFactor);
+          out.push({ type: "featureDone", feature: ev.feature, kind: st.kind, x: f.x, y: f.y });
+          out.push({ type: "popup", x: f.x, y: f.y + 0.4, text: `TARGET DOWN +${DROP_TARGET_BREAK_CHIPS}`, kind: "chips" });
+          out.push({ type: "shake", strength: 0.25 });
+        }
+        return;
+      }
+      // `spinner` and `orbit` are declared in FeatureKind but have no FEATURE_SHAPES
+      // entry — Sim.addFeature refuses to place them, so these two cases can't
+      // currently fire. Each gets its own case (rather than being folded into
+      // `default`) because TS only narrows a case's discriminant to `never` when
+      // every other literal has its own separate case above it — combining case
+      // labels on one clause, or leaving a literal to be swept up by `default`,
+      // keeps it widened and defeats the compile-time check below.
+      case "spinner":
+        throw new Error(`unhandled feature kind: ${st.kind}`);
+      case "orbit":
+        throw new Error(`unhandled feature kind: ${st.kind}`);
+      default: {
+        // Unreachable: every FeatureKind member has a case above. If a new kind
+        // is ever added to FeatureKind without a case for it, `st.kind` stops
+        // narrowing to `never` here and this line fails to typecheck.
+        const _exhaustive: never = st.kind;
+        throw new Error(`unhandled feature kind: ${String(_exhaustive)}`);
+      }
     }
   }
 
