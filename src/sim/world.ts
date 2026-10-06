@@ -289,6 +289,10 @@ export class Sim {
     const out: number[] = [];
     for (const p of this.pegs) {
       for (const part of f.parts) {
+        // A bar is measured by its bounding circle (corner distance), so the
+        // cleared zone around a thin bar is rounder and wider than the bar
+        // itself. Deliberately conservative: too many pegs removed only thins
+        // the board, too few can wedge a ball between peg and feature.
         const extent = part.r ?? Math.hypot((part.w ?? 0) / 2, (part.h ?? 0) / 2);
         if (Math.hypot(p.x - part.x, p.y - part.y) < extent + p.radius + FEATURE_CLEARANCE) {
           out.push(p.id);
