@@ -70,6 +70,7 @@ export class Sim {
   private readonly colliderToBall = new Map<number, number>();
   private readonly colliderToPeg = new Map<number, number>();
   private readonly pegColliders: RAPIER.Collider[] = [];
+  /** Dense, one entry per peg: false while a board feature sits on it. */
   private readonly pegEnabled: boolean[] = [];
   private readonly pegRow: number[] = [];
   /** Board features placed this round; a feature's `id` is its index here. */
@@ -195,6 +196,7 @@ export class Sim {
         this.colliderToPeg.set(col.handle, id);
         this.pegColliders.push(col);
         this.pegRow.push(r);
+        this.pegEnabled.push(true);
         id++;
       }
       // Wall fins on the top two odd rows (where the edge peg sits half a
