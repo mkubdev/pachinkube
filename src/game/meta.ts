@@ -151,9 +151,6 @@ export const UNLOCK_RULES: UnlockRule[] = [
   { kind: "charm", id: "snowball", stat: "bestRound", value: 12, hint: "Reach round 12" },
 ];
 
-/** Alias for `UNLOCK_RULES` (tests import it as `UNLOCKS`). */
-export const UNLOCKS = UNLOCK_RULES;
-
 export function ruleFor(kind: "charm" | "ball", id: string): UnlockRule | undefined {
   return UNLOCK_RULES.find((r) => r.kind === kind && r.id === id);
 }

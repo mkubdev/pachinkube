@@ -91,7 +91,7 @@ describe("pegs under a feature", () => {
 });
 
 import { CHARMS } from "../src/game/charms.js";
-import { UNLOCKS } from "../src/game/meta.js";
+import { UNLOCK_RULES } from "../src/game/meta.js";
 
 describe("feature charms", () => {
   it("Target Bank and Drop Target each place one feature and are unlockable", () => {
@@ -100,7 +100,7 @@ describe("feature charms", () => {
     expect(CHARMS.target_bank.rarity).toBe("uncommon");
     expect(CHARMS.drop_target.rarity).toBe("uncommon");
     for (const id of ["target_bank", "drop_target"]) {
-      expect(UNLOCKS.some((u) => u.kind === "charm" && u.id === id), `${id} unlock`).toBe(true);
+      expect(UNLOCK_RULES.some((u) => u.kind === "charm" && u.id === id), `${id} unlock`).toBe(true);
     }
   });
 });
