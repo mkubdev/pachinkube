@@ -167,7 +167,7 @@ const auraFrag = /* glsl */ `
     gl_FragColor = vec4(c * alpha, 0.0);
   }`;
 
-import { BUMPER_RADIUS, type Fin, type Peg, type Snapshot } from "../sim/types.js";
+import { BUMPER_RADIUS, type BoardFeature, type Fin, type Peg, type Snapshot } from "../sim/types.js";
 import { BALL_TYPES, type BallTypeId } from "../game/balls.js";
 
 export const MAX_BALLS = 1024;
@@ -181,6 +181,9 @@ const PEG_LIT = new THREE.Color(1.0, 0.18, 0.58).multiplyScalar(2.2);
 /** Bumpers glow amber so they read as targets before the first hit. */
 const PEG_BUMPER = new THREE.Color(1.0, 0.5, 0.08).multiplyScalar(1.5);
 const PEG_BUMPER_LIT = new THREE.Color(1.0, 0.82, 0.25).multiplyScalar(2.4);
+/** Features read as live targets: cyan unlit, white-hot once lit. */
+const FEATURE_IDLE = new THREE.Color(0.18, 0.88, 1.0).multiplyScalar(1.4);
+const FEATURE_LIT = new THREE.Color(1.0, 0.95, 0.6).multiplyScalar(2.6);
 const PEG_HOT = new THREE.Color(1.0, 0.9, 1.0).multiplyScalar(4.0);
 const SHARD_COLOR = new THREE.Color(0xfff1a8);
 const TRAIL_SPEED = 5.5;
@@ -208,7 +211,10 @@ export class BoardRenderer {
   private pegStampAttr: THREE.InstancedBufferAttribute | null = null;
   private pegBase: Peg[] = [];
   private pegBumper = new Uint8Array(0);
+  private pegHidden = new Uint8Array(0);
   private finMeshes: THREE.Mesh[] = [];
+  private featureMeshes: THREE.Mesh[] = [];
+  private readonly featurePartMeshes = new Map<string, THREE.Mesh>();
   private readonly pocketStrips: THREE.Mesh[] = [];
   private readonly laser: THREE.Mesh;
   private laserLife = 0;
@@ -475,9 +481,11 @@ export class BoardRenderer {
     this.pegLit = new Uint8Array(pegs.length);
     this.pegPulse = new Float32Array(pegs.length);
     this.pegBumper = new Uint8Array(pegs.length);
+    this.pegHidden = new Uint8Array(pegs.length);
   }
 
   private pegRadius(i: number): number {
+    if (this.pegHidden[i]) return 0.0001;
     return this.pegBumper[i] ? BUMPER_RADIUS : (this.pegBase[i]?.radius ?? 0.08);
   }
 
@@ -486,11 +494,9 @@ export class BoardRenderer {
     return this.pegBumper[i] ? (lit ? PEG_BUMPER_LIT : PEG_BUMPER) : lit ? PEG_LIT : PEG_UNLIT;
   }
 
-  /** This round's bumper pegs: bigger and amber. Called with the new set every round. */
-  setPegBumpers(pegs: number[]): void {
+  /** Rewrite every peg's matrix and colour from the current flags. */
+  private refreshPegs(): void {
     if (!this.pegs) return;
-    this.pegBumper.fill(0);
-    for (const p of pegs) this.pegBumper[p] = 1;
     for (let i = 0; i < this.pegBase.length; i++) {
       const p = this.pegBase[i]!;
       this.dummy.position.set(p.x, p.y, 0);
@@ -500,6 +506,22 @@ export class BoardRenderer {
       this.writePegColor(i, this.pegColor(i));
     }
     this.pegs.instanceMatrix.needsUpdate = true;
+  }
+
+  /** This round's bumper pegs: bigger and amber. Called with the new set every round. */
+  setPegBumpers(pegs: number[]): void {
+    if (!this.pegs) return;
+    this.pegBumper.fill(0);
+    for (const p of pegs) this.pegBumper[p] = 1;
+    this.refreshPegs();
+  }
+
+  /** Pegs a board feature has displaced: collapsed to nothing for the round. */
+  setPegsHidden(ids: number[]): void {
+    if (!this.pegs) return;
+    this.pegHidden.fill(0);
+    for (const p of ids) this.pegHidden[p] = 1;
+    this.refreshPegs();
   }
 
   private writePegColor(i: number, c: THREE.Color): void {
@@ -621,6 +643,46 @@ export class BoardRenderer {
       this.scene.add(m);
       this.finMeshes.push(m);
     }
+  }
+
+  /** This round's board features. Called with the full list every round. */
+  setFeatures(list: BoardFeature[]): void {
+    for (const m of this.featureMeshes) {
+      this.scene.remove(m);
+      m.geometry.dispose();
+      (m.material as THREE.Material).dispose();
+    }
+    this.featureMeshes = [];
+    this.featurePartMeshes.clear();
+    for (const f of list) {
+      f.parts.forEach((p, i) => {
+        const geo = p.r !== undefined
+          ? new THREE.SphereGeometry(p.r, 18, 12)
+          : new THREE.BoxGeometry(p.w ?? 0.5, p.h ?? 0.1, 0.3);
+        const mat = new THREE.MeshStandardMaterial({ color: FEATURE_IDLE, emissive: FEATURE_IDLE, emissiveIntensity: 1.5, roughness: 0.35 });
+        const m = new THREE.Mesh(geo, mat);
+        m.position.set(p.x, p.y, 0);
+        this.scene.add(m);
+        this.featureMeshes.push(m);
+        this.featurePartMeshes.set(`${f.id}:${i}`, m);
+      });
+    }
+  }
+
+  /** A bank part just lit: it stays bright for the round. */
+  litFeaturePart(feature: number, part: number): void {
+    const m = this.featurePartMeshes.get(`${feature}:${part}`);
+    if (!m) return;
+    const mat = m.material as THREE.MeshStandardMaterial;
+    mat.color.copy(FEATURE_LIT);
+    mat.emissive.copy(FEATURE_LIT);
+    mat.emissiveIntensity = 2.4;
+  }
+
+  /** A drop target broke: the bar comes off the board. */
+  breakFeaturePart(feature: number, part: number): void {
+    const m = this.featurePartMeshes.get(`${feature}:${part}`);
+    if (m) m.visible = false;
   }
 
   setAim(x: number | null): void {
