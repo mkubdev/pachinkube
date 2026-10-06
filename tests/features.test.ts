@@ -89,3 +89,18 @@ describe("pegs under a feature", () => {
     sim.dispose();
   });
 });
+
+import { CHARMS } from "../src/game/charms.js";
+import { UNLOCKS } from "../src/game/meta.js";
+
+describe("feature charms", () => {
+  it("Target Bank and Drop Target each place one feature and are unlockable", () => {
+    expect(CHARMS.target_bank.features).toEqual([{ kind: "target_bank", count: 1 }]);
+    expect(CHARMS.drop_target.features).toEqual([{ kind: "drop_target", count: 1 }]);
+    expect(CHARMS.target_bank.rarity).toBe("uncommon");
+    expect(CHARMS.drop_target.rarity).toBe("uncommon");
+    for (const id of ["target_bank", "drop_target"]) {
+      expect(UNLOCKS.some((u) => u.kind === "charm" && u.id === id), `${id} unlock`).toBe(true);
+    }
+  });
+});

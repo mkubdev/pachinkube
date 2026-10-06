@@ -4,7 +4,7 @@
  * what they touch (chips, mult, spawns, the bag).
  */
 import type { Rng } from "../sim/rng.js";
-import type { BallSpawn, Peg, SimEvent } from "../sim/types.js";
+import type { BallSpawn, FeatureKind, Peg, SimEvent } from "../sim/types.js";
 import type { BallTypeId } from "./balls.js";
 import type { Element } from "./elements.js";
 
@@ -62,6 +62,8 @@ export interface Charm {
   onRoundStart?(ctx: Omit<CharmCtx, "ball">): void;
   onPegHit?(ctx: CharmCtx, ev: Extract<SimEvent, { type: "pegHit" }>, fresh: boolean): void;
   onWallHit?(ctx: CharmCtx): void;
+  /** Fires when a ball strikes a board feature part (wave-2 extension point). */
+  onFeatureHit?(ctx: CharmCtx, feature: number, part: number): void;
   /** Return false to veto the ball being scored/removed (used for revives). */
   onBallLost?(ctx: CharmCtx, bucket: number, bucketMult: number): boolean | void;
   /**
@@ -104,6 +106,8 @@ export interface Charm {
   roundEndMult?: number;
   /** Mult factor when a ball lands in the pocket it was aimed at. */
   sharpshooter?: number;
+  /** Board features this charm puts on the board each round. */
+  features?: { kind: FeatureKind; count: number }[];
 
   // --- temporary charms ------------------------------------------------------
   /** Rounds the charm stays; undefined = permanent. Counted from acquisition. */
@@ -239,6 +243,9 @@ export type CharmId =
   | "pop_bumpers"
   | "super_bumpers"
   | "bumper_crown"
+  // board features
+  | "target_bank"
+  | "drop_target"
   // combo economy
   | "echo_chamber"
   | "second_wind"
@@ -473,6 +480,10 @@ export const CHARMS: Record<CharmId, Charm> = {
   pop_bumpers: { id: "pop_bumpers", name: "Pop Bumpers", desc: "Two more bumper pegs every round.", rarity: "uncommon", extraBumpers: 2 },
   super_bumpers: { id: "super_bumpers", name: "Super Bumpers", desc: "Bumpers count for +3 more combo.", rarity: "rare", bumperCombo: 3 },
   bumper_crown: { id: "bumper_crown", name: "Bumper Crown", desc: "Every bumper hit gives the ball +1 mult.", rarity: "rare", bumperMult: 1 },
+
+  // --- board features --------------------------------------------------------
+  target_bank: { id: "target_bank", name: "Target Bank", desc: "A three-target bank every round. Light all three for +60 chips and +2 mult.", rarity: "uncommon", features: [{ kind: "target_bank", count: 1 }] },
+  drop_target: { id: "drop_target", name: "Drop Target", desc: "A breakable target every round. Three hits open the lane behind it.", rarity: "uncommon", features: [{ kind: "drop_target", count: 1 }] },
 
   // --- combo economy -------------------------------------------------------
   echo_chamber: { id: "echo_chamber", name: "Echo Chamber", desc: "Combo events fire every 40 hits instead of 50.", rarity: "rare", eventEveryDelta: -10 },

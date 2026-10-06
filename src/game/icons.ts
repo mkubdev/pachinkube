@@ -45,6 +45,7 @@ const CHARM_GLYPH: Record<CharmId, keyof typeof G> = {
   permafrost: "snow", backdraft: "flame", lightning_rod: "bolt", flashpoint: "flame", thermal_shock: "sun", ball_lightning: "bolt",
   aurora: "star", cold_snap: "snow",
   pop_bumpers: "gear", super_bumpers: "star", bumper_crown: "trophy",
+  target_bank: "eye", drop_target: "shield",
   roulette: "dice", hot_pocket: "flame", groove: "arrow", jackpot_growth: "coin", pocket_lottery: "star", inversion: "split",
   echo_chamber: "wave", second_wind: "heart", overclock: "clock",
 };

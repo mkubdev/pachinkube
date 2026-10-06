@@ -134,6 +134,9 @@ export const UNLOCK_RULES: UnlockRule[] = [
   { kind: "charm", id: "pop_bumpers", stat: "roundsCleared", value: 5, hint: "Clear 5 rounds (lifetime)" },
   { kind: "charm", id: "super_bumpers", stat: "bestCombo", value: 50, hint: "Reach a 50 combo" },
   { kind: "charm", id: "bumper_crown", stat: "bumperHits", value: 150, hint: "Pop off 150 bumpers" },
+  // board features
+  { kind: "charm", id: "target_bank", stat: "roundsCleared", value: 10, hint: "Clear 10 rounds (lifetime)" },
+  { kind: "charm", id: "drop_target", stat: "bumperHits", value: 75, hint: "Pop off 75 bumpers" },
   { kind: "charm", id: "elemental_surge", stat: "reactions", value: 800, hint: "Trigger 800 elemental reactions" },
   { kind: "charm", id: "solstice", stat: "bestRound", value: 7, hint: "Reach round 7" },
   { kind: "charm", id: "thunderhead", stat: "reactions", value: 200, hint: "Trigger 200 elemental reactions" },
@@ -147,6 +150,9 @@ export const UNLOCK_RULES: UnlockRule[] = [
   { kind: "charm", id: "restless_board", stat: "roundsCleared", value: 40, hint: "Clear 40 rounds (lifetime)" },
   { kind: "charm", id: "snowball", stat: "bestRound", value: 12, hint: "Reach round 12" },
 ];
+
+/** Alias for `UNLOCK_RULES` (tests import it as `UNLOCKS`). */
+export const UNLOCKS = UNLOCK_RULES;
 
 export function ruleFor(kind: "charm" | "ball", id: string): UnlockRule | undefined {
   return UNLOCK_RULES.find((r) => r.kind === kind && r.id === id);
