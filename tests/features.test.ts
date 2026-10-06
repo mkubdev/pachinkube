@@ -182,3 +182,64 @@ describe("feature placement", () => {
     expect(new Set(positions).size).toBe(positions.length);
   });
 });
+
+import {
+  BANK_CHIPS_FRESH, BANK_CHIPS_REPEAT, BANK_COMPLETE_CHIPS, BANK_COMPLETE_MULT,
+} from "../src/game/run.js";
+import type { BallScoreState } from "../src/game/charms.js";
+
+function fakeBall(id: number): BallScoreState {
+  return { id, type: "steel", chips: 0, mult: 1, hits: 0, freshHits: 0, revives: 0, zaps: 0, shard: false };
+}
+
+describe("target bank scoring", () => {
+  it("pays per part, repeats cheaper, and bursts once when all three light", async () => {
+    const run = await make("bank-score", "target_bank");
+    const b = fakeBall(9001);
+    run.balls.set(b.id, b);
+    const out: GameEvent[] = [];
+    const hit = (part: number) => (run as unknown as Priv).handle({ type: "featureHit", ball: b.id, feature: 0, part, speed: 2 }, out);
+
+    hit(0);
+    expect(b.chips).toBe(BANK_CHIPS_FRESH);
+    hit(0); // already lit
+    expect(b.chips).toBe(BANK_CHIPS_FRESH + BANK_CHIPS_REPEAT);
+    hit(1);
+    expect(out.filter((e) => e.type === "featureDone")).toHaveLength(0);
+    hit(2);
+    const done = out.filter((e) => e.type === "featureDone");
+    expect(done).toHaveLength(1);
+    expect(b.chips).toBe(BANK_CHIPS_FRESH * 3 + BANK_CHIPS_REPEAT + BANK_COMPLETE_CHIPS);
+    expect(b.mult).toBeGreaterThanOrEqual(1 + BANK_COMPLETE_MULT);
+
+    // A completed bank pays nothing more this round.
+    const chips = b.chips;
+    hit(0);
+    expect(b.chips).toBe(chips);
+    expect(out.filter((e) => e.type === "featureDone")).toHaveLength(1);
+  });
+
+  it("each hit advances the combo by exactly one", async () => {
+    const run = await make("bank-combo", "target_bank");
+    const b = fakeBall(9002);
+    run.balls.set(b.id, b);
+    const out: GameEvent[] = [];
+    run.combo = 0;
+    (run as unknown as Priv).handle({ type: "featureHit", ball: b.id, feature: 0, part: 0, speed: 1 }, out);
+    expect(run.combo).toBe(1);
+    (run as unknown as Priv).handle({ type: "featureHit", ball: b.id, feature: 0, part: 1, speed: 1 }, out);
+    expect(run.combo).toBe(2);
+  });
+
+  it("the bank resets with the round", async () => {
+    const run = await make("bank-reset", "target_bank");
+    const b = fakeBall(9003);
+    run.balls.set(b.id, b);
+    const out: GameEvent[] = [];
+    for (const p of [0, 1, 2]) (run as unknown as Priv).handle({ type: "featureHit", ball: b.id, feature: 0, part: p, speed: 1 }, out);
+    expect(run.featureState.get(0)!.done).toBe(true);
+    (run as unknown as Priv).startRound();
+    expect(run.featureState.get(0)!.done).toBe(false);
+    expect(run.featureState.get(0)!.lit.size).toBe(0);
+  });
+});

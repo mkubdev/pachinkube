@@ -740,6 +740,11 @@ export class Run {
     if (!ball) return;
     const ctx = this.ctxFor(ball, out);
 
+    if (ev.type === "featureHit") {
+      this.handleFeatureHit(ball, ev, ctx, out);
+      return;
+    }
+
     if (ev.type === "pegHit") {
       const peg = this.sim.pegs[ev.peg] && { ...this.sim.pegs[ev.peg]!, ...this.sim.pegPosition(ev.peg) };
       if (!peg) return;
@@ -859,11 +864,6 @@ export class Run {
       return;
     }
 
-    if (ev.type === "featureHit") {
-      // Scoring/FX land in a later task; this keeps the branch exhaustive.
-      return;
-    }
-
     if (ev.type === "wallHit") {
       // Ricochet: the wall is a scoring surface and a springboard.
       const t = BALL_TYPES[ball.type].traits;
@@ -971,6 +971,44 @@ export class Run {
     if (changed) this.emitPockets(out);
     void cx;
     if (score > 0) out.push({ type: "shake", strength: Math.min(1, Math.log10(score + 1) / 6) });
+  }
+
+  /**
+   * Board features. Every hit is worth exactly one combo hit (unlike a bumper),
+   * and a feature that has done its job pays nothing more until the round ends.
+   */
+  private handleFeatureHit(
+    ball: BallScoreState,
+    ev: Extract<SimEvent, { type: "featureHit" }>,
+    ctx: CharmCtx,
+    out: GameEvent[],
+  ): void {
+    const f = this.sim.features[ev.feature];
+    const st = this.featureState.get(ev.feature);
+    if (!f || !st || st.done) return;
+    const part = f.parts[ev.part];
+    if (!part) return;
+    const type = BALL_TYPES[ball.type];
+    ball.hits++;
+    this.addCombo(1, out);
+    for (const id of this.charms) CHARMS[id].onFeatureHit?.(ctx, ev.feature, ev.part);
+
+    if (st.kind === "target_bank") {
+      const fresh = !st.lit.has(ev.part);
+      if (fresh) st.lit.add(ev.part);
+      const chips = Math.round((fresh ? BANK_CHIPS_FRESH : BANK_CHIPS_REPEAT) * type.chipFactor);
+      ball.chips += chips;
+      out.push({ type: "featureHit", feature: ev.feature, part: ev.part, kind: st.kind, x: part.x, y: part.y, fresh });
+      out.push({ type: "popup", x: part.x, y: part.y, text: `+${chips}`, kind: "chips", fresh, tag: ball.type });
+      if (st.lit.size === f.parts.length) {
+        st.done = true;
+        ball.chips += Math.round(BANK_COMPLETE_CHIPS * type.chipFactor);
+        ctx.addMult(BANK_COMPLETE_MULT, "bank");
+        out.push({ type: "featureDone", feature: ev.feature, kind: st.kind, x: f.x, y: f.y });
+        out.push({ type: "popup", x: f.x, y: f.y + 0.4, text: `BANK +${BANK_COMPLETE_CHIPS} · +${BANK_COMPLETE_MULT} mult`, kind: "mult" });
+        out.push({ type: "shake", strength: 0.3 });
+      }
+    }
   }
 
   private ctxBase(): Omit<CharmCtx, "ball"> {
