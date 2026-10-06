@@ -15,11 +15,17 @@ import {
   BUMPER_RADIUS,
   BUMPER_RESTITUTION,
   DEFAULT_CONFIG,
+  FEATURE_CLEARANCE,
+  FEATURE_RESTITUTION,
+  FEATURE_SHAPES,
   FIN_DROP,
   FIN_REACH,
   type BallSpawn,
+  type BoardFeature,
   type Fin,
   type BallState,
+  type FeatureKind,
+  type FeaturePart,
   type Peg,
   type PegMotion,
   type SimConfig,
@@ -65,6 +71,11 @@ export class Sim {
   private readonly colliderToPeg = new Map<number, number>();
   private readonly pegColliders: RAPIER.Collider[] = [];
   private readonly pegRow: number[] = [];
+  /** Board features placed this round; a feature's `id` is its index here. */
+  readonly features: BoardFeature[] = [];
+  private readonly featureColliders: Array<Array<RAPIER.Collider | null>> = [];
+  private readonly colliderToFeature = new Map<number, { feature: number; part: number }>();
+  private featureBody: RAPIER.RigidBody | null = null;
   private motion: PegMotion | null = null;
   private pegOffsets: Float32Array = new Float32Array(0);
   private globalPull = 0;
@@ -212,6 +223,82 @@ export class Sim {
     }
   }
 
+  // --- board features ------------------------------------------------------
+
+  /**
+   * Put a feature on the board at an anchor. Parts are stored in absolute
+   * world coordinates so the renderer and the game layer never redo the maths.
+   */
+  addFeature(kind: FeatureKind, x: number, y: number): number {
+    const shape = FEATURE_SHAPES[kind];
+    if (!shape) throw new Error(`feature kind not implemented: ${kind}`);
+    this.featureBody ??= this.world.createRigidBody(RAPIER.RigidBodyDesc.fixed());
+    const id = this.features.length;
+    const parts: FeaturePart[] = [];
+    const cols: Array<RAPIER.Collider | null> = [];
+    for (let i = 0; i < shape.length; i++) {
+      const s = shape[i]!;
+      const px = x + s.x;
+      const py = y + s.y;
+      const desc = (s.r !== undefined
+        ? RAPIER.ColliderDesc.ball(s.r)
+        : RAPIER.ColliderDesc.cuboid((s.w ?? 0.5) / 2, (s.h ?? 0.1) / 2))
+        .setTranslation(px, py)
+        .setRestitution(FEATURE_RESTITUTION)
+        .setActiveEvents(RAPIER.ActiveEvents.COLLISION_EVENTS);
+      const c = this.world.createCollider(desc, this.featureBody);
+      this.colliderToFeature.set(c.handle, { feature: id, part: i });
+      cols.push(c);
+      parts.push({ ...s, x: px, y: py });
+    }
+    this.features.push({ id, kind, x, y, parts });
+    this.featureColliders.push(cols);
+    return id;
+  }
+
+  /** Drop every feature (called at the start of each round). */
+  clearFeatures(): void {
+    for (const cols of this.featureColliders) {
+      for (const c of cols) {
+        if (!c) continue;
+        this.colliderToFeature.delete(c.handle);
+        this.world.removeCollider(c, false);
+      }
+    }
+    this.featureColliders.length = 0;
+    this.features.length = 0;
+  }
+
+  /**
+   * Remove one part's collider — a drop target breaking. The geometry stays in
+   * `features` so the renderer can animate it away. Never call this from
+   * inside a contact callback; the game layer calls it after `step()` returns.
+   */
+  removeFeaturePart(feature: number, part: number): void {
+    const c = this.featureColliders[feature]?.[part];
+    if (!c) return;
+    this.colliderToFeature.delete(c.handle);
+    this.world.removeCollider(c, false);
+    this.featureColliders[feature]![part] = null;
+  }
+
+  /** Pegs sitting too close to any part of `feature` to leave a ball a path. */
+  pegsUnderFeature(feature: number): number[] {
+    const f = this.features[feature];
+    if (!f) return [];
+    const out: number[] = [];
+    for (const p of this.pegs) {
+      for (const part of f.parts) {
+        const extent = part.r ?? Math.hypot((part.w ?? 0) / 2, (part.h ?? 0) / 2);
+        if (Math.hypot(p.x - part.x, p.y - part.y) < extent + p.radius + FEATURE_CLEARANCE) {
+          out.push(p.id);
+          break;
+        }
+      }
+    }
+    return out;
+  }
+
   // --- balls ---------------------------------------------------------------
 
   /** Drop a ball from above the board. `x` defaults to the drop stream. */
@@ -324,6 +411,12 @@ export class Sim {
       if (peg !== undefined) {
         const v = this.balls.get(ballId)?.linvel() ?? { x: 0, y: 0 };
         out.push({ type: "pegHit", ball: ballId, peg, speed: Math.hypot(v.x, v.y) });
+        return;
+      }
+      const hitPart = this.colliderToFeature.get(other);
+      if (hitPart !== undefined) {
+        const v = this.balls.get(ballId)?.linvel() ?? { x: 0, y: 0 };
+        out.push({ type: "featureHit", ball: ballId, feature: hitPart.feature, part: hitPart.part, speed: Math.hypot(v.x, v.y) });
         return;
       }
       if (this.wallHandles.has(other)) out.push({ type: "wallHit", ball: ballId });
