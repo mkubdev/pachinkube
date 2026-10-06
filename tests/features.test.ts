@@ -324,18 +324,31 @@ describe("drop target scoring", () => {
 });
 
 describe("features are part of the replay", () => {
-  it("two runs with the same seed and charms hash identically every tick", async () => {
-    const a = await make("feat-det", "target_bank", "drop_target");
-    const b = await make("feat-det", "target_bank", "drop_target");
+  it("two runs with the same seed and charms hash identically every tick, including a feature hit", async () => {
+    // Seed "feat-hitme" places the drop_target anchor at board-centre
+    // (x=0, y=1.5); a ball dropped from x=1.8 caroms off the peg field and
+    // strikes it at tick 405 (verified by tracing the trajectory), well
+    // inside this window. Unlike the original seed/drop ("feat-det", 0.4),
+    // which never touches a feature in 600 ticks, this one actually
+    // exercises a feature collision — the thing this test claims to cover.
+    const a = await make("feat-hitme", "target_bank", "drop_target");
+    const b = await make("feat-hitme", "target_bank", "drop_target");
     a.bag[0] = "steel";
     b.bag[0] = "steel";
-    a.drop(0.4);
-    b.drop(0.4);
+    a.drop(1.8);
+    b.drop(1.8);
+    let hitsA = 0;
+    let hitsB = 0;
     for (let t = 0; t < 600; t++) {
-      a.step();
-      b.step();
+      for (const e of a.step()) if (e.type === "featureHit") hitsA++;
+      for (const e of b.step()) if (e.type === "featureHit") hitsB++;
       expect(a.sim.hash(), `tick ${t}`).toBe(b.sim.hash());
     }
+    // Self-policing: if a future change makes the ball miss the feature,
+    // this test must fail loudly instead of silently reverting to proving
+    // only plain drop physics (already covered by determinism.test.ts).
+    expect(hitsA, "no feature hit occurred in the hashed window").toBeGreaterThan(0);
+    expect(hitsA).toBe(hitsB);
   });
 
   it("no feature part overlaps a pocket divider or the walls", async () => {
