@@ -70,6 +70,7 @@ export class Sim {
   private readonly colliderToBall = new Map<number, number>();
   private readonly colliderToPeg = new Map<number, number>();
   private readonly pegColliders: RAPIER.Collider[] = [];
+  private readonly pegEnabled: boolean[] = [];
   private readonly pegRow: number[] = [];
   /** Board features placed this round; a feature's `id` is its index here. */
   readonly features: BoardFeature[] = [];
@@ -650,6 +651,18 @@ export class Sim {
     if (!c) return;
     c.setRadius(on ? BUMPER_RADIUS : this.config.pegRadius);
     c.setRestitution(on ? BUMPER_RESTITUTION : this.config.restitution);
+  }
+
+  /** Switch a peg's collider off (a feature sits on it) or back on. */
+  setPegEnabled(peg: number, on: boolean): void {
+    const c = this.pegColliders[peg];
+    if (!c) return;
+    c.setEnabled(on);
+    this.pegEnabled[peg] = on;
+  }
+
+  pegIsEnabled(peg: number): boolean {
+    return this.pegEnabled[peg] !== false;
   }
 
   /** Shove a ball straight away from a point (bumper pop), `strength` in m/s. */

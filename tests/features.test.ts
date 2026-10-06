@@ -67,3 +67,25 @@ describe("Sim.addFeature", () => {
     sim2.dispose();
   });
 });
+
+describe("pegs under a feature", () => {
+  it("finds the overlapped pegs and a disabled peg stops reporting hits", async () => {
+    const sim = await Sim.create({ seed: "feat-pegs" });
+    // Anchor the bank right on a mid-field peg.
+    const target = sim.pegs[30]!;
+    sim.addFeature("target_bank", target.x, target.y);
+    const under = sim.pegsUnderFeature(0);
+    expect(under).toContain(target.id);
+
+    for (const id of under) sim.setPegEnabled(id, false);
+    expect(sim.pegIsEnabled(target.id)).toBe(false);
+    sim.spawnBall({ x: target.x, y: target.y + 2 });
+    let pegHits = 0;
+    for (let t = 0; t < 240; t++) for (const e of sim.step()) if (e.type === "pegHit" && under.includes(e.peg)) pegHits++;
+    expect(pegHits).toBe(0);
+
+    for (const id of under) sim.setPegEnabled(id, true);
+    expect(sim.pegIsEnabled(target.id)).toBe(true);
+    sim.dispose();
+  });
+});
