@@ -488,6 +488,24 @@ function simStep(): void {
         view.addShake(0.15);
         audio.mult();
         break;
+      case "features":
+        view.setFeatures(e.list);
+        view.setPegsHidden(e.disabled);
+        break;
+      case "featureHit":
+        if (e.kind === "target_bank" && e.fresh) view.litFeaturePart(e.feature, e.part);
+        view.fx.burst(e.x, e.y, 0x2de2ff, 14, 3.5, 0.14, 0.4);
+        view.kickBloom(0.25);
+        audio.peg(1, e.fresh);
+        break;
+      case "featureDone":
+        if (e.kind === "drop_target") view.breakFeaturePart(e.feature, 0);
+        view.fx.ring(e.x, e.y, 0xffd34d, 1.3, 0.4);
+        view.shock(e.x, e.y, 0.5);
+        view.kickBloom(0.8);
+        ui.flash("#2de2ff", 0.25);
+        audio.mult();
+        break;
       case "comboEvent": {
         ui.banner(e.label);
         view.kickBloom(1.2);

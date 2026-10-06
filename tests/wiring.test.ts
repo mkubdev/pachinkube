@@ -28,7 +28,7 @@ describe("main.ts wiring", () => {
   });
 
   it("handles every presentation-relevant game event", () => {
-    for (const c of ["pegLit", "pegHit", "zap", "fx", "combo", "comboEnd", "ballScored", "shake", "popup", "retry", "cleared", "pegElement", "element", "charmExpired", "pockets", "comboEvent", "comboEventEnd", "portal"]) {
+    for (const c of ["pegLit", "pegHit", "zap", "fx", "combo", "comboEnd", "ballScored", "shake", "popup", "retry", "cleared", "pegElement", "element", "charmExpired", "pockets", "comboEvent", "comboEventEnd", "portal", "features", "featureHit", "featureDone"]) {
       expect(main, `case "${c}"`).toMatch(new RegExp(`case "${c}"`));
     }
     for (const k of ["bomb", "bullseye", "prism", "finale", "split", "revive", "overflow", "metal"]) {
@@ -55,6 +55,13 @@ describe("main.ts wiring", () => {
     expect(main).toMatch(/case "bumpers"/);
     expect(main).toMatch(/case "bumper"/);
     expect(main).toMatch(/view\.setPegBumpers\(e\.pegs\)/);
+    expect(main).toMatch(/case "features"/);
+    expect(main).toMatch(/case "featureHit"/);
+    expect(main).toMatch(/case "featureDone"/);
+    expect(main).toMatch(/view\.setFeatures\(e\.list\)/);
+    expect(main).toMatch(/view\.setPegsHidden\(e\.disabled\)/);
+    expect(main).toMatch(/view\.litFeaturePart\(/);
+    expect(main).toMatch(/view\.breakFeaturePart\(/);
     expect((main.match(/view\.setFins\(run\.sim\.fins\)/g) ?? []).length).toBeGreaterThanOrEqual(2);
     expect(main).toMatch(/run\.sim\.dropLimit/);
     expect(main).toMatch(/new ResizeObserver/);
